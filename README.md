@@ -1,6 +1,6 @@
 # ManuCMMS
 
-Sistema corporativo de gestão de manutenção de ativos (CMMS), com IoT, conforme especificação em `V2.ManuCMMS PDSOB_PDSCOB 2026 - AESA-CESA.md`.
+Sistema corporativo de gestão de manutenção de ativos (CMMS), com IoT.
 
 - **Documentação de engenharia:** [CONTEXT.MD](CONTEXT.MD) e pasta [docs/](docs/).
 - **Repositório remoto:** [github.com/maykonzx7/ManuCMMS](https://github.com/maykonzx7/ManuCMMS)
