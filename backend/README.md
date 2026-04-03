@@ -14,4 +14,6 @@ src/
 └── main.ts
 ```
 
-Instruções de execução e clone estão no [README da raiz](../README.md).
+Instruções de execução, **Docker Compose** e clone estão no [README da raiz](../README.md).
+
+Variáveis da API: copie [`.env.example`](.env.example) para `backend/.env` (valores alinhados ao `docker-compose.yml` da raiz).
