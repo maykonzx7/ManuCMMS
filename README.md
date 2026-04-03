@@ -54,6 +54,10 @@ npm run start:dev
 
 Por padrão a API escuta na porta **3000** (ou a variável `PORT`). Raiz HTTP: `GET /` retorna mensagem de status do projeto.
 
+### Supabase Auth (**NF-02**)
+
+Configure `SUPABASE_URL` e `SUPABASE_JWT_SECRET` em `backend/.env` (valores no **Dashboard do projeto** → *Settings* → *API*). O frontend obtém o access token com o client Supabase; a API valida o **Bearer JWT** (HS256, issuer `/auth/v1`, audience `authenticated`). Rota de exemplo protegida: `GET /me`.
+
 ### Health check (**NF-04**)
 
 Com Docker no ar e `backend/.env` configurado:

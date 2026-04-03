@@ -10,7 +10,8 @@ src/
 ├── infrastructure/   # Implementações: health checks, Prisma/TypeORM, MongoDB, RabbitMQ
 │   └── health/       # Indicadores PostgreSQL, MongoDB, RabbitMQ (Terminus)
 ├── presentation/     # Adaptadores inbound (HTTP, futuramente WebSocket, consumers)
-│   └── http/         # AppController, HealthController → GET /health
+│   ├── auth/         # Supabase JWT (Passport), guard global, @Public()
+│   └── http/         # AppController, HealthController, MeController
 ├── app.module.ts
 └── main.ts
 ```

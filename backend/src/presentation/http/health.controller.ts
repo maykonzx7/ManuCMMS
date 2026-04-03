@@ -3,6 +3,7 @@ import { HealthCheck, HealthCheckService } from '@nestjs/terminus';
 import { PostgresHealthIndicator } from '../../infrastructure/health/postgres-health.indicator';
 import { MongoHealthIndicator } from '../../infrastructure/health/mongo-health.indicator';
 import { RabbitmqHealthIndicator } from '../../infrastructure/health/rabbitmq-health.indicator';
+import { Public } from '../auth/public.decorator';
 
 /**
  * NF-04 — health checks dos serviços de infraestrutura.
@@ -16,6 +17,7 @@ export class HealthController {
     private readonly rabbitmqHealth: RabbitmqHealthIndicator,
   ) {}
 
+  @Public()
   @Get()
   @HealthCheck()
   check() {
