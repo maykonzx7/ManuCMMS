@@ -71,7 +71,7 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 
 | Data | Tema | Decisão | Impacto em RF/NF/RN |
 | ---- | ---- | ------- | --------------------- |
-| _—_ | ORM | DEM cita **Prisma** ou **TypeORM** — escolher um e registrar aqui. | Manutenção do schema, migrações. |
+| 2026-04-03 | ORM | **Prisma 5** no backend (`prisma/schema.prisma`, migrações versionadas). | RF-01 base, unidade/usuário. |
 | 2026-04-03 | Persistência dual | **PostgreSQL** (Supabase): dados transacionais do DEM — Unidade, Usuario (perfil), Ativo, OrdemServico, extensões RN-06/RN-07. **MongoDB**: trilha de auditoria (**RN-04**, **NF-05**), coleção alinhada ao dicionário `LogAuditoria` (campos equivalentes em documento BSON). Dois adaptadores na infra; porta `IAuditLog` só Mongo; repositórios de negócio em SQL. | NF-05, RN-04, RF-14, RN-12; health check deve validar os dois backends. |
 | _—_ | Estoque (**RN-07**) | Regra “importante”; pode exigir entidade `Peça`/`Estoque` não detalhada no DEM mínimo — modelar extensão. | RN-07, RF-07 fechamento. |
 | _—_ | Autenticação do dispositivo IoT | POST de leitura exige API key, mTLS ou segredo por ativo; documentar em [07-API-REST-E-CONTRATOS.md](07-API-REST-E-CONTRATOS.md). | NF-02, RF-06 |
@@ -89,3 +89,4 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 | 2026-04-03 | Decisão: uso **simultâneo** de PostgreSQL (transacional) e MongoDB (auditoria). |
 | 2026-04-03 | CI GitHub Actions: `.github/workflows/ci-backend.yml` (lint, build, test, e2e). |
 | 2026-04-03 | **Supabase Auth:** validação JWT (HS256) no Nest; guard global + `@Public()`; `GET /me`. |
+| 2026-04-03 | **Prisma:** `UnidadeFabril`, `Usuario` (`auth_sub`); seed Matriz; `GET /unidades`; CI com serviços Docker. |

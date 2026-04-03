@@ -90,9 +90,24 @@ git push -u origin main
 
 Se o remoto já existir com histórico, use `git remote set-url origin ...` em vez de `add`.
 
+## Banco de dados (Prisma)
+
+Na pasta `backend/`:
+
+```bash
+# com Docker Compose (Postgres) no ar
+cd backend
+npx prisma migrate deploy
+npx prisma db seed   # cria unidade "Matriz" se a tabela estiver vazia
+```
+
+Scripts: `npm run prisma:migrate`, `npm run prisma:deploy`, `npm run prisma:seed`. O **build** da API inclui `prisma generate`.
+
+Teste e2e com lista de unidades (integração): `RUN_DB_E2E=1 npm run test:e2e` no `backend/` com Postgres migrado e seed.
+
 ## CI (GitHub Actions)
 
-No **push** ou **pull request** para `main`, o workflow [`.github/workflows/ci-backend.yml`](.github/workflows/ci-backend.yml) executa no backend: `npm ci`, **lint**, **build**, **testes unitários** e **e2e** (não exige Docker no runner).
+No **push** ou **pull request** para `main`, o workflow [`.github/workflows/ci-backend.yml`](.github/workflows/ci-backend.yml) sobe **Postgres, Mongo e RabbitMQ** como serviços, executa **Prisma migrate deploy** e **seed**, depois **lint**, **build** e **testes** (inclui e2e com `/unidades`).
 
 ## Próximos passos
 

@@ -1,5 +1,5 @@
-# ManuCMMS — CI do backend (fase 0.4)
-# Dispara em push e PR na branch main.
+# ManuCMMS — CI do backend
+# Postgres + Mongo + RabbitMQ para health e2e; Prisma migrate + seed para /unidades.
 
 name: Backend CI
 
@@ -16,6 +16,53 @@ concurrency:
 jobs:
   build-lint-test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: manucmms
+          POSTGRES_PASSWORD: manucmms_dev
+          POSTGRES_DB: manucmms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U manucmms -d manucmms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval \"db.runCommand({ ping: 1 })\""
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 10
+
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: manucmms
+          RABBITMQ_DEFAULT_PASS: manucmms_dev
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://manucmms:manucmms_dev@localhost:5432/manucmms
+      MONGODB_URI: mongodb://localhost:27017/manucmms
+      RABBITMQ_URL: amqp://manucmms:manucmms_dev@localhost:5672/
+      SUPABASE_JWT_SECRET: test-jwt-secret-for-automated-tests-min-32-chars
+      SUPABASE_URL: https://test-project-ref.supabase.co
+
     defaults:
       run:
         working-directory: backend
@@ -33,6 +80,12 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Prisma migrate
+        run: npx prisma migrate deploy
+
+      - name: Prisma seed
+        run: npx prisma db seed
 
       - name: ESLint
         run: npm run lint

@@ -3,12 +3,15 @@
 API em **NestJS** + **TypeScript**, organização alinhada à **arquitetura hexagonal**:
 
 ```
+prisma/               # Schema, migrações, seed (Unidade Matriz em dev)
 src/
-├── domain/           # Entidades, value objects, portas (interfaces) — sem dependência de framework
-│   └── ports/        # Contratos outbound (ex.: repositórios, audit log)
-├── application/      # Casos de uso, orquestração, serviços de aplicação
-├── infrastructure/   # Implementações: health checks, Prisma/TypeORM, MongoDB, RabbitMQ
-│   └── health/       # Indicadores PostgreSQL, MongoDB, RabbitMQ (Terminus)
+├── domain/           # Entidades, portas — sem dependência de framework
+│   ├── entities/
+│   └── ports/        # ex.: IUnidadeReadPort
+├── application/      # Casos de uso (ex.: ListUnidadesUseCase)
+├── infrastructure/   # Prisma, health checks, MongoDB, RabbitMQ
+│   ├── persistence/  # PrismaService, PrismaUnidadeRepository
+│   └── health/
 ├── presentation/     # Adaptadores inbound (HTTP, futuramente WebSocket, consumers)
 │   ├── auth/         # Supabase JWT (Passport), guard global, @Public()
 │   └── http/         # AppController, HealthController, MeController

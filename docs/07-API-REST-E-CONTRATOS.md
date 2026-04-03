@@ -21,7 +21,7 @@ Complementa o que o sumário do relatório agrupa em **5.2.8 APIs e Integraçõe
 | ------- | ------- | ------------------- | --- |
 | Sistema | `/health` | GET — PostgreSQL, MongoDB, RabbitMQ (**implementado**) | NF-04 |
 | IAM | `/me` | GET — usuário do JWT (**Bearer** Supabase Auth) (**implementado**) | RF-02, NF-02 |
-| Unidades | `/unidades` | GET (lista restrita), POST/PUT (Admin) | Implícito IAM |
+| Unidades | `/unidades` | GET lista (**JWT**; implementado) — POST/PUT Admin em entrega futura | RF-03, RN-08 |
 | Usuários | `/usuarios` | CRUD + inativação | RF-01, RF-16 |
 | Ativos | `/ativos` | CRUD + histórico aninhado | RF-04, RF-17 |
 | OS | `/ordens-servico` | CRUD, transições de status, fechamento | RF-05, RF-07, RF-20 |

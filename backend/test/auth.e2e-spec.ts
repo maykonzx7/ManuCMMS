@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import * as jwt from 'jsonwebtoken';
 import { AppModule } from '../src/app.module';
+import { signTestJwt } from './helpers/sign-test-jwt';
 
 describe('Supabase JWT (e2e)', () => {
   let app: INestApplication<App>;
@@ -21,25 +21,6 @@ describe('Supabase JWT (e2e)', () => {
     await app.close();
   });
 
-  function signTestUserToken(): string {
-    const secret = process.env.SUPABASE_JWT_SECRET!;
-    const url = process.env.SUPABASE_URL!.replace(/\/$/, '');
-    return jwt.sign(
-      {
-        sub: '00000000-0000-4000-8000-000000000001',
-        email: 'teste@manucmms.local',
-        role: 'authenticated',
-      },
-      secret,
-      {
-        algorithm: 'HS256',
-        issuer: `${url}/auth/v1`,
-        audience: 'authenticated',
-        expiresIn: '15m',
-      },
-    );
-  }
-
   it('GET /me sem Authorization retorna 401', () => {
     return request(app.getHttpServer()).get('/me').expect(401);
   });
@@ -52,7 +33,10 @@ describe('Supabase JWT (e2e)', () => {
   });
 
   it('GET /me com JWT assinado como Supabase retorna 200 e claims', async () => {
-    const token = signTestUserToken();
+    const token = signTestJwt({
+      sub: '00000000-0000-4000-8000-000000000001',
+      email: 'teste@manucmms.local',
+    });
     const res = await request(app.getHttpServer())
       .get('/me')
       .set('Authorization', `Bearer ${token}`)
