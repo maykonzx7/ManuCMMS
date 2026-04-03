@@ -54,6 +54,23 @@ npm run start:dev
 
 Por padrão a API escuta na porta **3000** (ou a variável `PORT`). Raiz HTTP: `GET /` retorna mensagem de status do projeto.
 
+### Health check (**NF-04**)
+
+Com Docker no ar e `backend/.env` configurado:
+
+```bash
+curl -s http://localhost:3000/health
+```
+
+Resposta **200** com `status: "ok"` e `postgres`, `mongodb`, `rabbitmq` em `up` quando os três serviços respondem. **503** se algum falhar ou variável de conexão estiver ausente.
+
+Validar só os containers:
+
+```bash
+docker compose ps
+# Esperado: (healthy) em cada serviço
+```
+
 Outros scripts úteis: `npm run build`, `npm run test`, `npm run test:e2e`, `npm run lint`.
 
 ## Git — primeiro push (repositório vazio no GitHub)
@@ -71,7 +88,6 @@ Se o remoto já existir com histórico, use `git remote set-url origin ...` em v
 
 ## Próximos passos (fase 0)
 
-- `GET /health` com checagem de PostgreSQL, MongoDB e RabbitMQ.
-- CI com GitHub Actions.
+- CI com GitHub Actions (build, lint, testes).
 
 Ver [docs/00-PLANO-MAESTRO.md](docs/00-PLANO-MAESTRO.md) e [docs/05-CRONOGRAMA-E-FASES.md](docs/05-CRONOGRAMA-E-FASES.md).

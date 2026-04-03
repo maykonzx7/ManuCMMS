@@ -7,9 +7,10 @@ src/
 ├── domain/           # Entidades, value objects, portas (interfaces) — sem dependência de framework
 │   └── ports/        # Contratos outbound (ex.: repositórios, audit log)
 ├── application/      # Casos de uso, orquestração, serviços de aplicação
-├── infrastructure/   # Implementações: Prisma/TypeORM, MongoDB, RabbitMQ, clientes HTTP
+├── infrastructure/   # Implementações: health checks, Prisma/TypeORM, MongoDB, RabbitMQ
+│   └── health/       # Indicadores PostgreSQL, MongoDB, RabbitMQ (Terminus)
 ├── presentation/     # Adaptadores inbound (HTTP, futuramente WebSocket, consumers)
-│   └── http/
+│   └── http/         # AppController, HealthController → GET /health
 ├── app.module.ts
 └── main.ts
 ```
