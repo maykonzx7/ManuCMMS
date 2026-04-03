@@ -87,3 +87,4 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 | 2026-04-03 | Criação do plano maestro e pacote inicial de documentação em `docs/`. |
 | 2026-04-03 | Acrescentados DEI, API/contratos, testes/NF, infra/backup, manual (esqueleto), modelo estendido e BPMN narrativo (`06`–`11`). |
 | 2026-04-03 | Decisão: uso **simultâneo** de PostgreSQL (transacional) e MongoDB (auditoria). |
+| 2026-04-03 | CI GitHub Actions: `.github/workflows/ci-backend.yml` (lint, build, test, e2e). |

@@ -57,8 +57,8 @@ Cada serviço exposto deve oferecer:
 
 ## 6. CI/CD (mitigação de risco DDE)
 
-- Pipeline: install → lint → test → build.
-- Deploy automático para homologação em branch definida (ex.: `main`), com secrets no GitHub.
+- **CI implementado:** [`.github/workflows/ci-backend.yml`](../.github/workflows/ci-backend.yml) — em cada push/PR em `main`: `npm ci` → lint → build → testes unitários → e2e (sem serviços Docker no runner; testes e2e atuais não dependem de Postgres/Mongo/Rabbit no CI).
+- Deploy automático para homologação (Vercel/Railway): configurar depois com secrets no GitHub.
 - Falha de deploy não deve apagar dados; usar migrações reversíveis quando possível.
 
 ---

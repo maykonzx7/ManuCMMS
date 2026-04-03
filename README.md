@@ -86,8 +86,10 @@ git push -u origin main
 
 Se o remoto já existir com histórico, use `git remote set-url origin ...` em vez de `add`.
 
-## Próximos passos (fase 0)
+## CI (GitHub Actions)
 
-- CI com GitHub Actions (build, lint, testes).
+No **push** ou **pull request** para `main`, o workflow [`.github/workflows/ci-backend.yml`](.github/workflows/ci-backend.yml) executa no backend: `npm ci`, **lint**, **build**, **testes unitários** e **e2e** (não exige Docker no runner).
 
-Ver [docs/00-PLANO-MAESTRO.md](docs/00-PLANO-MAESTRO.md) e [docs/05-CRONOGRAMA-E-FASES.md](docs/05-CRONOGRAMA-E-FASES.md).
+## Próximos passos
+
+- Fase 1: IAM (Supabase), modelo de unidade fabril e RBAC — ver [docs/00-PLANO-MAESTRO.md](docs/00-PLANO-MAESTRO.md) e [docs/05-CRONOGRAMA-E-FASES.md](docs/05-CRONOGRAMA-E-FASES.md).
