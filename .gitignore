@@ -1,0 +1,31 @@
+# Dependências e build
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Ambiente (nunca commitar segredos)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs e caches
+logs/
+*.log
+npm-debug.log*
+.pnpm-debug.log*
+
+# SO e IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# Testes / temporários
+tmp/
+temp/
+.cache/
