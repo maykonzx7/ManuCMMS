@@ -10,7 +10,9 @@ export function signTestJwt(payload: {
   return jwt.sign(
     {
       sub: payload.sub,
-      email: payload.email ?? 'teste@manucmms.local',
+      email:
+        payload.email ??
+        `e2e-${payload.sub.replace(/-/g, '').slice(0, 12)}@manucmms.local`,
       role: payload.role ?? 'authenticated',
     },
     secret,

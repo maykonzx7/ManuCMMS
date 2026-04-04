@@ -5,6 +5,7 @@ import { AuditModule } from './infrastructure/audit/audit.module';
 import { PrismaModule } from './infrastructure/persistence/prisma.module';
 import { AuthModule } from './presentation/auth/auth.module';
 import { JwtAuthGuard } from './presentation/auth/jwt-auth.guard';
+import { UsuarioBootstrapGuard } from './presentation/auth/usuario-bootstrap.guard';
 import { PresentationModule } from './presentation/presentation.module';
 
 @Module({
@@ -19,10 +20,8 @@ import { PresentationModule } from './presentation/presentation.module';
     PresentationModule,
   ],
   providers: [
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    { provide: APP_GUARD, useExisting: JwtAuthGuard },
+    { provide: APP_GUARD, useExisting: UsuarioBootstrapGuard },
   ],
 })
 export class AppModule {}

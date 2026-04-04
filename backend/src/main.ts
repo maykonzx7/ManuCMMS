@@ -1,3 +1,4 @@
+import './presentation/auth/request-augment';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 

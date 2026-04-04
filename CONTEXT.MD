@@ -26,7 +26,8 @@ O backend já **valida JWT** (`SupabaseJwtStrategy`, guard global, `@Public()` e
 
 - Preencher **`SUPABASE_URL`** e **`SUPABASE_JWT_SECRET`** no `backend/.env` com o projeto real (Dashboard → Settings → API); em dev, fallbacks só servem para subir a API sem configurar ainda.
 - **Frontend**: Supabase client (login, refresh, sessão), enviar `Authorization: Bearer` nas chamadas à API.
-- **Domínio / dados**: alinhar **`Usuario.auth_sub`** ao `sub` do JWT após primeiro login; **RBAC por unidade** (**RN-08**); endpoints de administração de usuários (**RF-01**) conforme `docs/`.
+- **Domínio / dados**: o **`UsuarioBootstrapGuard`** cria automaticamente **`public.usuario`** no primeiro request autenticado (`auth_sub` = `sub`, unidade padrão via `AUTH_BOOTSTRAP_UNIDADE_ID` ou primeira unidade). Falta **RN-08** (validar `:unidadeId` contra `usuarioLocal`), **RF-01** e políticas por perfil.
+- **Alternativa no Supabase**: trigger em **`auth.users`** para inserir em `public.usuario` no signup (sem passar pela API); exige SQL no projeto e mesma base.
 
 ## Persistência
 
