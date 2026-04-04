@@ -17,4 +17,14 @@ export class PrismaUnidadeRepository implements IUnidadeReadPort {
       localizacao: r.localizacao,
     }));
   }
+
+  async findById(id: string): Promise<UnidadeListaItem | null> {
+    const r = await this.prisma.unidadeFabril.findUnique({
+      where: { id },
+    });
+    if (!r) {
+      return null;
+    }
+    return { id: r.id, nome: r.nome, localizacao: r.localizacao };
+  }
 }

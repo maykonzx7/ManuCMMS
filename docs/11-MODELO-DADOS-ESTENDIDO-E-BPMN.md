@@ -8,7 +8,7 @@ Fecha lacunas entre o **DEM mínimo** e regras que exigem entidades adicionais; 
 
 | Origem | Necessidade | Proposta de modelagem |
 | ------ | ----------- | --------------------- |
-| **RN-06** | Limite por **grupo** de ativos | Entidade `GrupoAtivo` (id, id_unidade, nome, limite_temp opcional) + N:N `AtivoGrupo` **ou** limite só no ativo na v1 e grupo na v2 — **decidir no plano maestro**. |
+| **RN-06** | Limite por **grupo** de ativos | **Decisão 2026-04-03 (v1):** limite só em **`Ativo.limite_temp`** (default 48 °C). `GrupoAtivo` + `AtivoGrupo` ficam para evolução futura se precisar limite compartilhado. |
 | **RN-07** | Estoque de peças | Entidades `Peca`, `MovimentoEstoque`, vínculo `OrdemServicoPeca` (quantidade consumida). Validação no fechamento da OS. |
 | **RF-05** | Checklist | Entidade `ChecklistTemplate` + `OrdemServicoItemChecklist` (opcional por OS). |
 | **DDE** | Custos e peças para Airtable | Campos de custo na OS ou entidade `CustoOS`; peças via **RN-07** quando existir. |
@@ -77,5 +77,5 @@ Manter diagrama BPMN 2.0 no mesmo tooling do relatório (figura 5) e referenciar
 
 ## 6. Atualização
 
-Decisões de **RN-06** (grupo) e **RN-07** (estoque): mover para “Decisão tomada” no plano maestro com data quando implementadas.  
+**RN-06:** decisão registrada no plano maestro (v1 = limite por ativo). **RN-07** (estoque): mover para “Decisão tomada” no plano maestro com data quando implementada.  
 Alteração no schema de documentos Mongo: versionar e atualizar índices neste arquivo.

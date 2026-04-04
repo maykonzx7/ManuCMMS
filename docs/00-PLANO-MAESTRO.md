@@ -76,7 +76,7 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 | _—_ | Estoque (**RN-07**) | Regra “importante”; pode exigir entidade `Peça`/`Estoque` não detalhada no DEM mínimo — modelar extensão. | RN-07, RF-07 fechamento. |
 | _—_ | Autenticação do dispositivo IoT | POST de leitura exige API key, mTLS ou segredo por ativo; documentar em [07-API-REST-E-CONTRATOS.md](07-API-REST-E-CONTRATOS.md). | NF-02, RF-06 |
 | _—_ | Storage de objetos (800 MB) | Supabase Storage, S3-compatible ou disco em dev; não guardar binário grande no Postgres. | NF-09, RF-10 |
-| _—_ | Grupo de ativos (**RN-06**) | Ver opções em [11-MODELO-DADOS-ESTENDIDO-E-BPMN.md](11-MODELO-DADOS-ESTENDIDO-E-BPMN.md). | RN-06, RF-04 |
+| 2026-04-03 | Limite térmico **RN-06** (v1) | **Só por ativo:** campo `limite_temp` no agregado/tabela `Ativo` (default 48 °C). Entidade `GrupoAtivo` / N:N **não** entra na v1; reavaliar se surgir necessidade de limite compartilhado por conjunto. | RN-06, RF-04 |
 
 ---
 
@@ -90,3 +90,7 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 | 2026-04-03 | CI GitHub Actions: `.github/workflows/ci-backend.yml` (lint, build, test, e2e). |
 | 2026-04-03 | **Supabase Auth:** validação JWT (HS256) no Nest; guard global + `@Public()`; `GET /me`. |
 | 2026-04-03 | **Prisma:** `UnidadeFabril`, `Usuario` (`auth_sub`); seed Matriz; `GET /unidades`; CI com serviços Docker. |
+| 2026-04-03 | **RN-06 v1:** limite térmico apenas no **Ativo**; sem `GrupoAtivo` na primeira modelagem. |
+| 2026-04-03 | **Prisma / API:** modelo `Ativo` (`StatusAtivo`, `limite_temp` default 48); `GET`/`POST` `unidades/:unidadeId/ativos`; seed com ativo dev; migração `20260403230000_ativo`. |
+| 2026-04-03 | **Ordem de serviço:** `TipoOrdemServico`, `StatusOrdemServico`; tabela `ordem_servico` (FK ativo, técnico opcional); `GET`/`POST` `unidades/:unidadeId/ordens-servico`; portas `IUsuarioReadPort`, `IOrdemServicoRepositoryPort`; seed com OS preditiva dev; migração `20260403231000_ordem_servico`. |
+| 2026-04-03 | **Fechamento OS:** `foto_problema`/`foto_solucao` (RN-13); `PATCH .../ordens-servico/:id/fechar` (RN-02, RN-14 — transação OS `CONCLUIDA` + ativo `OPERACIONAL`); migração `20260403232000_ordem_servico_fotos_rn13`. |

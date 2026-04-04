@@ -13,7 +13,7 @@ Matriz viva: atualizar a coluna **Implementação** a cada merge relevante. Regr
 | RN-03 | Dashboard/KPIs: só **Gestor** e **Admin**; técnico só **suas** OS | Essencial | RF-08, RF-03 | IAM policies + query scopes | Pendente |
 | RN-04 | Registros críticos: **quem, quando, valor anterior** (e novo) | Essencial | RF-14, NF-05 | Porta `IAuditLog` → adapter **MongoDB** (sem tabela audit em PostgreSQL) | Pendente |
 | RN-05 | Toda OS **obrigatoriamente** vinculada a ativo existente | Essencial | RF-05 | OrdemServico + factory | Pendente |
-| RN-06 | Limite térmico **configurável** por ativo ou grupo | Importante | RF-04 | Ativo (VO ou entidade filha grupo) | Pendente |
+| RN-06 | Limite térmico **configurável** por ativo ou grupo | Importante | RF-04 | **v1:** `Ativo.limite_temp`; grupo adiado (ver plano maestro) | Pendente (implementar limite no Ativo) |
 | RN-07 | Ao consumir peças, validar **estoque** antes de fechar | Importante | RF-07 | Domain service + agregado Estoque (a modelar) | Pendente |
 | RN-08 | **Isolamento** por unidade fabril; exceção só com autorização matriz | Essencial | RF-03 | Filtro por `id_unidade` em queries e tokens | Pendente |
 | RN-09 | Alerta crítico → notificação **imediata** técnico + supervisor | Essencial | RF-11, RF-06 | Notification adapter pós-evento | Pendente |

@@ -15,13 +15,77 @@ enum PerfilUsuario {
   ADMIN
 }
 
+/// DEM: Operacional, Manutenção, Falha.
+enum StatusAtivo {
+  OPERACIONAL
+  MANUTENCAO
+  FALHA
+}
+
+/// DEM 3.x — tipos de intervenção.
+enum TipoOrdemServico {
+  CORRETIVA
+  PREVENTIVA
+  PREDITIVA
+}
+
+/// DEM — ciclo de vida da OS (fechamento com foto/assinatura: RN-02, implementação futura).
+enum StatusOrdemServico {
+  ABERTA
+  EM_EXECUCAO
+  CONCLUIDA
+  CANCELADA
+}
+
 model UnidadeFabril {
   id          String    @id @default(uuid()) @db.Uuid
   nome        String    @db.VarChar(100)
   localizacao String    @db.VarChar(255)
   usuarios    Usuario[]
+  ativos      Ativo[]
 
   @@map("unidade_fabril")
+}
+
+/// Equipamento monitorado (RF-04); limite térmico por ativo — RN-06 v1.
+model Ativo {
+  id         String         @id @default(uuid()) @db.Uuid
+  idUnidade  String        @map("id_unidade") @db.Uuid
+  unidade    UnidadeFabril  @relation(fields: [idUnidade], references: [id])
+  nome        String        @db.VarChar(100)
+  status      StatusAtivo   @default(OPERACIONAL)
+  limiteTemp  Float         @default(48) @map("limite_temp")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  ordensServico OrdemServico[]
+
+  @@index([idUnidade])
+  @@map("ativo")
+}
+
+/// RF-05 / RF-06 / RF-07; RN-05 (sempre com ativo).
+model OrdemServico {
+  id                 String             @id @default(uuid()) @db.Uuid
+  idAtivo            String             @map("id_ativo") @db.Uuid
+  ativo              Ativo              @relation(fields: [idAtivo], references: [id])
+  idTecnico          String?            @map("id_tecnico") @db.Uuid
+  tecnico            Usuario?           @relation("OsTecnico", fields: [idTecnico], references: [id])
+  tipo               TipoOrdemServico
+  status             StatusOrdemServico @default(ABERTA)
+  descricao          String             @db.Text
+  fotoAnexo          String?            @map("foto_anexo") @db.VarChar(2048)
+  /// RN-13 (OS corretiva): evidência do defeito.
+  fotoProblema       String?            @map("foto_problema") @db.VarChar(2048)
+  /// RN-13 (OS corretiva): evidência da correção.
+  fotoSolucao        String?            @map("foto_solucao") @db.VarChar(2048)
+  assinaturaDigital  String?            @map("assinatura_digital") @db.Text
+  dataAbertura       DateTime           @default(now()) @map("data_abertura")
+  dataFechamento     DateTime?          @map("data_fechamento")
+
+  @@index([idAtivo])
+  @@index([idTecnico])
+  @@map("ordem_servico")
 }
 
 /// Perfil corporativo local; autenticação fica no Supabase (`auth_sub` = JWT `sub`).
@@ -35,6 +99,8 @@ model Usuario {
   perfil     PerfilUsuario
   createdAt  DateTime        @default(now()) @map("created_at")
   updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  ordensComoTecnico OrdemServico[] @relation("OsTecnico")
 
   @@map("usuario")
 }

@@ -20,6 +20,14 @@ Este repositório contém o relatório fonte (`V2.ManuCMMS PDSOB_PDSCOB 2026 - A
 11. [docs/10-MANUAL-DO-USUARIO-ESQUELETO.md](docs/10-MANUAL-DO-USUARIO-ESQUELETO.md) — estrutura do manual por perfil (entregável DDE §6).  
 12. [docs/11-MODELO-DADOS-ESTENDIDO-E-BPMN.md](docs/11-MODELO-DADOS-ESTENDIDO-E-BPMN.md) — RN-06/RN-07, ORM, auditoria, narrativa BPMN.
 
+## Lembrete — Auth Supabase (a completar depois)
+
+O backend já **valida JWT** (`SupabaseJwtStrategy`, guard global, `@Public()` em rotas abertas). O que **falta para auth funcional de ponta a ponta**:
+
+- Preencher **`SUPABASE_URL`** e **`SUPABASE_JWT_SECRET`** no `backend/.env` com o projeto real (Dashboard → Settings → API); em dev, fallbacks só servem para subir a API sem configurar ainda.
+- **Frontend**: Supabase client (login, refresh, sessão), enviar `Authorization: Bearer` nas chamadas à API.
+- **Domínio / dados**: alinhar **`Usuario.auth_sub`** ao `sub` do JWT após primeiro login; **RBAC por unidade** (**RN-08**); endpoints de administração de usuários (**RF-01**) conforme `docs/`.
+
 ## Persistência
 
 - **PostgreSQL** (Supabase): dados transacionais do CMMS.  
