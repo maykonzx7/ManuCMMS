@@ -37,12 +37,18 @@ async function main() {
       where: { idAtivo: ativoDev.id },
     });
     if (osNoAtivo === 0) {
-      await prisma.ordemServico.create({
-        data: {
-          idAtivo: ativoDev.id,
-          tipo: 'PREDITIVA',
-          descricao: 'Monitoramento térmico — seed dev',
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.ordemServico.create({
+          data: {
+            idAtivo: ativoDev.id,
+            tipo: 'PREDITIVA',
+            descricao: 'Monitoramento térmico — seed dev',
+          },
+        });
+        await tx.ativo.update({
+          where: { id: ativoDev.id },
+          data: { status: 'MANUTENCAO' },
+        });
       });
     }
   }

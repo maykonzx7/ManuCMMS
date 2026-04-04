@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { CancelarOrdemServicoUseCase } from '../../application/ordens-servico/cancelar-ordem-servico.use-case';
 import { CreateOrdemServicoUseCase } from '../../application/ordens-servico/create-ordem-servico.use-case';
 import { FecharOrdemServicoUseCase } from '../../application/ordens-servico/fechar-ordem-servico.use-case';
+import { IniciarExecucaoOrdemServicoUseCase } from '../../application/ordens-servico/iniciar-execucao-ordem-servico.use-case';
 import { ListOrdensServicoByUnidadeUseCase } from '../../application/ordens-servico/list-ordens-servico-by-unidade.use-case';
 
 type CreateOrdemServicoBody = {
@@ -18,8 +20,8 @@ type FecharOrdemServicoBody = {
 };
 
 /**
- * OS por unidade (via ativo — RN-05). Fechamento: RN-02, RN-13, RN-14.
- * RN-08: restringir `unidadeId` ao JWT nas próximas entregas.
+ * OS por unidade (RN-05, RN-10). Iniciar execução, cancelar, fechar (RN-02/13/14).
+ * Auditoria Mongo em criar/fechar/cancelar/iniciar (RN-04). RN-08: JWT + unidade depois.
  */
 @Controller('unidades/:unidadeId/ordens-servico')
 export class OrdensServicoController {
@@ -27,6 +29,8 @@ export class OrdensServicoController {
     private readonly listOrdens: ListOrdensServicoByUnidadeUseCase,
     private readonly createOrdem: CreateOrdemServicoUseCase,
     private readonly fecharOrdem: FecharOrdemServicoUseCase,
+    private readonly iniciarExecucao: IniciarExecucaoOrdemServicoUseCase,
+    private readonly cancelarOrdem: CancelarOrdemServicoUseCase,
   ) {}
 
   @Get()
@@ -40,6 +44,22 @@ export class OrdensServicoController {
     @Body() body: CreateOrdemServicoBody,
   ) {
     return this.createOrdem.execute(unidadeId, body);
+  }
+
+  @Patch(':ordemServicoId/iniciar')
+  iniciar(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+  ) {
+    return this.iniciarExecucao.execute(unidadeId, ordemServicoId);
+  }
+
+  @Patch(':ordemServicoId/cancelar')
+  cancelar(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+  ) {
+    return this.cancelarOrdem.execute(unidadeId, ordemServicoId);
   }
 
   @Patch(':ordemServicoId/fechar')

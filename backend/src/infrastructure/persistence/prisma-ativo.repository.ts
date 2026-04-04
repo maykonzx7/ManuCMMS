@@ -39,6 +39,20 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     return n > 0;
   }
 
+  async getStatusInUnidade(
+    idAtivo: string,
+    idUnidade: string,
+  ): Promise<AtivoListaItem['status'] | null> {
+    const r = await this.prisma.ativo.findFirst({
+      where: { id: idAtivo, idUnidade },
+      select: { status: true },
+    });
+    if (!r) {
+      return null;
+    }
+    return r.status as AtivoListaItem['status'];
+  }
+
   private toListaItem(r: AtivoRow): AtivoListaItem {
     return {
       id: r.id,

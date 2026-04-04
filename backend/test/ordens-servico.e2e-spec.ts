@@ -84,13 +84,12 @@ describe('OrdensServicoController (e2e)', () => {
       const unidades = unidadesRes.body as Array<{ id: string }>;
       const unidadeId = unidades[0].id;
 
-      const ativosRes = await request(app.getHttpServer())
-        .get(`/unidades/${unidadeId}/ativos`)
+      const ativoNovo = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ativos`)
         .set('Authorization', `Bearer ${token}`)
-        .expect(200);
-      const ativos = ativosRes.body as Array<{ id: string }>;
-      expect(ativos.length).toBeGreaterThanOrEqual(1);
-      const idAtivo = ativos[0].id;
+        .send({ nome: `E2E fechar ${Date.now()}` })
+        .expect(201);
+      const idAtivo = (ativoNovo.body as { id: string }).id;
 
       const criar = await request(app.getHttpServer())
         .post(`/unidades/${unidadeId}/ordens-servico`)

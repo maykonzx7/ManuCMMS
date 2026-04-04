@@ -3,8 +3,10 @@ import { TerminusModule } from '@nestjs/terminus';
 import { AppService } from '../application/app.service';
 import { CreateAtivoUseCase } from '../application/ativos/create-ativo.use-case';
 import { ListAtivosByUnidadeUseCase } from '../application/ativos/list-ativos-by-unidade.use-case';
+import { CancelarOrdemServicoUseCase } from '../application/ordens-servico/cancelar-ordem-servico.use-case';
 import { CreateOrdemServicoUseCase } from '../application/ordens-servico/create-ordem-servico.use-case';
 import { FecharOrdemServicoUseCase } from '../application/ordens-servico/fechar-ordem-servico.use-case';
+import { IniciarExecucaoOrdemServicoUseCase } from '../application/ordens-servico/iniciar-execucao-ordem-servico.use-case';
 import { ListOrdensServicoByUnidadeUseCase } from '../application/ordens-servico/list-ordens-servico-by-unidade.use-case';
 import { ListUnidadesUseCase } from '../application/unidades/list-unidades.use-case';
 import { AppController } from './http/app.controller';
@@ -35,6 +37,8 @@ import { RabbitmqHealthIndicator } from '../infrastructure/health/rabbitmq-healt
     ListOrdensServicoByUnidadeUseCase,
     CreateOrdemServicoUseCase,
     FecharOrdemServicoUseCase,
+    IniciarExecucaoOrdemServicoUseCase,
+    CancelarOrdemServicoUseCase,
     PostgresHealthIndicator,
     MongoHealthIndicator,
     RabbitmqHealthIndicator,

@@ -34,4 +34,12 @@ export interface IOrdemServicoRepositoryPort {
   fecharComEvidencias(
     input: FecharOrdemServicoPersistenciaInput,
   ): Promise<OrdemServicoListaItem>;
+  iniciarExecucao(
+    idOrdemServico: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem>;
+  cancelar(
+    idOrdemServico: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem>;
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -76,6 +77,16 @@ export class CreateOrdemServicoUseCase {
     const ativoOk = await this.ativos.existsInUnidade(body.idAtivo, idUnidade);
     if (!ativoOk) {
       throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
+    }
+
+    const statusAtivo = await this.ativos.getStatusInUnidade(
+      body.idAtivo,
+      idUnidade,
+    );
+    if (statusAtivo === 'MANUTENCAO') {
+      throw new ConflictException(
+        'Ativo em manutenção — não é permitida nova OS até encerrar a atual (RN-10)',
+      );
     }
 
     let idTecnico: string | null | undefined = body.idTecnico;

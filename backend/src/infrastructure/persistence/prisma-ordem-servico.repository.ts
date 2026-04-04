@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
+import type { IAuditLogPort } from '../../domain/ports/audit-log.port';
+import { AUDIT_LOG_PORT } from '../../domain/ports/audit-log.port';
 import type {
   CreateOrdemServicoInput,
   FecharOrdemServicoPersistenciaInput,
@@ -16,9 +18,26 @@ type OrdemServicoComAtivoNome = Prisma.OrdemServicoGetPayload<{
   include: typeof includeAtivoNome;
 }>;
 
+function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
+  return {
+    id: o.id,
+    idAtivo: o.idAtivo,
+    status: o.status,
+    tipo: o.tipo,
+    descricao:
+      o.descricao.length > 500 ? `${o.descricao.slice(0, 500)}…` : o.descricao,
+    idTecnico: o.idTecnico,
+    dataAbertura: o.dataAbertura.toISOString(),
+    dataFechamento: o.dataFechamento?.toISOString() ?? null,
+  };
+}
+
 @Injectable()
 export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(AUDIT_LOG_PORT) private readonly auditLog: IAuditLogPort,
+  ) {}
 
   async listByUnidade(idUnidade: string): Promise<OrdemServicoListaItem[]> {
     const rows = await this.prisma.ordemServico.findMany({
@@ -30,18 +49,32 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
   }
 
   async create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem> {
-    const row = await this.prisma.ordemServico.create({
-      data: {
-        idAtivo: input.idAtivo,
-        tipo: input.tipo,
-        descricao: input.descricao,
-        ...(input.idTecnico != null && input.idTecnico !== ''
-          ? { idTecnico: input.idTecnico }
-          : {}),
-      },
-      include: includeAtivoNome,
+    const item = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.ordemServico.create({
+        data: {
+          idAtivo: input.idAtivo,
+          tipo: input.tipo,
+          descricao: input.descricao,
+          ...(input.idTecnico != null && input.idTecnico !== ''
+            ? { idTecnico: input.idTecnico }
+            : {}),
+        },
+        include: includeAtivoNome,
+      });
+      await tx.ativo.update({
+        where: { id: input.idAtivo },
+        data: { status: 'MANUTENCAO' },
+      });
+      return this.toListaItem(row);
     });
-    return this.toListaItem(row);
+    await this.auditLog.append({
+      idUsuario: null,
+      entidadeAfetada: 'OrdemServico',
+      idRegistro: item.id,
+      valorAnterior: {},
+      valorNovo: osParaAuditoria(item),
+    });
+    return item;
   }
 
   async findParaFechamento(idOrdemServico: string, idUnidade: string) {
@@ -72,20 +105,21 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
   async fecharComEvidencias(
     input: FecharOrdemServicoPersistenciaInput,
   ): Promise<OrdemServicoListaItem> {
-    return this.prisma.$transaction(async (tx) => {
+    const anteriorRaw = await this.prisma.$transaction(async (tx) => {
       const atual = await tx.ordemServico.findFirst({
         where: {
           id: input.idOrdemServico,
           status: { in: ['ABERTA', 'EM_EXECUCAO'] },
           ativo: { idUnidade: input.idUnidade },
         },
-        select: { id: true, idAtivo: true },
+        include: includeAtivoNome,
       });
       if (!atual) {
         throw new NotFoundException(
           'Ordem de serviço não encontrada ou já encerrada',
         );
       }
+      const antes = osParaAuditoria(this.toListaItem(atual));
 
       const updated = await tx.ordemServico.update({
         where: { id: atual.id },
@@ -105,8 +139,110 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         data: { status: 'OPERACIONAL' },
       });
 
-      return this.toListaItem(updated);
+      return { item: this.toListaItem(updated), antes };
     });
+
+    const novo = osParaAuditoria(anteriorRaw.item);
+    await this.auditLog.append({
+      idUsuario: null,
+      entidadeAfetada: 'OrdemServico',
+      idRegistro: anteriorRaw.item.id,
+      valorAnterior: anteriorRaw.antes,
+      valorNovo: novo,
+    });
+
+    return anteriorRaw.item;
+  }
+
+  async iniciarExecucao(
+    idOrdemServico: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem> {
+    const out = await this.prisma.$transaction(async (tx) => {
+      const atual = await tx.ordemServico.findFirst({
+        where: {
+          id: idOrdemServico,
+          status: 'ABERTA',
+          ativo: { idUnidade },
+        },
+        include: includeAtivoNome,
+      });
+      if (!atual) {
+        throw new NotFoundException(
+          'Ordem de serviço não encontrada ou não está aberta para execução',
+        );
+      }
+      const antes = osParaAuditoria(this.toListaItem(atual));
+      const updated = await tx.ordemServico.update({
+        where: { id: atual.id },
+        data: { status: 'EM_EXECUCAO' },
+        include: includeAtivoNome,
+      });
+      return { item: this.toListaItem(updated), antes };
+    });
+    await this.auditLog.append({
+      idUsuario: null,
+      entidadeAfetada: 'OrdemServico',
+      idRegistro: out.item.id,
+      valorAnterior: out.antes,
+      valorNovo: osParaAuditoria(out.item),
+    });
+    return out.item;
+  }
+
+  async cancelar(
+    idOrdemServico: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem> {
+    const out = await this.prisma.$transaction(async (tx) => {
+      const atual = await tx.ordemServico.findFirst({
+        where: {
+          id: idOrdemServico,
+          status: { in: ['ABERTA', 'EM_EXECUCAO'] },
+          ativo: { idUnidade },
+        },
+        include: includeAtivoNome,
+      });
+      if (!atual) {
+        throw new NotFoundException(
+          'Ordem de serviço não encontrada ou já encerrada',
+        );
+      }
+      const antes = osParaAuditoria(this.toListaItem(atual));
+      const idAtivo = atual.idAtivo;
+
+      const updated = await tx.ordemServico.update({
+        where: { id: atual.id },
+        data: { status: 'CANCELADA' },
+        include: includeAtivoNome,
+      });
+
+      const outrasAbertas = await tx.ordemServico.count({
+        where: {
+          idAtivo,
+          id: { not: atual.id },
+          status: { in: ['ABERTA', 'EM_EXECUCAO'] },
+        },
+      });
+      if (outrasAbertas === 0) {
+        await tx.ativo.update({
+          where: { id: idAtivo },
+          data: { status: 'OPERACIONAL' },
+        });
+      }
+
+      return { item: this.toListaItem(updated), antes };
+    });
+
+    await this.auditLog.append({
+      idUsuario: null,
+      entidadeAfetada: 'OrdemServico',
+      idRegistro: out.item.id,
+      valorAnterior: out.antes,
+      valorNovo: osParaAuditoria(out.item),
+    });
+
+    return out.item;
   }
 
   private toListaItem(r: OrdemServicoComAtivoNome): OrdemServicoListaItem {
