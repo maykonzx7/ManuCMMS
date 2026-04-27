@@ -33,8 +33,18 @@ export class AuditLogService
       );
       return;
     }
-    this.client = new MongoClient(uri);
-    await this.client.connect();
+    try {
+      this.client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 1000,
+        connectTimeoutMS: 1000,
+      });
+      await this.client.connect();
+    } catch (error) {
+      this.logger.warn(
+        `Nao foi possivel conectar ao MongoDB; auditoria desativada neste ambiente. Motivo: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+      );
+      this.client = null;
+    }
   }
 
   async onModuleDestroy() {

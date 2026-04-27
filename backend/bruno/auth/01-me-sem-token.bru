@@ -1,0 +1,21 @@
+meta {
+  name: GET /me sem token
+  type: http
+  seq: 1
+  tags: [
+    auth
+    smoke
+  ]
+}
+
+get {
+  url: {{host}}/me
+  body: none
+  auth: none
+}
+
+tests {
+  test("deve retornar 401 sem bearer token", function() {
+    expect(res.status).to.equal(401);
+  });
+}

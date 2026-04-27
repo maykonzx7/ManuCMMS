@@ -1,0 +1,260 @@
+:root {
+  color-scheme: light;
+  font-family:
+    "Segoe UI", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #14212b;
+  background: #eef2f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #eef2f4;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-fallback {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.login-page {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, #eef2f4 0%, #e7ecef 100%);
+}
+
+.login-page-row {
+  min-height: calc(100vh - 48px);
+  align-items: stretch;
+}
+
+.login-brand-card,
+.login-form-card {
+  height: 100%;
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgba(24, 37, 47, 0.05);
+}
+
+.login-brand-card {
+  color: #f5f7f9;
+  background: linear-gradient(180deg, #27495b 0%, #1f3846 100%);
+}
+
+.login-form-card {
+  background: #ffffff;
+}
+
+.brand-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #f5f7f9;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.brand-label {
+  display: block;
+  color: rgba(245, 247, 249, 0.78);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.brand-title {
+  max-width: 12ch;
+  margin: 0 0 16px !important;
+  color: #f5f7f9 !important;
+  line-height: 1.05 !important;
+  font-size: clamp(2rem, 3vw, 3.25rem) !important;
+}
+
+.brand-paragraph {
+  max-width: 56ch;
+  margin: 0 !important;
+  color: rgba(245, 247, 249, 0.82) !important;
+  font-size: 1rem;
+}
+
+.brand-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding-inline: 12px;
+  color: #f5f7f9;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.brand-capability-list {
+  display: grid;
+  gap: 12px;
+}
+
+.brand-capability-card {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+.brand-capability-card .ant-card-body {
+  display: grid;
+  gap: 6px;
+}
+
+.brand-capability-card .ant-typography,
+.brand-capability-card p {
+  margin: 0;
+  color: #f5f7f9;
+}
+
+.login-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.antd-form-stack .ant-input-affix-wrapper,
+.antd-form-stack .ant-input {
+  margin-top: 6px;
+}
+
+.app-layout {
+  min-height: 100vh;
+}
+
+.app-sider {
+  border-right: 1px solid #d9e0e4;
+  background: #f7f9fa !important;
+}
+
+.sider-inner {
+  display: grid;
+  height: 100%;
+  align-content: space-between;
+  gap: 20px;
+  padding: 20px 16px;
+}
+
+.sider-brand .ant-typography {
+  margin-bottom: 0;
+}
+
+.sider-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #23485c;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  height: auto;
+  padding: 24px 28px 0;
+  background: transparent;
+}
+
+.app-content {
+  padding: 20px 28px 28px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.loading-block {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+}
+
+.signal-list {
+  display: grid;
+  gap: 10px;
+}
+
+.signal-list-item {
+  padding: 12px 14px;
+  border: 1px solid #edf1f3;
+  border-radius: 12px;
+  background: #fafbfc;
+}
+
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .login-page {
+    padding: 16px;
+  }
+
+  .login-page-row {
+    min-height: auto;
+  }
+
+  .brand-title {
+    max-width: none;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-header {
+    display: grid;
+  }
+
+  .app-header {
+    padding: 18px 18px 0;
+  }
+
+  .app-content {
+    padding: 16px 18px 18px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,34 @@
+meta {
+  name: GET /me com token
+  type: http
+  seq: 2
+  tags: [
+    auth
+    smoke
+  ]
+}
+
+get {
+  url: {{host}}/me
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{auth_token}}
+}
+
+tests {
+  test("deve retornar 200 com bearer token valido", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("deve expor o userId do JWT", function() {
+    expect(res.body.userId).to.equal("00000000-0000-4000-8000-000000000001");
+  });
+
+  test("deve incluir o usuario local bootstrapado", function() {
+    expect(res.body.usuario).to.be.an("object");
+    expect(res.body.usuario.email).to.equal("teste@manucmms.local");
+  });
+}
