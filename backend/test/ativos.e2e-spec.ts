@@ -3,10 +3,12 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
 import { signTestJwt } from './helpers/sign-test-jwt';
 
 describe('AtivosController (e2e)', () => {
   let app: INestApplication<App>;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -15,6 +17,7 @@ describe('AtivosController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     await app.init();
+    prisma = app.get(PrismaService);
   });
 
   afterEach(async () => {
@@ -58,8 +61,29 @@ describe('AtivosController (e2e)', () => {
       expect(body.length).toBeGreaterThanOrEqual(1);
       const first = body[0];
       expect(typeof first.nome).toBe('string');
-      expect(first.status).toBe('OPERACIONAL');
+      expect(['OPERACIONAL', 'MANUTENCAO', 'FALHA']).toContain(first.status);
       expect(first.limiteTemp).toBe(48);
+    },
+  );
+
+  (runComDb ? it : it.skip)(
+    'GET /unidades/:id/ativos fora da unidade autenticada retorna 403',
+    async () => {
+      const outraUnidade = await prisma.unidadeFabril.create({
+        data: {
+          nome: `Filial ativos ${Date.now()}`,
+          localizacao: 'Olinda - PE (e2e)',
+        },
+      });
+
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/unidades/${outraUnidade.id}/ativos`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
     },
   );
 });

@@ -21,6 +21,14 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     return n > 0;
   }
 
+  async listByUnidade(idUnidade: string): Promise<UsuarioLocalContext[]> {
+    const rows = await this.prisma.usuario.findMany({
+      where: { idUnidade },
+      orderBy: [{ nome: 'asc' }, { email: 'asc' }],
+    });
+    return rows.map((row) => this.toLocalContext(row));
+  }
+
   async findByAuthSub(authSub: string): Promise<UsuarioLocalContext | null> {
     const r = await this.prisma.usuario.findUnique({
       where: { authSub },

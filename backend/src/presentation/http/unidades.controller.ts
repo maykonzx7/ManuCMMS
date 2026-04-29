@@ -1,15 +1,16 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.use-case';
 
 /**
- * Listagem de unidades fabris (isolamento RN-08 — escopo por unidade virá nas próximas entregas).
+ * Listagem das unidades visíveis ao usuário autenticado (RN-08 v1: somente a própria unidade).
  */
 @Controller('unidades')
 export class UnidadesController {
   constructor(private readonly listUnidades: ListUnidadesUseCase) {}
 
   @Get()
-  findAll() {
-    return this.listUnidades.execute();
+  findAll(@Req() req: Request) {
+    return this.listUnidades.execute(req.usuarioLocal?.idUnidade);
   }
 }

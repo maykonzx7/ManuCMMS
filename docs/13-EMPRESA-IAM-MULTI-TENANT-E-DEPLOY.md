@@ -508,3 +508,366 @@ Isso pode ser mantido em documento simples de operação ou em coleção de audi
 3. Criar fluxo de `ConviteAcesso` com expiração e aceite seguro.
 4. Separar processo de API e worker no deploy.
 5. Formalizar ambiente de homologação com uso controlado de `ngrok`.
+
+---
+
+## 12. Proposta de schema Prisma
+
+Esta seção traduz o desenho do domínio para uma proposta concreta de `schema.prisma`, preservando os nomes já usados no projeto sempre que possível.
+
+### 12.1 Enums novos
+
+```prisma
+enum StatusEmpresa {
+  ATIVA
+  SUSPENSA
+  INATIVA
+}
+
+enum StatusUsuario {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+}
+
+enum StatusUsuarioEmpresa {
+  ATIVO
+  INATIVO
+  PENDENTE
+}
+
+enum StatusUnidadeFabril {
+  ATIVA
+  INATIVA
+}
+
+enum StatusConviteAcesso {
+  PENDENTE
+  ACEITO
+  EXPIRADO
+  CANCELADO
+}
+```
+
+### 12.2 Estrutura-alvo
+
+```prisma
+model Empresa {
+  id            String           @id @default(uuid()) @db.Uuid
+  nomeEmpresa    String           @map("nome_empresa") @db.VarChar(150)
+  slug          String           @unique @db.VarChar(120)
+  status        StatusEmpresa    @default(ATIVA)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  unidades      UnidadeFabril[]
+  usuariosEmpresa UsuarioEmpresa[]
+  cargos        Cargo[]
+  convites      ConviteAcesso[]
+  ativos        Ativo[]
+  ordensServico OrdemServico[]
+
+  @@map("empresa")
+}
+
+model UnidadeFabril {
+  id            String               @id @default(uuid()) @db.Uuid
+  empresaId     String               @map("empresa_id") @db.Uuid
+  empresa       Empresa              @relation(fields: [empresaId], references: [id])
+  nome          String               @db.VarChar(100)
+  localizacao   String               @db.VarChar(255)
+  status        StatusUnidadeFabril  @default(ATIVA)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  ativos        Ativo[]
+  usuariosCargo UsuarioCargo[]
+
+  @@index([empresaId])
+  @@unique([empresaId, nome])
+  @@map("unidade_fabril")
+}
+
+model Usuario {
+  id              String            @id @default(uuid()) @db.Uuid
+  authSub         String            @unique @map("auth_sub")
+  nome            String            @db.VarChar(150)
+  email           String            @unique @db.VarChar(100)
+  status          StatusUsuario     @default(ATIVO)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  usuariosEmpresa UsuarioEmpresa[]
+  ordensComoTecnico OrdemServico[]  @relation("OsTecnico")
+  convitesCriados ConviteAcesso[]   @relation("ConviteCriadoPor")
+  convitesAceitos ConviteAcesso[]   @relation("ConviteAceitoPor")
+
+  @@map("usuario")
+}
+
+model UsuarioEmpresa {
+  id                     String               @id @default(uuid()) @db.Uuid
+  usuarioId              String               @map("usuario_id") @db.Uuid
+  empresaId              String               @map("empresa_id") @db.Uuid
+  usuario                Usuario              @relation(fields: [usuarioId], references: [id])
+  empresa                Empresa              @relation(fields: [empresaId], references: [id])
+  status                 StatusUsuarioEmpresa @default(ATIVO)
+  isResponsavelPrincipal Boolean              @default(false) @map("is_responsavel_principal")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+
+  cargos                 UsuarioCargo[]
+
+  @@unique([usuarioId, empresaId])
+  @@index([empresaId])
+  @@map("usuario_empresa")
+}
+
+model Cargo {
+  id               String            @id @default(uuid()) @db.Uuid
+  empresaId        String            @map("empresa_id") @db.Uuid
+  empresa          Empresa           @relation(fields: [empresaId], references: [id])
+  codigo           String            @db.VarChar(80)
+  nome             String            @db.VarChar(120)
+  descricao        String?           @db.VarChar(255)
+  nivelHierarquico Int               @map("nivel_hierarquico")
+  isSistema        Boolean           @default(false) @map("is_sistema")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  permissoes       CargoPermissao[]
+  usuariosCargo    UsuarioCargo[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, nivelHierarquico])
+  @@map("cargo")
+}
+
+model Permissao {
+  id          String           @id @default(uuid()) @db.Uuid
+  codigo      String           @unique @db.VarChar(100)
+  nome        String           @db.VarChar(120)
+  descricao   String?          @db.VarChar(255)
+  modulo      String           @db.VarChar(80)
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  cargos      CargoPermissao[]
+
+  @@map("permissao")
+}
+
+model CargoPermissao {
+  cargoId      String    @map("cargo_id") @db.Uuid
+  permissaoId  String    @map("permissao_id") @db.Uuid
+  cargo        Cargo     @relation(fields: [cargoId], references: [id])
+  permissao    Permissao @relation(fields: [permissaoId], references: [id])
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@id([cargoId, permissaoId])
+  @@map("cargo_permissao")
+}
+
+model UsuarioCargo {
+  id               String         @id @default(uuid()) @db.Uuid
+  usuarioEmpresaId String         @map("usuario_empresa_id") @db.Uuid
+  cargoId          String         @map("cargo_id") @db.Uuid
+  idUnidade        String?        @map("id_unidade") @db.Uuid
+  usuarioEmpresa   UsuarioEmpresa @relation(fields: [usuarioEmpresaId], references: [id])
+  cargo            Cargo          @relation(fields: [cargoId], references: [id])
+  unidade          UnidadeFabril? @relation(fields: [idUnidade], references: [id])
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@index([usuarioEmpresaId])
+  @@index([cargoId])
+  @@index([idUnidade])
+  @@map("usuario_cargo")
+}
+
+model ConviteAcesso {
+  id                   String               @id @default(uuid()) @db.Uuid
+  empresaId            String               @map("empresa_id") @db.Uuid
+  emailDestino         String               @map("email_destino") @db.VarChar(100)
+  tokenHash            String               @map("token_hash") @db.VarChar(255)
+  status               StatusConviteAcesso  @default(PENDENTE)
+  expiraEm             DateTime             @map("expira_em")
+  convidadoPorUsuarioId String              @map("convidado_por_usuario_id") @db.Uuid
+  usuarioCriadoId      String?              @map("usuario_criado_id") @db.Uuid
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  empresa              Empresa              @relation(fields: [empresaId], references: [id])
+  convidadoPorUsuario  Usuario              @relation("ConviteCriadoPor", fields: [convidadoPorUsuarioId], references: [id])
+  usuarioCriado        Usuario?             @relation("ConviteAceitoPor", fields: [usuarioCriadoId], references: [id])
+
+  @@index([empresaId, status])
+  @@index([emailDestino])
+  @@map("convite_acesso")
+}
+```
+
+### 12.3 Evolução das tabelas já existentes
+
+As tabelas operacionais centrais devem ganhar `empresa_id`:
+
+```prisma
+model Ativo {
+  id            String         @id @default(uuid()) @db.Uuid
+  empresaId     String         @map("empresa_id") @db.Uuid
+  idUnidade     String         @map("id_unidade") @db.Uuid
+  empresa       Empresa        @relation(fields: [empresaId], references: [id])
+  unidade       UnidadeFabril  @relation(fields: [idUnidade], references: [id])
+  nome          String         @db.VarChar(100)
+  status        StatusAtivo    @default(OPERACIONAL)
+  limiteTemp    Float          @default(48) @map("limite_temp")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  ordensServico OrdemServico[]
+
+  @@index([empresaId, idUnidade])
+  @@map("ativo")
+}
+
+model OrdemServico {
+  id                String              @id @default(uuid()) @db.Uuid
+  empresaId         String              @map("empresa_id") @db.Uuid
+  idAtivo           String              @map("id_ativo") @db.Uuid
+  idTecnico         String?             @map("id_tecnico") @db.Uuid
+  empresa           Empresa             @relation(fields: [empresaId], references: [id])
+  ativo             Ativo               @relation(fields: [idAtivo], references: [id])
+  tecnico           Usuario?            @relation("OsTecnico", fields: [idTecnico], references: [id])
+  tipo              TipoOrdemServico
+  status            StatusOrdemServico  @default(ABERTA)
+  descricao         String              @db.Text
+  fotoAnexo         String?             @map("foto_anexo") @db.VarChar(2048)
+  fotoProblema      String?             @map("foto_problema") @db.VarChar(2048)
+  fotoSolucao       String?             @map("foto_solucao") @db.VarChar(2048)
+  assinaturaDigital String?             @map("assinatura_digital") @db.Text
+  dataAbertura      DateTime            @default(now()) @map("data_abertura")
+  dataFechamento    DateTime?           @map("data_fechamento")
+
+  @@index([empresaId, status, dataAbertura])
+  @@index([idAtivo])
+  @@index([idTecnico])
+  @@map("ordem_servico")
+}
+```
+
+### 12.4 Compatibilidade transitória
+
+Durante a migração, o schema pode manter temporariamente no `Usuario`:
+
+- `id_unidade`
+- `perfil`
+
+Esses campos só devem ser removidos depois que:
+
+- `UsuarioEmpresa` estiver preenchido;
+- `UsuarioCargo` estiver em uso;
+- os casos de uso e controladores tiverem sido migrados para o novo modelo.
+
+---
+
+## 13. Plano de migração do modelo atual
+
+### 13.1 Estado atual
+
+Hoje o núcleo está assim:
+
+- `Usuario` pertence diretamente a uma `UnidadeFabril`;
+- `Usuario.perfil` é enum fixo;
+- `Ativo` e `OrdemServico` não possuem `empresa_id`;
+- o isolamento efetivo ainda é apenas por `id_unidade`.
+
+### 13.2 Estratégia recomendada
+
+Migrar em quatro fases:
+
+1. **Expansão aditiva**
+2. **Backfill dos dados**
+3. **Troca de leitura e escrita da aplicação**
+4. **Endurecimento e remoção do legado**
+
+### 13.3 Fase 1 — expansão aditiva
+
+Objetivo: criar o novo modelo sem quebrar o fluxo atual.
+
+Adicionar:
+
+- tabela `empresa`;
+- `empresa_id` em `unidade_fabril`;
+- `empresa_id` em `ativo`;
+- `empresa_id` em `ordem_servico`;
+- tabelas `usuario_empresa`, `cargo`, `permissao`, `cargo_permissao`, `usuario_cargo`, `convite_acesso`;
+- enums novos de status.
+
+Regras:
+
+- manter `usuario.id_unidade` e `usuario.perfil`;
+- permitir colunas novas nulas apenas durante a fase de transição, se necessário;
+- criar índices e FKs desde o começo sempre que não bloquearem o backfill.
+
+### 13.4 Fase 2 — backfill
+
+Objetivo: popular o novo modelo a partir dos dados existentes.
+
+Passos:
+
+1. criar uma `Empresa` inicial para o conjunto atual, por exemplo `Matriz` ou nome mais adequado de negócio;
+2. vincular toda `UnidadeFabril` existente a essa empresa;
+3. copiar `empresa_id` para `Ativo` com base na unidade;
+4. copiar `empresa_id` para `OrdemServico` com base no ativo;
+5. criar um `UsuarioEmpresa` para cada `Usuario`;
+6. transformar cada `perfil` atual em um `Cargo` padrão da empresa;
+7. criar `UsuarioCargo` para cada usuário com base em `perfil` + `id_unidade`;
+8. popular `Permissao` e `CargoPermissao` para os cargos padrão.
+
+### 13.5 Fase 3 — troca da aplicação
+
+Objetivo: fazer a aplicação ler o novo modelo.
+
+Migrar:
+
+- contexto autenticado para carregar `empresaId`, `slugEmpresa`, cargos e permissões;
+- guards para validar empresa e unidade;
+- repositórios para sempre filtrar por `empresa_id`;
+- casos de uso que hoje dependem de `perfil`;
+- bootstrap de usuário para criação de `UsuarioEmpresa` e `UsuarioCargo`, não apenas `Usuario`.
+
+### 13.6 Fase 4 — endurecimento
+
+Objetivo: remover dependências legadas.
+
+Depois que tudo estiver estável:
+
+- tornar `empresa_id` obrigatório nas tabelas operacionais;
+- remover o uso de `usuario.perfil` dos fluxos de autorização;
+- remover `usuario.id_unidade` se o contexto já vier de `UsuarioCargo`;
+- avaliar remover também o enum `PerfilUsuario`.
+
+### 13.7 Ordem sugerida de migrações Prisma
+
+1. `2026xxxxxx_empresa_e_multi_tenant_base`
+2. `2026xxxxxx_iam_cargo_permissao`
+3. `2026xxxxxx_convite_acesso`
+4. `2026xxxxxx_backfill_empresa_usuario_cargo`
+5. `2026xxxxxx_hardening_multi_tenant`
+
+### 13.8 Riscos e cuidados
+
+- não substituir `perfil` por `cargo` em um único passo;
+- não remover `id_unidade` de `Usuario` antes do backfill completo;
+- revisar seeds e testes e2e junto com a migração;
+- revisar `EnsureUsuarioLocalUseCase`, pois ele hoje cria apenas `Usuario`;
+- revisar filtros de OS e ativos para evitar qualquer vazamento cruzado entre empresas.
+
+### 13.9 Critério de pronto para o corte
+
+O legado só deve ser removido quando:
+
+- toda requisição autenticada resolver `empresaId`;
+- toda query operacional filtrar por `empresa_id`;
+- os cargos padrão já estiverem populados;
+- os testes cobrirem isolamento por empresa e por unidade;
+- os fluxos de convite e bootstrap estiverem funcionando.

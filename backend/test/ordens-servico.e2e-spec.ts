@@ -3,10 +3,12 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
 import { signTestJwt } from './helpers/sign-test-jwt';
 
 describe('OrdensServicoController (e2e)', () => {
   let app: INestApplication<App>;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -15,6 +17,7 @@ describe('OrdensServicoController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     await app.init();
+    prisma = app.get(PrismaService);
   });
 
   afterEach(async () => {
@@ -114,6 +117,27 @@ describe('OrdensServicoController (e2e)', () => {
       const fechada = fechar.body as { status: string; dataFechamento: string };
       expect(fechada.status).toBe('CONCLUIDA');
       expect(fechada.dataFechamento).toBeDefined();
+    },
+  );
+
+  (runComDb ? it : it.skip)(
+    'GET ordens-servico fora da unidade autenticada retorna 403',
+    async () => {
+      const outraUnidade = await prisma.unidadeFabril.create({
+        data: {
+          nome: `Filial ordens ${Date.now()}`,
+          localizacao: 'Petrolina - PE (e2e)',
+        },
+      });
+
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/unidades/${outraUnidade.id}/ordens-servico`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
     },
   );
 });

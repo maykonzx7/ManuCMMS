@@ -3,10 +3,12 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
 import { signTestJwt } from './helpers/sign-test-jwt';
 
 describe('UnidadesController (e2e)', () => {
   let app: INestApplication<App>;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -15,6 +17,7 @@ describe('UnidadesController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     await app.init();
+    prisma = app.get(PrismaService);
   });
 
   afterEach(async () => {
@@ -28,8 +31,15 @@ describe('UnidadesController (e2e)', () => {
   const runComDb = process.env.CI === 'true' || process.env.RUN_DB_E2E === '1';
 
   (runComDb ? it : it.skip)(
-    'GET /unidades com JWT retorna lista (Postgres migrado + seed)',
+    'GET /unidades com JWT retorna apenas a unidade do contexto autenticado',
     async () => {
+      await prisma.unidadeFabril.create({
+        data: {
+          nome: `Filial bloqueada ${Date.now()}`,
+          localizacao: 'Recife - PE (e2e)',
+        },
+      });
+
       const token = signTestJwt({
         sub: '00000000-0000-4000-8000-000000000003',
       });
@@ -44,7 +54,7 @@ describe('UnidadesController (e2e)', () => {
         localizacao: string;
       }>;
       expect(Array.isArray(body)).toBe(true);
-      expect(body.length).toBeGreaterThanOrEqual(1);
+      expect(body).toHaveLength(1);
       expect(body[0]).toHaveProperty('id');
       expect(body[0]).toHaveProperty('nome');
       expect(body[0]).toHaveProperty('localizacao');

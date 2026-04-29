@@ -15,6 +15,36 @@ enum PerfilUsuario {
   ADMIN
 }
 
+enum StatusEmpresa {
+  ATIVA
+  SUSPENSA
+  INATIVA
+}
+
+enum StatusUsuario {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+}
+
+enum StatusUsuarioEmpresa {
+  ATIVO
+  INATIVO
+  PENDENTE
+}
+
+enum StatusUnidadeFabril {
+  ATIVA
+  INATIVA
+}
+
+enum StatusConviteAcesso {
+  PENDENTE
+  ACEITO
+  EXPIRADO
+  CANCELADO
+}
+
 /// DEM: Operacional, Manutenção, Falha.
 enum StatusAtivo {
   OPERACIONAL
@@ -37,70 +67,200 @@ enum StatusOrdemServico {
   CANCELADA
 }
 
-model UnidadeFabril {
-  id          String    @id @default(uuid()) @db.Uuid
-  nome        String    @db.VarChar(100)
-  localizacao String    @db.VarChar(255)
-  usuarios    Usuario[]
-  ativos      Ativo[]
+model Empresa {
+  id              String           @id @default(uuid()) @db.Uuid
+  nomeEmpresa     String           @map("nome_empresa") @db.VarChar(150)
+  slug            String           @unique @db.VarChar(120)
+  status          StatusEmpresa    @default(ATIVA)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  unidades        UnidadeFabril[]
+  usuariosEmpresa UsuarioEmpresa[]
+  cargos          Cargo[]
+  convites        ConviteAcesso[]
+  ativos          Ativo[]
+  ordensServico   OrdemServico[]
 
+  @@map("empresa")
+}
+
+model UnidadeFabril {
+  id            String              @id @default(uuid()) @db.Uuid
+  empresaId     String?             @map("empresa_id") @db.Uuid
+  empresa       Empresa?            @relation(fields: [empresaId], references: [id])
+  nome          String              @db.VarChar(100)
+  localizacao   String              @db.VarChar(255)
+  status        StatusUnidadeFabril @default(ATIVA)
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  usuarios      Usuario[]
+  usuariosCargo UsuarioCargo[]
+  ativos        Ativo[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
   @@map("unidade_fabril")
 }
 
 /// Equipamento monitorado (RF-04); limite térmico por ativo — RN-06 v1.
 model Ativo {
-  id         String         @id @default(uuid()) @db.Uuid
-  idUnidade  String        @map("id_unidade") @db.Uuid
-  unidade    UnidadeFabril  @relation(fields: [idUnidade], references: [id])
-  nome        String        @db.VarChar(100)
-  status      StatusAtivo   @default(OPERACIONAL)
-  limiteTemp  Float         @default(48) @map("limite_temp")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-
+  id            String         @id @default(uuid()) @db.Uuid
+  empresaId     String?        @map("empresa_id") @db.Uuid
+  idUnidade     String         @map("id_unidade") @db.Uuid
+  empresa       Empresa?       @relation(fields: [empresaId], references: [id])
+  unidade       UnidadeFabril  @relation(fields: [idUnidade], references: [id])
+  nome          String         @db.VarChar(100)
+  status        StatusAtivo    @default(OPERACIONAL)
+  limiteTemp    Float          @default(48) @map("limite_temp")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
   ordensServico OrdemServico[]
 
+  @@index([empresaId, idUnidade])
   @@index([idUnidade])
   @@map("ativo")
 }
 
 /// RF-05 / RF-06 / RF-07; RN-05 (sempre com ativo).
 model OrdemServico {
-  id                 String             @id @default(uuid()) @db.Uuid
-  idAtivo            String             @map("id_ativo") @db.Uuid
-  ativo              Ativo              @relation(fields: [idAtivo], references: [id])
-  idTecnico          String?            @map("id_tecnico") @db.Uuid
-  tecnico            Usuario?           @relation("OsTecnico", fields: [idTecnico], references: [id])
-  tipo               TipoOrdemServico
-  status             StatusOrdemServico @default(ABERTA)
-  descricao          String             @db.Text
-  fotoAnexo          String?            @map("foto_anexo") @db.VarChar(2048)
+  id                String             @id @default(uuid()) @db.Uuid
+  empresaId         String?            @map("empresa_id") @db.Uuid
+  idAtivo           String             @map("id_ativo") @db.Uuid
+  idTecnico         String?            @map("id_tecnico") @db.Uuid
+  empresa           Empresa?           @relation(fields: [empresaId], references: [id])
+  ativo             Ativo              @relation(fields: [idAtivo], references: [id])
+  tecnico           Usuario?           @relation("OsTecnico", fields: [idTecnico], references: [id])
+  tipo              TipoOrdemServico
+  status            StatusOrdemServico @default(ABERTA)
+  descricao         String             @db.Text
+  fotoAnexo         String?            @map("foto_anexo") @db.VarChar(2048)
   /// RN-13 (OS corretiva): evidência do defeito.
-  fotoProblema       String?            @map("foto_problema") @db.VarChar(2048)
+  fotoProblema      String?            @map("foto_problema") @db.VarChar(2048)
   /// RN-13 (OS corretiva): evidência da correção.
-  fotoSolucao        String?            @map("foto_solucao") @db.VarChar(2048)
-  assinaturaDigital  String?            @map("assinatura_digital") @db.Text
-  dataAbertura       DateTime           @default(now()) @map("data_abertura")
-  dataFechamento     DateTime?          @map("data_fechamento")
+  fotoSolucao       String?            @map("foto_solucao") @db.VarChar(2048)
+  assinaturaDigital String?            @map("assinatura_digital") @db.Text
+  dataAbertura      DateTime           @default(now()) @map("data_abertura")
+  dataFechamento    DateTime?          @map("data_fechamento")
 
+  @@index([empresaId, status, dataAbertura])
   @@index([idAtivo])
   @@index([idTecnico])
   @@map("ordem_servico")
 }
 
 /// Perfil corporativo local; autenticação fica no Supabase (`auth_sub` = JWT `sub`).
+/// `id_unidade` e `perfil` permanecem na fase transitória até a migração de IAM.
 model Usuario {
-  id         String          @id @default(uuid()) @db.Uuid
-  authSub    String          @unique @map("auth_sub")
-  idUnidade  String          @map("id_unidade") @db.Uuid
-  unidade    UnidadeFabril   @relation(fields: [idUnidade], references: [id])
-  nome       String          @db.VarChar(150)
-  email      String          @unique @db.VarChar(100)
-  perfil     PerfilUsuario
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
-
-  ordensComoTecnico OrdemServico[] @relation("OsTecnico")
+  id                String           @id @default(uuid()) @db.Uuid
+  authSub           String           @unique @map("auth_sub")
+  idUnidade         String           @map("id_unidade") @db.Uuid
+  unidade           UnidadeFabril    @relation(fields: [idUnidade], references: [id])
+  nome              String           @db.VarChar(150)
+  email             String           @unique @db.VarChar(100)
+  perfil            PerfilUsuario
+  status            StatusUsuario    @default(ATIVO)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  ordensComoTecnico OrdemServico[]   @relation("OsTecnico")
+  usuariosEmpresa   UsuarioEmpresa[]
+  convitesCriados   ConviteAcesso[]  @relation("ConviteCriadoPor")
+  convitesAceitos   ConviteAcesso[]  @relation("ConviteAceitoPor")
 
   @@map("usuario")
+}
+
+model UsuarioEmpresa {
+  id                     String               @id @default(uuid()) @db.Uuid
+  usuarioId              String               @map("usuario_id") @db.Uuid
+  empresaId              String               @map("empresa_id") @db.Uuid
+  usuario                Usuario              @relation(fields: [usuarioId], references: [id])
+  empresa                Empresa              @relation(fields: [empresaId], references: [id])
+  status                 StatusUsuarioEmpresa @default(ATIVO)
+  isResponsavelPrincipal Boolean              @default(false) @map("is_responsavel_principal")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  cargos                 UsuarioCargo[]
+
+  @@unique([usuarioId, empresaId])
+  @@index([empresaId])
+  @@map("usuario_empresa")
+}
+
+model Cargo {
+  id               String           @id @default(uuid()) @db.Uuid
+  empresaId        String           @map("empresa_id") @db.Uuid
+  empresa          Empresa          @relation(fields: [empresaId], references: [id])
+  codigo           String           @db.VarChar(80)
+  nome             String           @db.VarChar(120)
+  descricao        String?          @db.VarChar(255)
+  nivelHierarquico Int              @map("nivel_hierarquico")
+  isSistema        Boolean          @default(false) @map("is_sistema")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  permissoes       CargoPermissao[]
+  usuariosCargo    UsuarioCargo[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, nivelHierarquico])
+  @@map("cargo")
+}
+
+model Permissao {
+  id        String           @id @default(uuid()) @db.Uuid
+  codigo    String           @unique @db.VarChar(100)
+  nome      String           @db.VarChar(120)
+  descricao String?          @db.VarChar(255)
+  modulo    String           @db.VarChar(80)
+  createdAt DateTime         @default(now()) @map("created_at")
+  cargos    CargoPermissao[]
+
+  @@map("permissao")
+}
+
+model CargoPermissao {
+  cargoId     String    @map("cargo_id") @db.Uuid
+  permissaoId String    @map("permissao_id") @db.Uuid
+  cargo       Cargo     @relation(fields: [cargoId], references: [id])
+  permissao   Permissao @relation(fields: [permissaoId], references: [id])
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@id([cargoId, permissaoId])
+  @@map("cargo_permissao")
+}
+
+model UsuarioCargo {
+  id               String         @id @default(uuid()) @db.Uuid
+  usuarioEmpresaId String         @map("usuario_empresa_id") @db.Uuid
+  cargoId          String         @map("cargo_id") @db.Uuid
+  idUnidade        String?        @map("id_unidade") @db.Uuid
+  usuarioEmpresa   UsuarioEmpresa @relation(fields: [usuarioEmpresaId], references: [id])
+  cargo            Cargo          @relation(fields: [cargoId], references: [id])
+  unidade          UnidadeFabril? @relation(fields: [idUnidade], references: [id])
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@index([usuarioEmpresaId])
+  @@index([cargoId])
+  @@index([idUnidade])
+  @@map("usuario_cargo")
+}
+
+model ConviteAcesso {
+  id                    String              @id @default(uuid()) @db.Uuid
+  empresaId             String              @map("empresa_id") @db.Uuid
+  emailDestino          String              @map("email_destino") @db.VarChar(100)
+  tokenHash             String              @map("token_hash") @db.VarChar(255)
+  status                StatusConviteAcesso @default(PENDENTE)
+  expiraEm              DateTime            @map("expira_em")
+  convidadoPorUsuarioId String              @map("convidado_por_usuario_id") @db.Uuid
+  usuarioCriadoId       String?             @map("usuario_criado_id") @db.Uuid
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  empresa               Empresa             @relation(fields: [empresaId], references: [id])
+  convidadoPorUsuario   Usuario             @relation("ConviteCriadoPor", fields: [convidadoPorUsuarioId], references: [id])
+  usuarioCriado         Usuario?            @relation("ConviteAceitoPor", fields: [usuarioCriadoId], references: [id])
+
+  @@index([empresaId, status])
+  @@index([emailDestino])
+  @@map("convite_acesso")
 }

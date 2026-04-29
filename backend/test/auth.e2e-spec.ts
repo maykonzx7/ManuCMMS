@@ -41,8 +41,20 @@ describe('Supabase JWT (e2e)', () => {
       .get('/me')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
+    const body = res.body as {
+      userId: string;
+      email: string;
+      role: string;
+      usuario: {
+        id: string;
+        idUnidade: string;
+        email: string;
+        nome: string;
+        perfil: string;
+      };
+    };
 
-    expect(res.body).toMatchObject({
+    expect(body).toMatchObject({
       userId: '00000000-0000-4000-8000-000000000001',
       email: 'teste@manucmms.local',
       role: 'authenticated',
@@ -52,7 +64,7 @@ describe('Supabase JWT (e2e)', () => {
         perfil: 'TECNICO',
       },
     });
-    expect(res.body.usuario).toHaveProperty('id');
-    expect(res.body.usuario).toHaveProperty('idUnidade');
+    expect(body.usuario).toHaveProperty('id');
+    expect(body.usuario).toHaveProperty('idUnidade');
   });
 });

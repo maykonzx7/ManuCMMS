@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { CancelarOrdemServicoUseCase } from '../../application/ordens-servico/cancelar-ordem-servico.use-case';
 import { CreateOrdemServicoUseCase } from '../../application/ordens-servico/create-ordem-servico.use-case';
 import { FecharOrdemServicoUseCase } from '../../application/ordens-servico/fechar-ordem-servico.use-case';
@@ -26,6 +28,7 @@ type FecharOrdemServicoBody = {
 @Controller('unidades/:unidadeId/ordens-servico')
 export class OrdensServicoController {
   constructor(
+    private readonly enforceUnidadeScope: EnforceUnidadeScopeUseCase,
     private readonly listOrdens: ListOrdensServicoByUnidadeUseCase,
     private readonly createOrdem: CreateOrdemServicoUseCase,
     private readonly fecharOrdem: FecharOrdemServicoUseCase,
@@ -34,7 +37,8 @@ export class OrdensServicoController {
   ) {}
 
   @Get()
-  list(@Param('unidadeId') unidadeId: string) {
+  list(@Param('unidadeId') unidadeId: string, @Req() req: Request) {
+    this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.listOrdens.execute(unidadeId);
   }
 
@@ -42,7 +46,9 @@ export class OrdensServicoController {
   create(
     @Param('unidadeId') unidadeId: string,
     @Body() body: CreateOrdemServicoBody,
+    @Req() req: Request,
   ) {
+    this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.createOrdem.execute(unidadeId, body);
   }
 
@@ -50,7 +56,9 @@ export class OrdensServicoController {
   iniciar(
     @Param('unidadeId') unidadeId: string,
     @Param('ordemServicoId') ordemServicoId: string,
+    @Req() req: Request,
   ) {
+    this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.iniciarExecucao.execute(unidadeId, ordemServicoId);
   }
 
@@ -58,7 +66,9 @@ export class OrdensServicoController {
   cancelar(
     @Param('unidadeId') unidadeId: string,
     @Param('ordemServicoId') ordemServicoId: string,
+    @Req() req: Request,
   ) {
+    this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.cancelarOrdem.execute(unidadeId, ordemServicoId);
   }
 
@@ -67,7 +77,9 @@ export class OrdensServicoController {
     @Param('unidadeId') unidadeId: string,
     @Param('ordemServicoId') ordemServicoId: string,
     @Body() body: FecharOrdemServicoBody,
+    @Req() req: Request,
   ) {
+    this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.fecharOrdem.execute(unidadeId, ordemServicoId, body);
   }
 }

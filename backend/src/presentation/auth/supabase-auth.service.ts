@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import jwt from 'jsonwebtoken';
 import type { AuthUserContext } from './auth-user.types';
@@ -42,7 +38,9 @@ export class SupabaseAuthService {
   async validateAccessToken(accessToken: string): Promise<AuthUserContext> {
     const supabaseUrlRaw = this.config.get<string>('SUPABASE_URL')?.trim();
     const supabaseUrl = !isPlaceholder(supabaseUrlRaw) ? supabaseUrlRaw : null;
-    const expectedIssuer = supabaseUrl ? `${supabaseUrl.replace(/\/$/, '')}/auth/v1` : null;
+    const expectedIssuer = supabaseUrl
+      ? `${supabaseUrl.replace(/\/$/, '')}/auth/v1`
+      : null;
 
     const secretRaw = this.config.get<string>('SUPABASE_JWT_SECRET')?.trim();
     const secret = !isPlaceholder(secretRaw) ? secretRaw : null;
@@ -118,7 +116,9 @@ export class SupabaseAuthService {
       this.logger.warn(
         `Falha de rede ao validar sessao no Supabase Auth: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
       );
-      throw new UnauthorizedException('Nao foi possivel validar a sessao no Supabase Auth.');
+      throw new UnauthorizedException(
+        'Nao foi possivel validar a sessao no Supabase Auth.',
+      );
     }
 
     if (!response.ok) {
@@ -130,7 +130,9 @@ export class SupabaseAuthService {
 
     const body = (await response.json()) as SupabaseUserResponse;
     if (!body.id) {
-      throw new UnauthorizedException('Resposta do Supabase Auth sem usuario valido.');
+      throw new UnauthorizedException(
+        'Resposta do Supabase Auth sem usuario valido.',
+      );
     }
 
     return {

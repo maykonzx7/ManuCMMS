@@ -12,7 +12,12 @@ export class ListUnidadesUseCase {
     private readonly unidades: IUnidadeReadPort,
   ) {}
 
-  execute(): Promise<UnidadeListaItem[]> {
-    return this.unidades.listAll();
+  async execute(idUnidade?: string): Promise<UnidadeListaItem[]> {
+    if (!idUnidade) {
+      return this.unidades.listAll();
+    }
+
+    const unidade = await this.unidades.findById(idUnidade);
+    return unidade ? [unidade] : [];
   }
 }

@@ -13,6 +13,7 @@ export type CreateUsuarioBootstrapInput = {
 /** Leituras mínimas para validar vínculos (ex.: técnico na mesma unidade). */
 export interface IUsuarioReadPort {
   existsInUnidade(idUsuario: string, idUnidade: string): Promise<boolean>;
+  listByUnidade(idUnidade: string): Promise<UsuarioLocalContext[]>;
   findByAuthSub(authSub: string): Promise<UsuarioLocalContext | null>;
   createBootstrap(
     input: CreateUsuarioBootstrapInput,
