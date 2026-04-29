@@ -77,6 +77,7 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 | _—_ | Autenticação do dispositivo IoT | POST de leitura exige API key, mTLS ou segredo por ativo; documentar em [07-API-REST-E-CONTRATOS.md](07-API-REST-E-CONTRATOS.md). | NF-02, RF-06 |
 | _—_ | Storage de objetos (800 MB) | Supabase Storage, S3-compatible ou disco em dev; não guardar binário grande no Postgres. | NF-09, RF-10 |
 | 2026-04-03 | Limite térmico **RN-06** (v1) | **Só por ativo:** campo `limite_temp` no agregado/tabela `Ativo` (default 48 °C). Entidade `GrupoAtivo` / N:N **não** entra na v1; reavaliar se surgir necessidade de limite compartilhado por conjunto. | RN-06, RF-04 |
+| 2026-04-28 | Multi-tenant corporativo | O termo técnico **tenant** passa a ser representado por **Empresa** no domínio. `Empresa` vira raiz de isolamento corporativo; `UnidadeFabril` permanece como escopo operacional fino. Onboarding inicial por **convite temporário** e RBAC evolui para `Cargo` + `Permissao`, preservando a linguagem ubíqua do projeto. | RF-01, RF-03, RF-16, RN-08, NF-02 |
 
 ---
 
@@ -96,3 +97,4 @@ Conforme DDE: app mobile nativo, múltiplos sensores além temperatura, ML real 
 | 2026-04-03 | **Fechamento OS:** `foto_problema`/`foto_solucao` (RN-13); `PATCH .../ordens-servico/:id/fechar` (RN-02, RN-14 — transação OS `CONCLUIDA` + ativo `OPERACIONAL`); migração `20260403232000_ordem_servico_fotos_rn13`. |
 | 2026-04-03 | **Ciclo OS:** `PATCH .../iniciar` (ABERTA→EM_EXECUCAO), `PATCH .../cancelar`; criação OS em transação com ativo `MANUTENCAO` (RN-10 bloqueia nova OS se manutenção); auditoria Mongo `log_auditoria` (`AuditModule`, RN-04/NF-12). |
 | 2026-04-26 | **DEI / Frontend:** detalhada a primeira tela prioritária (**login corporativo**) em [06-DEI-NAVEGACAO-E-PERFIS.md](06-DEI-NAVEGACAO-E-PERFIS.md), com wireframe textual, direção visual e fluxo funcional para implementação em React + Supabase. |
+| 2026-04-28 | **Empresa / IAM / Deploy:** criado [13-EMPRESA-IAM-MULTI-TENANT-E-DEPLOY.md](13-EMPRESA-IAM-MULTI-TENANT-E-DEPLOY.md) com desenho de `Empresa` como tenant, fluxo de convite temporário, RBAC por cargo/permissão e diretriz de uso do `ngrok` apenas para homologação pública controlada. |

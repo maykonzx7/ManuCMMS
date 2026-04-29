@@ -19,6 +19,7 @@ Este repositório contém o relatório fonte (`V2.ManuCMMS PDSOB_PDSCOB 2026 - A
 10. [docs/09-INFRAESTRUTURA-OBSERVABILIDADE-E-BACKUP.md](docs/09-INFRAESTRUTURA-OBSERVABILIDADE-E-BACKUP.md) — Docker, deploy, health, logs, backup (NF-10), CI/CD.  
 11. [docs/10-MANUAL-DO-USUARIO-ESQUELETO.md](docs/10-MANUAL-DO-USUARIO-ESQUELETO.md) — estrutura do manual por perfil (entregável DDE §6).  
 12. [docs/11-MODELO-DADOS-ESTENDIDO-E-BPMN.md](docs/11-MODELO-DADOS-ESTENDIDO-E-BPMN.md) — RN-06/RN-07, ORM, auditoria, narrativa BPMN.
+13. [docs/13-EMPRESA-IAM-MULTI-TENANT-E-DEPLOY.md](docs/13-EMPRESA-IAM-MULTI-TENANT-E-DEPLOY.md) — desenho de `Empresa` como tenant, onboarding por convite temporário, RBAC por cargo/permissão e estratégia de deploy/homologação com uso controlado de `ngrok`.
 
 ## Lembrete — Auth Supabase (a completar depois)
 
