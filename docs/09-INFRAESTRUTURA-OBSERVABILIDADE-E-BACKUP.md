@@ -74,3 +74,22 @@ Cada serviço exposto deve oferecer:
 ## 8. Atualização
 
 Alteração de provedor (ex.: trocar Railway) ou de região: registrar data, motivo e impacto em **NF-07**.
+
+---
+
+## 9. Kickoff de produção
+
+Arquivos-base adicionados para iniciar homologação/produção controlada:
+
+- `backend/Dockerfile` — empacotamento do backend NestJS.
+- `backend/.dockerignore` — reduz contexto e evita enviar arquivos locais para a build.
+- `backend/.env.production.example` — variáveis mínimas para ambiente público.
+- `frontend/.env.production.example` — base do build do frontend para apontar para a API pública.
+- `docker-compose.prod.yml` — subida coordenada de API + PostgreSQL + MongoDB + RabbitMQ.
+
+Diretriz prática:
+
+- usar `docker-compose.prod.yml` para homologação pública controlada;
+- manter frontend em Vercel ou outro host estático, apontando para a API pública;
+- usar `CORS_ALLOWED_ORIGINS` para controlar explicitamente quais URLs podem acessar a API;
+- antes do primeiro deploy público, aplicar migrações Prisma e validar `GET /health`.

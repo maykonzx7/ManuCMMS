@@ -1,0 +1,92 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: manucmms-api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.production
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: manucmms-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-manucmms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-manucmms_prod}
+      POSTGRES_DB: ${POSTGRES_DB:-manucmms}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mongo:
+    image: mongo:7
+    container_name: manucmms-mongo-prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-manucmms}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-manucmms_prod}
+    volumes:
+      - mongo_prod_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh \"mongodb://$$MONGO_INITDB_ROOT_USERNAME:$$MONGO_INITDB_ROOT_PASSWORD@127.0.0.1:27017/admin\" --quiet --eval \"db.adminCommand({ ping: 1 })\" || exit 1",
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: manucmms-rabbitmq-prod
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-manucmms}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-manucmms_prod}
+    volumes:
+      - rabbitmq_prod_data:/var/lib/rabbitmq
+    ports:
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres_prod_data:
+  mongo_prod_data:
+  rabbitmq_prod_data:
