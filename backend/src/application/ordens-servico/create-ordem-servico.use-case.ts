@@ -59,6 +59,9 @@ export class CreateOrdemServicoUseCase {
     if (!unidadeOk) {
       throw new NotFoundException('Unidade fabril não encontrada');
     }
+    if (!unidadeOk.empresaId) {
+      throw new NotFoundException('Empresa da unidade fabril não encontrada');
+    }
 
     const tipo = body.tipo as OrdemServicoListaItem['tipo'];
     if (!TIPOS_VALIDOS.includes(tipo)) {
@@ -74,12 +77,17 @@ export class CreateOrdemServicoUseCase {
       );
     }
 
-    const ativoOk = await this.ativos.existsInUnidade(body.idAtivo, idUnidade);
+    const ativoOk = await this.ativos.existsInUnidade(
+      unidadeOk.empresaId,
+      body.idAtivo,
+      idUnidade,
+    );
     if (!ativoOk) {
       throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
     }
 
     const statusAtivo = await this.ativos.getStatusInUnidade(
+      unidadeOk.empresaId,
       body.idAtivo,
       idUnidade,
     );
@@ -106,6 +114,8 @@ export class CreateOrdemServicoUseCase {
     }
 
     const payload: CreateOrdemServicoInput = {
+      empresaId: unidadeOk.empresaId,
+      idUnidade,
       idAtivo: body.idAtivo,
       tipo,
       descricao,

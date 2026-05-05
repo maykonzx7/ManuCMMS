@@ -26,6 +26,9 @@ export class CancelarOrdemServicoUseCase {
     if (!unidadeOk) {
       throw new NotFoundException('Unidade fabril não encontrada');
     }
-    return this.ordens.cancelar(idOrdemServico, idUnidade);
+    if (!unidadeOk.empresaId) {
+      throw new NotFoundException('Empresa da unidade fabril não encontrada');
+    }
+    return this.ordens.cancelar(idOrdemServico, unidadeOk.empresaId, idUnidade);
   }
 }

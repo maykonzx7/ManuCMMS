@@ -6,8 +6,10 @@ import {
   Button,
   Card,
   Descriptions,
+  Input,
   Layout,
   Menu,
+  Select,
   Result,
   Space,
   Spin,
@@ -30,7 +32,8 @@ import {
   Users,
 } from 'lucide-react';
 import type { BackendMe } from '../lib/auth';
-import { apiFetch } from '../lib/api';
+import { apiFetch, resolveApiBaseUrl } from '../lib/api';
+import { getInvitePortalPath } from '../lib/portal-paths';
 
 type AuthenticatedAppProps = {
   authWarning: string | null;
@@ -63,6 +66,7 @@ type Unidade = {
   id: string;
   nome: string;
   localizacao: string;
+  empresaId?: string | null;
 };
 
 type Ativo = {
@@ -83,6 +87,30 @@ type OrdemServico = {
   descricao: string;
   dataAbertura: string;
   dataFechamento: string | null;
+};
+
+type CreatedInviteResponse = {
+  convite: {
+    id: string;
+    empresaId: string;
+    emailDestino: string;
+    cargoCodigo: string;
+    idUnidadeDestino: string | null;
+    expiraEm: string;
+    token?: string;
+  };
+  entregaEmail?: {
+    status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU';
+    erro?: string;
+  };
+  links?: {
+    convite?: string;
+  };
+};
+
+type ApiErrorBody = {
+  message?: string | string[];
+  error?: string;
 };
 
 const moduleIcons: Record<ModuleKey, ReactNode> = {
@@ -186,6 +214,18 @@ function renderStatusTag(status: string) {
   return <Tag>{status}</Tag>;
 }
 
+function extractApiErrorMessage(body: ApiErrorBody, fallback: string) {
+  if (typeof body.message === 'string') {
+    return body.message;
+  }
+
+  if (Array.isArray(body.message)) {
+    return body.message.join(' ');
+  }
+
+  return body.error || fallback;
+}
+
 function UnavailableModule({
   title,
   description,
@@ -221,6 +261,14 @@ export function AuthenticatedApp({
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteCargo, setInviteCargo] = useState('TECNICO');
+  const [inviteUnidadeId, setInviteUnidadeId] = useState<string | undefined>();
+  const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
+  const [createdInvite, setCreatedInvite] = useState<CreatedInviteResponse | null>(null);
 
   const preferredUnidadeId = backendMe?.usuario?.idUnidade ?? null;
   const currentUnidade =
@@ -229,6 +277,24 @@ export function AuthenticatedApp({
   const displayName =
     backendMe?.usuario?.nome ?? session.user.email?.split('@')[0] ?? 'Colaborador';
   const displayEmail = backendMe?.email ?? session.user.email ?? '-';
+  const empresa = backendMe?.usuario?.empresa ?? null;
+  const permissoes = backendMe?.usuario?.permissoes ?? [];
+  const canInviteUsers = permissoes.includes('usuario.convidar');
+  const canManageCompany = permissoes.includes('empresa.gerenciar');
+  const cargoOptions = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'];
+  const inviteLink =
+    createdInvite?.links?.convite
+      ? createdInvite.links.convite
+      : createdInvite?.convite.token && empresa && typeof window !== 'undefined'
+      ? (() => {
+          const url = new URL('/convite', window.location.origin);
+          url.pathname = getInvitePortalPath();
+          url.searchParams.set('token', createdInvite.convite.token);
+          url.searchParams.set('email', createdInvite.convite.emailDestino);
+          url.searchParams.set('empresa', empresa.slug);
+          return url.toString();
+        })()
+      : null;
 
   useEffect(() => {
     setActiveModule(modules[0]?.key ?? 'inicio');
@@ -375,9 +441,65 @@ export function AuthenticatedApp({
     },
   ];
 
+  async function handleCreateInvite() {
+    if (!session.access_token || !empresa) {
+      return;
+    }
+
+    const emailDestino = inviteEmail.trim().toLowerCase();
+    if (!emailDestino) {
+      setInviteError('Informe o email do usuario que sera convidado.');
+      return;
+    }
+
+    setIsSubmittingInvite(true);
+    setInviteError(null);
+    setInviteFeedback(null);
+    setCreatedInvite(null);
+
+    try {
+      const response = await fetch(`${resolveApiBaseUrl()}/empresas/${empresa.id}/convites`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          emailDestino,
+          nomeDestino: inviteName.trim() || undefined,
+          cargoCodigo: inviteCargo,
+          idUnidadeDestino: inviteUnidadeId || null,
+        }),
+      });
+
+      const body = (await response.json()) as CreatedInviteResponse | ApiErrorBody;
+      if (!response.ok) {
+        throw new Error(
+          extractApiErrorMessage(body as ApiErrorBody, 'Nao foi possivel gerar o convite.'),
+        );
+      }
+
+      const createdBody = body as CreatedInviteResponse;
+      setCreatedInvite(createdBody);
+      setInviteFeedback('Convite criado com sucesso. Agora voce pode enviar o link ao usuario.');
+      setInviteEmail('');
+      setInviteName('');
+      setInviteCargo('TECNICO');
+      setInviteUnidadeId(undefined);
+    } catch (createInviteError: unknown) {
+      setInviteError(
+        createInviteError instanceof Error
+          ? createInviteError.message
+          : 'Falha ao criar convite para o usuario.',
+      );
+    } finally {
+      setIsSubmittingInvite(false);
+    }
+  }
+
   function renderInicio() {
     return (
-      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <div className="stats-grid">
           <Card>
             <Statistic title="Unidades" value={unidades.length} />
@@ -407,6 +529,9 @@ export function AuthenticatedApp({
               </Descriptions.Item>
               <Descriptions.Item label="Auth UID">
                 {backendMe?.userId ?? session.user.id}
+              </Descriptions.Item>
+              <Descriptions.Item label="Empresa">
+                {empresa?.nomeEmpresa ?? 'Sem empresa vinculada'}
               </Descriptions.Item>
             </Descriptions>
           </Card>
@@ -490,6 +615,195 @@ export function AuthenticatedApp({
     );
   }
 
+  function renderUsuarios() {
+    if (!canInviteUsers || !empresa) {
+      return (
+        <UnavailableModule
+          title="Convites indisponiveis para este usuario"
+          description="O perfil autenticado nao possui permissao para convidar usuarios da empresa."
+        />
+      );
+    }
+
+    return (
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Card title="Gestao de usuarios convidados">
+          <Descriptions column={1} size="small">
+            <Descriptions.Item label="Empresa">{empresa.nomeEmpresa}</Descriptions.Item>
+            <Descriptions.Item label="Slug">{empresa.slug}</Descriptions.Item>
+            <Descriptions.Item label="Permissao principal">
+              usuario.convidar
+            </Descriptions.Item>
+          </Descriptions>
+        </Card>
+
+        <Card title="Novo convite de acesso">
+          <Space direction="vertical" size={14} style={{ width: '100%' }}>
+            <div>
+              <Typography.Text strong>Nome do convidado</Typography.Text>
+              <Input
+                value={inviteName}
+                onChange={(event) => setInviteName(event.target.value)}
+                placeholder="Nome da pessoa que vai receber o convite"
+              />
+            </div>
+
+            <div>
+              <Typography.Text strong>Email do convidado</Typography.Text>
+              <Input
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="colaborador@empresa.com"
+              />
+            </div>
+
+            <div>
+              <Typography.Text strong>Cargo de destino</Typography.Text>
+              <Select
+                value={inviteCargo}
+                onChange={(value) => setInviteCargo(value)}
+                options={cargoOptions.map((codigo) => ({
+                  value: codigo,
+                  label: codigo,
+                }))}
+              />
+            </div>
+
+            <div>
+              <Typography.Text strong>Unidade de destino</Typography.Text>
+              <Select
+                allowClear
+                value={inviteUnidadeId}
+                onChange={(value) => setInviteUnidadeId(value)}
+                placeholder="Opcional: convite corporativo sem unidade fixa"
+                options={unidades.map((unidade) => ({
+                  value: unidade.id,
+                  label: `${unidade.nome} · ${unidade.localizacao}`,
+                }))}
+              />
+            </div>
+
+            <Button
+              type="primary"
+              onClick={() => void handleCreateInvite()}
+              loading={isSubmittingInvite}
+            >
+              Gerar convite
+            </Button>
+
+            {inviteFeedback ? <Alert type="success" showIcon message={inviteFeedback} /> : null}
+            {inviteError ? <Alert type="error" showIcon message={inviteError} /> : null}
+          </Space>
+        </Card>
+
+        {createdInvite ? (
+          <Card title="Convite pronto para envio">
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="Email">
+                  {createdInvite.convite.emailDestino}
+                </Descriptions.Item>
+                <Descriptions.Item label="Cargo">
+                  {createdInvite.convite.cargoCodigo}
+                </Descriptions.Item>
+                <Descriptions.Item label="Unidade">
+                  {unidades.find((unidade) => unidade.id === createdInvite.convite.idUnidadeDestino)
+                    ?.nome ?? 'Escopo corporativo'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Expira em">
+                  {formatDateTime(createdInvite.convite.expiraEm)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Entrega do email">
+                  {createdInvite.entregaEmail?.status ?? 'NAO_CONFIGURADO'}
+                </Descriptions.Item>
+              </Descriptions>
+
+              {createdInvite.entregaEmail?.erro ? (
+                <Alert type="warning" showIcon message={createdInvite.entregaEmail.erro} />
+              ) : null}
+
+              {inviteLink ? (
+                <div>
+                  <Typography.Text strong>Link de aceite</Typography.Text>
+                  <Input.TextArea value={inviteLink} readOnly autoSize={{ minRows: 3 }} />
+                </div>
+              ) : null}
+
+              <Typography.Paragraph style={{ margin: 0 }}>
+                O usuario pode entrar pela tela do convite com email e senha ou Google. Depois do
+                aceite, os proximos acessos passam a funcionar pela tela normal de login.
+              </Typography.Paragraph>
+            </Space>
+          </Card>
+        ) : null}
+      </Space>
+    );
+  }
+
+  function renderPermissoes() {
+    if (!canManageCompany) {
+      return (
+        <UnavailableModule
+          title="Governanca indisponivel para este usuario"
+          description="A visualizacao administrativa da empresa so aparece para quem possui gestao do tenant."
+        />
+      );
+    }
+
+    return (
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Card title="Resumo da empresa">
+          <Descriptions column={1} size="small">
+            <Descriptions.Item label="Empresa">{empresa?.nomeEmpresa ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="Slug">{empresa?.slug ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="Tema global">
+              Modo claro e escuro global do sistema
+            </Descriptions.Item>
+          </Descriptions>
+        </Card>
+
+        <Card title="Permissoes efetivas da sessao">
+          <Space wrap size={[8, 8]}>
+            {permissoes.length > 0 ? (
+              permissoes.map((permissao) => <Tag key={permissao}>{permissao}</Tag>)
+            ) : (
+              <Typography.Text type="secondary">
+                Nenhuma permissao retornada para esta sessao.
+              </Typography.Text>
+            )}
+          </Space>
+        </Card>
+
+        <Card title="Cargos vinculados">
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            {(backendMe?.usuario?.cargos ?? []).map((cargo) => (
+              <Card key={cargo.id} size="small">
+                <Descriptions column={1} size="small">
+                  <Descriptions.Item label="Cargo">{cargo.nome}</Descriptions.Item>
+                  <Descriptions.Item label="Codigo">{cargo.codigo}</Descriptions.Item>
+                  <Descriptions.Item label="Nivel hierarquico">
+                    {cargo.nivelHierarquico}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Escopo">
+                    {unidades.find((unidade) => unidade.id === cargo.idUnidade)?.nome ??
+                      'Corporativo'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Permissoes">
+                    <Space wrap size={[6, 6]}>
+                      {cargo.permissoes.map((permissao) => (
+                        <Tag key={permissao}>{permissao}</Tag>
+                      ))}
+                    </Space>
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+            ))}
+          </Space>
+        </Card>
+      </Space>
+    );
+  }
+
   function renderModule() {
     switch (activeModule) {
       case 'inicio':
@@ -515,19 +829,9 @@ export function AuthenticatedApp({
           />
         );
       case 'usuarios':
-        return (
-          <UnavailableModule
-            title="Modulo de usuarios indisponivel"
-            description="O cadastro e a listagem de usuarios ainda nao possuem modulo HTTP pronto no backend."
-          />
-        );
+        return renderUsuarios();
       case 'permissoes':
-        return (
-          <UnavailableModule
-            title="Modulo de permissoes indisponivel"
-            description="A governanca fina por perfil e unidade ainda sera implementada em modulo proprio."
-          />
-        );
+        return renderPermissoes();
       default:
         return renderInicio();
     }
@@ -539,7 +843,7 @@ export function AuthenticatedApp({
     <Layout className="app-layout">
       <Layout.Sider width={272} breakpoint="lg" collapsedWidth="0" theme="light" className="app-sider">
         <div className="sider-inner">
-          <Space orientation="vertical" size={18} style={{ width: '100%' }}>
+          <Space direction="vertical" size={18} style={{ width: '100%' }}>
             <div className="sider-brand">
               <Typography.Text className="sider-kicker">ManuCMMS</Typography.Text>
               <Typography.Title level={4} style={{ margin: 0 }}>
@@ -551,7 +855,7 @@ export function AuthenticatedApp({
             </div>
 
             <Card size="small">
-              <Space orientation="vertical" size={2}>
+              <Space direction="vertical" size={2}>
                 <Typography.Text strong>{displayName}</Typography.Text>
                 <Typography.Text type="secondary">{displayEmail}</Typography.Text>
                 <Tag color="blue" style={{ width: 'fit-content' }}>
@@ -568,9 +872,9 @@ export function AuthenticatedApp({
             />
           </Space>
 
-          <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Card size="small">
-              <Space orientation="vertical" size={2}>
+              <Space direction="vertical" size={2}>
                 <Typography.Text type="secondary">Unidade atual</Typography.Text>
                 <Typography.Text strong>{currentUnidade?.nome ?? 'Nao definida'}</Typography.Text>
                 <Typography.Text type="secondary">
@@ -602,9 +906,9 @@ export function AuthenticatedApp({
         </Layout.Header>
 
         <Layout.Content className="app-content">
-          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-            {authWarning ? <Alert type="warning" showIcon title={authWarning} /> : null}
-            {workspaceError ? <Alert type="error" showIcon title={workspaceError} /> : null}
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            {authWarning ? <Alert type="warning" showIcon message={authWarning} /> : null}
+            {workspaceError ? <Alert type="error" showIcon message={workspaceError} /> : null}
 
             {isLoadingWorkspace && activeModule === 'inicio' ? (
               <Card>

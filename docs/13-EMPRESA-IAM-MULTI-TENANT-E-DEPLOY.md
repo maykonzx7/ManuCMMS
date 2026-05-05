@@ -479,6 +479,27 @@ Fluxo sugerido:
 - banner visual indicando `HOMOLOGACAO`;
 - desabilitar integrações destrutivas ou usar modo sandbox quando necessário.
 
+### 9.4.1 Ajuste prático de ambiente para ngrok
+
+No backend:
+
+- `CORS_ALLOWED_ORIGINS` para URLs fixas conhecidas;
+- `CORS_ALLOWED_ORIGIN_SUFFIXES` para permitir domínios variáveis, como `.ngrok-free.app`.
+
+No frontend:
+
+- `VITE_API_BASE_URL` deve apontar para a URL pública do túnel do backend.
+
+Exemplo:
+
+```env
+# backend/.env
+CORS_ALLOWED_ORIGIN_SUFFIXES=.ngrok-free.app,.ngrok.app
+
+# frontend/.env
+VITE_API_BASE_URL=https://seu-backend.ngrok-free.app
+```
+
 ### 9.5 Controle de exposição
 
 O ideal é que qualquer exposição via `ngrok` tenha:

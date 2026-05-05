@@ -1,5 +1,6 @@
 import { Controller, Get, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.use-case';
 
 /**
@@ -7,10 +8,14 @@ import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.us
  */
 @Controller('unidades')
 export class UnidadesController {
-  constructor(private readonly listUnidades: ListUnidadesUseCase) {}
+  constructor(
+    private readonly listUnidades: ListUnidadesUseCase,
+    private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+  ) {}
 
   @Get()
   findAll(@Req() req: Request) {
-    return this.listUnidades.execute(req.usuarioLocal?.idUnidade);
+    this.authorizePermission.execute(req.usuarioLocal, 'unidade.visualizar');
+    return this.listUnidades.execute(req.usuarioLocal);
   }
 }

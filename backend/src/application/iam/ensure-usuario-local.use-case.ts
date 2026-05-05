@@ -13,6 +13,7 @@ import {
   USUARIO_READ_PORT,
   type CreateUsuarioBootstrapInput,
   type IUsuarioReadPort,
+  type PerfilUsuarioCodigo,
 } from '../../domain/ports/usuario-read.port';
 
 const PERFIS_BOOTSTRAP = [
@@ -54,6 +55,20 @@ export class EnsureUsuarioLocalUseCase {
   }): Promise<UsuarioLocalContext> {
     const existente = await this.usuarios.findByAuthSub(jwt.userId);
     if (existente) {
+      const unidadeExistente = await this.unidades.findById(existente.idUnidade);
+      await this.usuarios.ensureAccessContext({
+        idUsuario: existente.id,
+        idUnidade: existente.idUnidade,
+        idUnidadeCargo: existente.idUnidade,
+        empresaId: unidadeExistente?.empresaId ?? existente.empresa?.id ?? null,
+        perfil: existente.perfil as PerfilUsuarioCodigo,
+      });
+
+      const atualizado = await this.usuarios.findByAuthSub(jwt.userId);
+      if (atualizado) {
+        return atualizado;
+      }
+
       return existente;
     }
 
@@ -75,6 +90,7 @@ export class EnsureUsuarioLocalUseCase {
       idUnidade = todas[0].id;
     }
 
+    const unidadeBootstrap = await this.unidades.findById(idUnidade);
     const email =
       jwt.email?.trim() ||
       `u.${jwt.userId.replace(/-/g, '').slice(0, 32)}@auth.bootstrap`;
@@ -91,6 +107,8 @@ export class EnsureUsuarioLocalUseCase {
       email: email.length > 100 ? email.slice(0, 100) : email,
       nome,
       idUnidade,
+      idUnidadeCargo: idUnidade,
+      empresaId: unidadeBootstrap?.empresaId ?? null,
       perfil,
     };
 

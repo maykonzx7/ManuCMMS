@@ -48,8 +48,15 @@ export class FecharOrdemServicoUseCase {
     if (!unidadeOk) {
       throw new NotFoundException('Unidade fabril não encontrada');
     }
+    if (!unidadeOk.empresaId) {
+      throw new NotFoundException('Empresa da unidade fabril não encontrada');
+    }
 
-    const os = await this.ordens.findParaFechamento(idOrdemServico, idUnidade);
+    const os = await this.ordens.findParaFechamento(
+      idOrdemServico,
+      unidadeOk.empresaId,
+      idUnidade,
+    );
     if (!os) {
       throw new NotFoundException(
         'Ordem de serviço não encontrada ou já encerrada',
@@ -93,6 +100,7 @@ export class FecharOrdemServicoUseCase {
 
     return this.ordens.fecharComEvidencias({
       idOrdemServico,
+      empresaId: unidadeOk.empresaId,
       idUnidade,
       fotoAnexo: fotoAnexo ?? null,
       fotoProblema: os.tipo === 'CORRETIVA' ? fotoProblema : null,

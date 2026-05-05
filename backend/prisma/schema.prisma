@@ -249,15 +249,17 @@ model ConviteAcesso {
   id                    String              @id @default(uuid()) @db.Uuid
   empresaId             String              @map("empresa_id") @db.Uuid
   emailDestino          String              @map("email_destino") @db.VarChar(100)
+  cargoCodigo           String              @map("cargo_codigo") @db.VarChar(80)
+  idUnidadeDestino      String?             @map("id_unidade_destino") @db.Uuid
   tokenHash             String              @map("token_hash") @db.VarChar(255)
   status                StatusConviteAcesso @default(PENDENTE)
   expiraEm              DateTime            @map("expira_em")
-  convidadoPorUsuarioId String              @map("convidado_por_usuario_id") @db.Uuid
+  convidadoPorUsuarioId String?             @map("convidado_por_usuario_id") @db.Uuid
   usuarioCriadoId       String?             @map("usuario_criado_id") @db.Uuid
   createdAt             DateTime            @default(now()) @map("created_at")
   updatedAt             DateTime            @updatedAt @map("updated_at")
   empresa               Empresa             @relation(fields: [empresaId], references: [id])
-  convidadoPorUsuario   Usuario             @relation("ConviteCriadoPor", fields: [convidadoPorUsuarioId], references: [id])
+  convidadoPorUsuario   Usuario?            @relation("ConviteCriadoPor", fields: [convidadoPorUsuarioId], references: [id])
   usuarioCriado         Usuario?            @relation("ConviteAceitoPor", fields: [usuarioCriadoId], references: [id])
 
   @@index([empresaId, status])

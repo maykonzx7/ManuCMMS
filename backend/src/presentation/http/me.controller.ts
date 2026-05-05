@@ -24,6 +24,9 @@ export class MeController {
             nome: local.nome,
             email: local.email,
             perfil: local.perfil,
+            empresa: local.empresa,
+            cargos: local.cargos,
+            permissoes: local.permissoes,
           }
         : null,
     };

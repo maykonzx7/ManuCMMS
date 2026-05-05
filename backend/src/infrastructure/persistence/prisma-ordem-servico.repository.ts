@@ -1,6 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
-import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
+import { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import type {
+  OrdemServicoListaItem,
+  OrdemServicoParaFechamento,
+} from '../../domain/entities/ordem-servico';
 import type { IAuditLogPort } from '../../domain/ports/audit-log.port';
 import { AUDIT_LOG_PORT } from '../../domain/ports/audit-log.port';
 import type {
@@ -10,13 +14,21 @@ import type {
 } from '../../domain/ports/ordem-servico.repository.port';
 import { PrismaService } from './prisma.service';
 
-const includeAtivoNome = {
-  ativo: { select: { nome: true } },
-} satisfies Prisma.OrdemServicoInclude;
-
-type OrdemServicoComAtivoNome = Prisma.OrdemServicoGetPayload<{
-  include: typeof includeAtivoNome;
-}>;
+type OrdemServicoRow = {
+  id: string;
+  idAtivo: string;
+  ativoNome: string;
+  idTecnico: string | null;
+  tipo: OrdemServicoListaItem['tipo'];
+  status: OrdemServicoListaItem['status'];
+  descricao: string;
+  fotoAnexo: string | null;
+  fotoProblema: string | null;
+  fotoSolucao: string | null;
+  assinaturaDigital: string | null;
+  dataAbertura: Date;
+  dataFechamento: Date | null;
+};
 
 function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
   return {
@@ -39,34 +51,57 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     @Inject(AUDIT_LOG_PORT) private readonly auditLog: IAuditLogPort,
   ) {}
 
-  async listByUnidade(idUnidade: string): Promise<OrdemServicoListaItem[]> {
-    const rows = await this.prisma.ordemServico.findMany({
-      where: { ativo: { idUnidade } },
-      orderBy: { dataAbertura: 'desc' },
-      include: includeAtivoNome,
-    });
-    return rows.map((r) => this.toListaItem(r));
+  async listByUnidade(
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem[]> {
+    const rows = await this.listRowsWhere(Prisma.sql`
+      os.empresa_id = ${empresaId}::uuid
+      AND a.id_unidade = ${idUnidade}::uuid
+    `);
+
+    return rows.map((row) => this.toListaItem(row));
   }
 
   async create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem> {
-    const item = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.ordemServico.create({
-        data: {
-          idAtivo: input.idAtivo,
-          tipo: input.tipo,
-          descricao: input.descricao,
-          ...(input.idTecnico != null && input.idTecnico !== ''
-            ? { idTecnico: input.idTecnico }
-            : {}),
-        },
-        include: includeAtivoNome,
-      });
-      await tx.ativo.update({
-        where: { id: input.idAtivo },
-        data: { status: 'MANUTENCAO' },
-      });
-      return this.toListaItem(row);
+    const id = randomUUID();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO ordem_servico (
+          id,
+          empresa_id,
+          id_ativo,
+          id_tecnico,
+          tipo,
+          status,
+          descricao,
+          data_abertura
+        )
+        VALUES (
+          ${id}::uuid,
+          ${input.empresaId}::uuid,
+          ${input.idAtivo}::uuid,
+          ${input.idTecnico ?? null}::uuid,
+          ${input.tipo},
+          'ABERTA',
+          ${input.descricao},
+          NOW()
+        )
+      `);
+
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE ativo
+        SET
+          status = 'MANUTENCAO',
+          updated_at = NOW()
+        WHERE id = ${input.idAtivo}::uuid
+          AND empresa_id = ${input.empresaId}::uuid
+          AND id_unidade = ${input.idUnidade}::uuid
+      `);
     });
+
+    const item = await this.findById(id, input.empresaId);
     await this.auditLog.append({
       idUsuario: null,
       entidadeAfetada: 'OrdemServico',
@@ -77,182 +112,250 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     return item;
   }
 
-  async findParaFechamento(idOrdemServico: string, idUnidade: string) {
-    const row = await this.prisma.ordemServico.findFirst({
-      where: {
-        id: idOrdemServico,
-        status: { in: ['ABERTA', 'EM_EXECUCAO'] },
-        ativo: { idUnidade },
-      },
-      select: {
-        id: true,
-        idAtivo: true,
-        tipo: true,
-        status: true,
-      },
-    });
-    if (!row) {
-      return null;
-    }
-    return {
-      id: row.id,
-      idAtivo: row.idAtivo,
-      tipo: row.tipo as OrdemServicoListaItem['tipo'],
-      status: row.status as OrdemServicoListaItem['status'],
-    };
+  async findParaFechamento(
+    idOrdemServico: string,
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoParaFechamento | null> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        idAtivo: string;
+        tipo: OrdemServicoListaItem['tipo'];
+        status: OrdemServicoListaItem['status'];
+      }>
+    >(Prisma.sql`
+      SELECT
+        os.id,
+        os.id_ativo AS "idAtivo",
+        os.tipo,
+        os.status
+      FROM ordem_servico os
+      JOIN ativo a ON a.id = os.id_ativo
+      WHERE os.id = ${idOrdemServico}::uuid
+        AND os.empresa_id = ${empresaId}::uuid
+        AND a.id_unidade = ${idUnidade}::uuid
+        AND os.status IN ('ABERTA', 'EM_EXECUCAO')
+      LIMIT 1
+    `);
+
+    return rows[0] ?? null;
   }
 
   async fecharComEvidencias(
     input: FecharOrdemServicoPersistenciaInput,
   ): Promise<OrdemServicoListaItem> {
-    const anteriorRaw = await this.prisma.$transaction(async (tx) => {
-      const atual = await tx.ordemServico.findFirst({
-        where: {
-          id: input.idOrdemServico,
-          status: { in: ['ABERTA', 'EM_EXECUCAO'] },
-          ativo: { idUnidade: input.idUnidade },
-        },
-        include: includeAtivoNome,
-      });
-      if (!atual) {
-        throw new NotFoundException(
-          'Ordem de serviço não encontrada ou já encerrada',
-        );
-      }
-      const antes = osParaAuditoria(this.toListaItem(atual));
+    const atual = await this.findParaFechamento(
+      input.idOrdemServico,
+      input.empresaId,
+      input.idUnidade,
+    );
+    if (!atual) {
+      throw new NotFoundException(
+        'Ordem de serviço não encontrada ou já encerrada',
+      );
+    }
 
-      const updated = await tx.ordemServico.update({
-        where: { id: atual.id },
-        data: {
-          status: 'CONCLUIDA',
-          dataFechamento: new Date(),
-          fotoAnexo: input.fotoAnexo,
-          fotoProblema: input.fotoProblema,
-          fotoSolucao: input.fotoSolucao,
-          assinaturaDigital: input.assinaturaDigital,
-        },
-        include: includeAtivoNome,
-      });
+    const antes = osParaAuditoria(await this.findById(input.idOrdemServico, input.empresaId));
 
-      await tx.ativo.update({
-        where: { id: atual.idAtivo },
-        data: { status: 'OPERACIONAL' },
-      });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE ordem_servico
+        SET
+          status = 'CONCLUIDA',
+          data_fechamento = NOW(),
+          foto_anexo = ${input.fotoAnexo},
+          foto_problema = ${input.fotoProblema},
+          foto_solucao = ${input.fotoSolucao},
+          assinatura_digital = ${input.assinaturaDigital}
+        WHERE id = ${input.idOrdemServico}::uuid
+          AND empresa_id = ${input.empresaId}::uuid
+      `);
 
-      return { item: this.toListaItem(updated), antes };
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE ativo
+        SET
+          status = 'OPERACIONAL',
+          updated_at = NOW()
+        WHERE id = ${atual.idAtivo}::uuid
+          AND empresa_id = ${input.empresaId}::uuid
+          AND id_unidade = ${input.idUnidade}::uuid
+      `);
     });
 
-    const novo = osParaAuditoria(anteriorRaw.item);
+    const item = await this.findById(input.idOrdemServico, input.empresaId);
     await this.auditLog.append({
       idUsuario: null,
       entidadeAfetada: 'OrdemServico',
-      idRegistro: anteriorRaw.item.id,
-      valorAnterior: anteriorRaw.antes,
-      valorNovo: novo,
+      idRegistro: item.id,
+      valorAnterior: antes,
+      valorNovo: osParaAuditoria(item),
     });
 
-    return anteriorRaw.item;
+    return item;
   }
 
   async iniciarExecucao(
     idOrdemServico: string,
+    empresaId: string,
     idUnidade: string,
   ): Promise<OrdemServicoListaItem> {
-    const out = await this.prisma.$transaction(async (tx) => {
-      const atual = await tx.ordemServico.findFirst({
-        where: {
-          id: idOrdemServico,
-          status: 'ABERTA',
-          ativo: { idUnidade },
-        },
-        include: includeAtivoNome,
-      });
-      if (!atual) {
-        throw new NotFoundException(
-          'Ordem de serviço não encontrada ou não está aberta para execução',
-        );
-      }
-      const antes = osParaAuditoria(this.toListaItem(atual));
-      const updated = await tx.ordemServico.update({
-        where: { id: atual.id },
-        data: { status: 'EM_EXECUCAO' },
-        include: includeAtivoNome,
-      });
-      return { item: this.toListaItem(updated), antes };
-    });
+    const atual = await this.findStatusTransitionCandidate(
+      idOrdemServico,
+      empresaId,
+      idUnidade,
+      ['ABERTA'],
+    );
+    if (!atual) {
+      throw new NotFoundException(
+        'Ordem de serviço não encontrada ou não está aberta para execução',
+      );
+    }
+
+    const antes = osParaAuditoria(await this.findById(idOrdemServico, empresaId));
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ordem_servico
+      SET status = 'EM_EXECUCAO'
+      WHERE id = ${idOrdemServico}::uuid
+        AND empresa_id = ${empresaId}::uuid
+    `);
+
+    const item = await this.findById(idOrdemServico, empresaId);
     await this.auditLog.append({
       idUsuario: null,
       entidadeAfetada: 'OrdemServico',
-      idRegistro: out.item.id,
-      valorAnterior: out.antes,
-      valorNovo: osParaAuditoria(out.item),
+      idRegistro: item.id,
+      valorAnterior: antes,
+      valorNovo: osParaAuditoria(item),
     });
-    return out.item;
+    return item;
   }
 
   async cancelar(
     idOrdemServico: string,
+    empresaId: string,
     idUnidade: string,
   ): Promise<OrdemServicoListaItem> {
-    const out = await this.prisma.$transaction(async (tx) => {
-      const atual = await tx.ordemServico.findFirst({
-        where: {
-          id: idOrdemServico,
-          status: { in: ['ABERTA', 'EM_EXECUCAO'] },
-          ativo: { idUnidade },
-        },
-        include: includeAtivoNome,
-      });
-      if (!atual) {
-        throw new NotFoundException(
-          'Ordem de serviço não encontrada ou já encerrada',
-        );
+    const atual = await this.findStatusTransitionCandidate(
+      idOrdemServico,
+      empresaId,
+      idUnidade,
+      ['ABERTA', 'EM_EXECUCAO'],
+    );
+    if (!atual) {
+      throw new NotFoundException(
+        'Ordem de serviço não encontrada ou já encerrada',
+      );
+    }
+
+    const antes = osParaAuditoria(await this.findById(idOrdemServico, empresaId));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE ordem_servico
+        SET status = 'CANCELADA'
+        WHERE id = ${idOrdemServico}::uuid
+          AND empresa_id = ${empresaId}::uuid
+      `);
+
+      const abertas = await tx.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS total
+        FROM ordem_servico
+        WHERE empresa_id = ${empresaId}::uuid
+          AND id_ativo = ${atual.idAtivo}::uuid
+          AND id <> ${idOrdemServico}::uuid
+          AND status IN ('ABERTA', 'EM_EXECUCAO')
+      `);
+
+      if (Number(abertas[0]?.total ?? 0) === 0) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE ativo
+          SET
+            status = 'OPERACIONAL',
+            updated_at = NOW()
+          WHERE id = ${atual.idAtivo}::uuid
+            AND empresa_id = ${empresaId}::uuid
+            AND id_unidade = ${idUnidade}::uuid
+        `);
       }
-      const antes = osParaAuditoria(this.toListaItem(atual));
-      const idAtivo = atual.idAtivo;
-
-      const updated = await tx.ordemServico.update({
-        where: { id: atual.id },
-        data: { status: 'CANCELADA' },
-        include: includeAtivoNome,
-      });
-
-      const outrasAbertas = await tx.ordemServico.count({
-        where: {
-          idAtivo,
-          id: { not: atual.id },
-          status: { in: ['ABERTA', 'EM_EXECUCAO'] },
-        },
-      });
-      if (outrasAbertas === 0) {
-        await tx.ativo.update({
-          where: { id: idAtivo },
-          data: { status: 'OPERACIONAL' },
-        });
-      }
-
-      return { item: this.toListaItem(updated), antes };
     });
 
+    const item = await this.findById(idOrdemServico, empresaId);
     await this.auditLog.append({
       idUsuario: null,
       entidadeAfetada: 'OrdemServico',
-      idRegistro: out.item.id,
-      valorAnterior: out.antes,
-      valorNovo: osParaAuditoria(out.item),
+      idRegistro: item.id,
+      valorAnterior: antes,
+      valorNovo: osParaAuditoria(item),
     });
 
-    return out.item;
+    return item;
   }
 
-  private toListaItem(r: OrdemServicoComAtivoNome): OrdemServicoListaItem {
+  private async findStatusTransitionCandidate(
+    idOrdemServico: string,
+    empresaId: string,
+    idUnidade: string,
+    statuses: string[],
+  ) {
+    const rows = await this.prisma.$queryRaw<Array<{ idAtivo: string }>>(Prisma.sql`
+      SELECT os.id_ativo AS "idAtivo"
+      FROM ordem_servico os
+      JOIN ativo a ON a.id = os.id_ativo
+      WHERE os.id = ${idOrdemServico}::uuid
+        AND os.empresa_id = ${empresaId}::uuid
+        AND a.id_unidade = ${idUnidade}::uuid
+        AND os.status IN (${Prisma.join(statuses)})
+      LIMIT 1
+    `);
+
+    return rows[0] ?? null;
+  }
+
+  private async findById(
+    idOrdemServico: string,
+    empresaId: string,
+  ): Promise<OrdemServicoListaItem> {
+    const rows = await this.listRowsWhere(Prisma.sql`
+      os.id = ${idOrdemServico}::uuid
+      AND os.empresa_id = ${empresaId}::uuid
+    `);
+
+    return this.toListaItem(rows[0]);
+  }
+
+  private async listRowsWhere(whereSql: Prisma.Sql): Promise<OrdemServicoRow[]> {
+    return this.prisma.$queryRaw<OrdemServicoRow[]>(Prisma.sql`
+      SELECT
+        os.id,
+        os.id_ativo AS "idAtivo",
+        a.nome AS "ativoNome",
+        os.id_tecnico AS "idTecnico",
+        os.tipo,
+        os.status,
+        os.descricao,
+        os.foto_anexo AS "fotoAnexo",
+        os.foto_problema AS "fotoProblema",
+        os.foto_solucao AS "fotoSolucao",
+        os.assinatura_digital AS "assinaturaDigital",
+        os.data_abertura AS "dataAbertura",
+        os.data_fechamento AS "dataFechamento"
+      FROM ordem_servico os
+      JOIN ativo a ON a.id = os.id_ativo
+      WHERE ${whereSql}
+      ORDER BY os.data_abertura DESC
+    `);
+  }
+
+  private toListaItem(r: OrdemServicoRow): OrdemServicoListaItem {
     return {
       id: r.id,
       idAtivo: r.idAtivo,
-      ativoNome: r.ativo.nome,
+      ativoNome: r.ativoNome,
       idTecnico: r.idTecnico,
-      tipo: r.tipo as OrdemServicoListaItem['tipo'],
-      status: r.status as OrdemServicoListaItem['status'],
+      tipo: r.tipo,
+      status: r.status,
       descricao: r.descricao,
       fotoAnexo: r.fotoAnexo,
       fotoProblema: r.fotoProblema,

@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { ListUsuariosByUnidadeUseCase } from '../../application/iam/list-usuarios-by-unidade.use-case';
 
@@ -9,13 +10,18 @@ import { ListUsuariosByUnidadeUseCase } from '../../application/iam/list-usuario
 @Controller('unidades/:unidadeId/usuarios')
 export class UsuariosController {
   constructor(
+    private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly enforceUnidadeScope: EnforceUnidadeScopeUseCase,
     private readonly listUsuarios: ListUsuariosByUnidadeUseCase,
   ) {}
 
   @Get()
-  list(@Param('unidadeId') unidadeId: string, @Req() req: Request) {
-    this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+  async list(@Param('unidadeId') unidadeId: string, @Req() req: Request) {
+    this.authorizePermission.execute(
+      req.usuarioLocal,
+      'usuario.visualizar_unidade',
+    );
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.listUsuarios.execute(unidadeId);
   }
 }

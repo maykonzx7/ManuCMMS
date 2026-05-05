@@ -35,6 +35,7 @@ temp/
 .codex/
 skills-lock.json
 docs/
+.codex
 
 # Documentação local
 *.md

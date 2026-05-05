@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Ativo as AtivoRow } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import type { AtivoListaItem } from '../../domain/entities/ativo';
 import type {
   CreateAtivoInput,
@@ -7,50 +8,125 @@ import type {
 } from '../../domain/ports/ativo.repository.port';
 import { PrismaService } from './prisma.service';
 
+type AtivoRow = {
+  id: string;
+  idUnidade: string;
+  nome: string;
+  status: string;
+  limiteTemp: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 @Injectable()
 export class PrismaAtivoRepository implements IAtivoRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listByUnidade(idUnidade: string): Promise<AtivoListaItem[]> {
-    const rows = await this.prisma.ativo.findMany({
-      where: { idUnidade },
-      orderBy: { nome: 'asc' },
-    });
-    return rows.map((r: AtivoRow) => this.toListaItem(r));
+  async listByUnidade(
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<AtivoListaItem[]> {
+    const rows = await this.prisma.$queryRaw<AtivoRow[]>(Prisma.sql`
+      SELECT
+        id,
+        id_unidade AS "idUnidade",
+        nome,
+        status,
+        limite_temp AS "limiteTemp",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM ativo
+      WHERE empresa_id = ${empresaId}::uuid
+        AND id_unidade = ${idUnidade}::uuid
+      ORDER BY nome ASC
+    `);
+
+    return rows.map((row) => this.toListaItem(row));
   }
 
   async create(input: CreateAtivoInput): Promise<AtivoListaItem> {
-    const row = await this.prisma.ativo.create({
-      data: {
-        idUnidade: input.idUnidade,
-        nome: input.nome,
-        ...(input.limiteTemp !== undefined
-          ? { limiteTemp: input.limiteTemp }
-          : {}),
-      },
-    });
+    const id = randomUUID();
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO ativo (
+        id,
+        empresa_id,
+        id_unidade,
+        nome,
+        status,
+        limite_temp,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${id}::uuid,
+        ${input.empresaId}::uuid,
+        ${input.idUnidade}::uuid,
+        ${input.nome},
+        'OPERACIONAL',
+        ${input.limiteTemp ?? 48},
+        NOW(),
+        NOW()
+      )
+    `);
+
+    const row = await this.findById(id);
     return this.toListaItem(row);
   }
 
-  async existsInUnidade(idAtivo: string, idUnidade: string): Promise<boolean> {
-    const n = await this.prisma.ativo.count({
-      where: { id: idAtivo, idUnidade },
-    });
-    return n > 0;
+  async existsInUnidade(
+    empresaId: string,
+    idAtivo: string,
+    idUnidade: string,
+  ): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM ativo
+        WHERE id = ${idAtivo}::uuid
+          AND empresa_id = ${empresaId}::uuid
+          AND id_unidade = ${idUnidade}::uuid
+      ) AS "exists"
+    `);
+
+    return rows[0]?.exists === true;
   }
 
   async getStatusInUnidade(
+    empresaId: string,
     idAtivo: string,
     idUnidade: string,
   ): Promise<AtivoListaItem['status'] | null> {
-    const r = await this.prisma.ativo.findFirst({
-      where: { id: idAtivo, idUnidade },
-      select: { status: true },
-    });
-    if (!r) {
-      return null;
-    }
-    return r.status as AtivoListaItem['status'];
+    const rows = await this.prisma.$queryRaw<Array<{ status: AtivoListaItem['status'] }>>(
+      Prisma.sql`
+        SELECT status
+        FROM ativo
+        WHERE id = ${idAtivo}::uuid
+          AND empresa_id = ${empresaId}::uuid
+          AND id_unidade = ${idUnidade}::uuid
+        LIMIT 1
+      `,
+    );
+
+    return rows[0]?.status ?? null;
+  }
+
+  private async findById(id: string): Promise<AtivoRow> {
+    const rows = await this.prisma.$queryRaw<AtivoRow[]>(Prisma.sql`
+      SELECT
+        id,
+        id_unidade AS "idUnidade",
+        nome,
+        status,
+        limite_temp AS "limiteTemp",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM ativo
+      WHERE id = ${id}::uuid
+      LIMIT 1
+    `);
+
+    return rows[0];
   }
 
   private toListaItem(r: AtivoRow): AtivoListaItem {

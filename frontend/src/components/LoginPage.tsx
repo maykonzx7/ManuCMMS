@@ -17,14 +17,14 @@ import {
   ArrowRight,
   Building2,
   Globe,
-  KeyRound,
   LockKeyhole,
   Mail,
-  ShieldCheck,
+  Sparkles,
+  Users,
 } from 'lucide-react';
 import { supabase, supabaseConfig } from '../lib/supabase';
 
-type AuthMode = 'login' | 'signup' | 'reset';
+type AuthMode = 'login' | 'reset';
 
 type LoginPageProps = {
   authWarning: string | null;
@@ -40,16 +40,16 @@ const INITIAL_FORM = {
 
 const capabilityCards = [
   {
-    title: 'Acesso por perfil',
-    body: 'Modulos e permissoes liberados de acordo com o cargo da conta autenticada.',
+    title: 'Acesso personalizado',
+    body: 'Cada pessoa entra no ambiente com a visao e as liberacoes que fazem sentido para o seu papel.',
   },
   {
-    title: 'Operacao por unidade',
-    body: 'Cada sessao respeita o contexto operacional vinculado ao usuario no backend.',
+    title: 'Convite da empresa',
+    body: 'Seu primeiro acesso acontece por convite, com todo o contexto ja preparado pela administracao da empresa.',
   },
   {
-    title: 'Supabase Auth',
-    body: 'Login com email, Google, confirmacao de conta e recuperacao de senha.',
+    title: 'Entrada simples',
+    body: 'Depois do aceite, voce pode voltar quando quiser com email, senha ou Google.',
   },
 ];
 
@@ -63,31 +63,20 @@ const modeConfig: Record<
   }
 > = {
   login: {
-    eyebrow: 'Acesso institucional',
-    title: 'Entrar no sistema',
+    eyebrow: 'Acesso ao sistema',
+    title: 'Entrar no ManuCMMS',
     description:
-      'Use suas credenciais corporativas ou o login Google para acessar o ambiente operacional.',
+      'Use sua conta para acessar o ambiente da sua empresa com rapidez e seguranca.',
     buttonLabel: 'Entrar',
   },
-  signup: {
-    eyebrow: 'Primeiro acesso',
-    title: 'Criar conta',
-    description:
-      'Crie sua conta com email corporativo. A ativacao sera concluida pela confirmacao enviada por email.',
-    buttonLabel: 'Criar conta',
-  },
   reset: {
-    eyebrow: 'Recuperacao de acesso',
-    title: 'Redefinir senha',
+    eyebrow: 'Recuperar acesso',
+    title: 'Redefinir senha de acesso',
     description:
-      'Informe seu email corporativo para receber o link de redefinicao de senha.',
+      'Informe seu email para receber um link e definir uma nova senha.',
     buttonLabel: 'Enviar link',
   },
 };
-
-function passwordMeetsPolicy(password: string) {
-  return /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(password);
-}
 
 function getRedirectUrl() {
   if (typeof window === 'undefined') {
@@ -113,13 +102,13 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        setMessage('Acesso validado. Preparando o ambiente operacional...');
+        setMessage('Acesso validado. Preparando seu ambiente no ManuCMMS...');
         setError(null);
       }
 
       if (event === 'PASSWORD_RECOVERY') {
         setMode('reset');
-        setMessage('Sessao de recuperacao identificada. Siga o fluxo de redefinicao do Supabase.');
+        setMessage('Sessao de recuperacao identificada. Siga o fluxo para redefinir sua senha.');
         setError(null);
       }
     });
@@ -146,7 +135,7 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
     event.preventDefault();
 
     if (!supabase) {
-      setError('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para habilitar o login.');
+      setError('O acesso esta temporariamente indisponivel. Tente novamente em instantes.');
       return;
     }
 
@@ -163,51 +152,12 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
       });
 
       if (signInError) {
-        setError('Nao foi possivel autenticar. Revise email e senha e tente novamente.');
+        setError('Nao foi possivel entrar. Revise seus dados e tente novamente.');
         setIsSubmitting(false);
         return;
       }
 
-      setMessage('Acesso validado. Preparando o ambiente operacional...');
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (mode === 'signup') {
-      if (!passwordMeetsPolicy(form.password)) {
-        setError('A senha deve ter pelo menos 8 caracteres, com letras e numeros.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (form.password !== form.confirmPassword) {
-        setError('A confirmacao de senha nao confere.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: form.password,
-        options: {
-          emailRedirectTo: getRedirectUrl(),
-        },
-      });
-
-      if (signUpError) {
-        setError('Nao foi possivel criar a conta agora. Revise os dados e tente novamente.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!data.session) {
-        setMessage('Conta criada. Verifique seu email e confirme o acesso pelo link enviado.');
-      } else {
-        setMessage('Conta criada e autenticada. Preparando o ambiente operacional...');
-      }
-
-      setMode('login');
-      setForm(INITIAL_FORM);
+      setMessage('Acesso validado. Preparando seu ambiente no ManuCMMS...');
       setIsSubmitting(false);
       return;
     }
@@ -217,7 +167,7 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
     });
 
     if (resetError) {
-      setError('Nao foi possivel enviar o link de redefinicao. Tente novamente em instantes.');
+      setError('Nao foi possivel enviar o link agora. Tente novamente em instantes.');
       setIsSubmitting(false);
       return;
     }
@@ -228,7 +178,7 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
 
   async function handleGoogleSignIn() {
     if (!supabase) {
-      setError('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para habilitar o login.');
+      setError('O acesso com Google esta temporariamente indisponivel.');
       return;
     }
 
@@ -244,55 +194,52 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
     });
 
     if (oauthError) {
-      setError('Nao foi possivel iniciar o login com Google.');
+      setError('Nao foi possivel iniciar o acesso com Google.');
       setIsSubmitting(false);
       return;
     }
 
-    setMessage('Redirecionando para autenticacao com Google...');
+    setMessage('Redirecionando para o acesso com Google...');
   }
 
   const currentMode = modeConfig[mode];
   const isConfigured = supabaseConfig.isConfigured;
-  const formIsValid =
-    form.email.trim().length > 0 &&
-    (mode === 'reset' || form.password.length > 0) &&
-    (mode !== 'signup' || form.confirmPassword.length > 0);
+  const formIsValid = form.email.trim().length > 0 && (mode === 'reset' || form.password.length > 0);
 
   return (
     <div className="login-page">
       <Row gutter={[24, 24]} className="login-page-row">
         <Col xs={24} lg={11}>
           <Card variant="borderless" className="login-brand-card">
-            <Space orientation="vertical" size={24} style={{ width: '100%' }}>
+            <Space direction="vertical" size={24} style={{ width: '100%' }}>
               <Space align="center" size={12}>
                 <div className="brand-icon-box">
                   <Building2 size={20} />
                 </div>
                 <div>
-                  <Typography.Text className="brand-label">ManuCMMS</Typography.Text>
+                  <Typography.Text className="brand-label">Sistema de manutencao</Typography.Text>
                   <Typography.Title level={3} style={{ margin: 0, color: '#f5f7f9' }}>
-                    Ambiente corporativo
+                    ManuCMMS
                   </Typography.Title>
                 </div>
               </Space>
 
               <div>
                 <Typography.Title level={1} className="brand-title">
-                  Manutencao, operacao e rastreabilidade em um unico fluxo.
+                  O ponto de entrada da sua operacao industrial.
                 </Typography.Title>
                 <Typography.Paragraph className="brand-paragraph">
-                  O acesso autentica o usuario no Supabase e respeita o contexto de unidade e
-                  perfil retornado pelo backend.
+                  Acompanhe ativos, ordens de servico e a rotina da sua equipe em um ambiente
+                  pensado para uso diario, com uma experiencia simples desde o primeiro acesso.
                 </Typography.Paragraph>
               </div>
 
               <Space wrap size={[8, 8]}>
                 <Tag className="brand-tag" variant="filled">
-                  <ShieldCheck size={14} /> Auth seguro
+                  <Sparkles size={14} /> Experiencia clara
                 </Tag>
                 <Tag className="brand-tag" variant="filled">
-                  <KeyRound size={14} /> Perfis por cargo
+                  <Users size={14} /> Acesso por equipe
                 </Tag>
                 <Tag className="brand-tag" variant="filled">
                   <ArrowRight size={14} /> Fluxo operacional
@@ -313,7 +260,7 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
 
         <Col xs={24} lg={13}>
           <Card variant="borderless" className="login-form-card">
-            <Space orientation="vertical" size={20} style={{ width: '100%' }}>
+            <Space direction="vertical" size={20} style={{ width: '100%' }}>
               <div className="login-header">
                 <div>
                   <Typography.Text type="secondary">{currentMode.eyebrow}</Typography.Text>
@@ -324,17 +271,15 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
                     {currentMode.description}
                   </Typography.Paragraph>
                 </div>
-                <Tag color={isConfigured ? 'success' : 'warning'}>
-                  {isConfigured ? 'Supabase configurado' : 'Configurar .env'}
-                </Tag>
+                <Tag color="blue">ManuCMMS</Tag>
               </div>
 
               {isLoadingSession ? (
                 <Alert
                   type="info"
                   showIcon
-                  title="Validando sessao existente"
-                  description="Aguarde enquanto verificamos se ja existe uma sessao ativa."
+                  title="Verificando acesso"
+                  description="Aguarde enquanto identificamos se voce ja possui uma sessao ativa."
                 />
               ) : null}
 
@@ -344,8 +289,8 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
                 <Alert
                   type="warning"
                   showIcon
-                  title="Configuracao incompleta"
-                  description="Preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para liberar a autenticacao."
+                  title="Acesso temporariamente indisponivel"
+                  description="No momento nao foi possivel disponibilizar a autenticacao. Tente novamente em instantes."
                 />
               ) : null}
 
@@ -358,12 +303,6 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
                   onClick={() => changeMode('login')}
                 >
                   Entrar
-                </Button>
-                <Button
-                  type={mode === 'signup' ? 'primary' : 'default'}
-                  onClick={() => changeMode('signup')}
-                >
-                  Criar conta
                 </Button>
                 <Button
                   type={mode === 'reset' ? 'primary' : 'default'}
@@ -386,9 +325,9 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
               <Divider style={{ margin: 0 }}>ou use seu email</Divider>
 
               <form onSubmit={(event) => void handleSubmit(event)} className="antd-form-stack">
-                <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+                <Space direction="vertical" size={14} style={{ width: '100%' }}>
                   <div>
-                    <Typography.Text strong>Email corporativo</Typography.Text>
+                  <Typography.Text strong>Email corporativo</Typography.Text>
                     <Input
                       prefix={<Mail size={16} />}
                       size="large"
@@ -412,24 +351,6 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
                     </div>
                   ) : null}
 
-                  {mode === 'signup' ? (
-                    <>
-                      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-                        A senha deve ter no minimo 8 caracteres, com letras e numeros.
-                      </Typography.Paragraph>
-                      <div>
-                        <Typography.Text strong>Confirmacao de senha</Typography.Text>
-                        <Input.Password
-                          prefix={<KeyRound size={16} />}
-                          size="large"
-                          value={form.confirmPassword}
-                          onChange={(event) => updateField('confirmPassword', event.target.value)}
-                          placeholder="Repita a senha"
-                        />
-                      </div>
-                    </>
-                  ) : null}
-
                   {mode === 'login' ? (
                     <Checkbox
                       checked={form.remember}
@@ -450,6 +371,13 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
                   </Button>
                 </Space>
               </form>
+
+              <Alert
+                type="info"
+                showIcon
+                title="Primeiro acesso por convite"
+                description="Se esta for sua primeira entrada, use o link de convite enviado pela sua empresa. Depois do aceite, os proximos acessos acontecem por esta tela."
+              />
             </Space>
           </Card>
         </Col>

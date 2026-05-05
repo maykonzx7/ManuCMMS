@@ -59,7 +59,15 @@ export class CreateAtivoUseCase {
       throw new NotFoundException('Unidade fabril não encontrada');
     }
 
-    const payload: CreateAtivoInput = { idUnidade, nome };
+    if (!unidadeOk.empresaId) {
+      throw new NotFoundException('Empresa da unidade fabril não encontrada');
+    }
+
+    const payload: CreateAtivoInput = {
+      empresaId: unidadeOk.empresaId,
+      idUnidade,
+      nome,
+    };
     if (limiteTemp !== undefined) {
       payload.limiteTemp = limiteTemp;
     }

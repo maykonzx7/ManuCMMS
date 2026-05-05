@@ -8,6 +8,8 @@ export const ORDEM_SERVICO_REPOSITORY_PORT = Symbol(
 );
 
 export type CreateOrdemServicoInput = {
+  empresaId: string;
+  idUnidade: string;
   idAtivo: string;
   tipo: OrdemServicoListaItem['tipo'];
   descricao: string;
@@ -17,6 +19,7 @@ export type CreateOrdemServicoInput = {
 /** Persistência atômica: OS concluída + ativo OPERACIONAL (RN-14). */
 export type FecharOrdemServicoPersistenciaInput = {
   idOrdemServico: string;
+  empresaId: string;
   idUnidade: string;
   fotoAnexo: string | null;
   fotoProblema: string | null;
@@ -25,10 +28,14 @@ export type FecharOrdemServicoPersistenciaInput = {
 };
 
 export interface IOrdemServicoRepositoryPort {
-  listByUnidade(idUnidade: string): Promise<OrdemServicoListaItem[]>;
+  listByUnidade(
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem[]>;
   create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem>;
   findParaFechamento(
     idOrdemServico: string,
+    empresaId: string,
     idUnidade: string,
   ): Promise<OrdemServicoParaFechamento | null>;
   fecharComEvidencias(
@@ -36,10 +43,12 @@ export interface IOrdemServicoRepositoryPort {
   ): Promise<OrdemServicoListaItem>;
   iniciarExecucao(
     idOrdemServico: string,
+    empresaId: string,
     idUnidade: string,
   ): Promise<OrdemServicoListaItem>;
   cancelar(
     idOrdemServico: string,
+    empresaId: string,
     idUnidade: string,
   ): Promise<OrdemServicoListaItem>;
 }
