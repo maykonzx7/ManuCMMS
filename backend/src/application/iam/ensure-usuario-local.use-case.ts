@@ -53,15 +53,16 @@ export class EnsureUsuarioLocalUseCase {
     email: string | null;
     role: string | null;
   }): Promise<UsuarioLocalContext> {
-    const existente = await this.usuarios.findByAuthSub(jwt.userId);
-    if (existente) {
-      const unidadeExistente = await this.unidades.findById(existente.idUnidade);
+    const existentePorSub = await this.usuarios.findByAuthSub(jwt.userId);
+    if (existentePorSub) {
+      const unidadeExistente = await this.unidades.findById(existentePorSub.idUnidade);
       await this.usuarios.ensureAccessContext({
-        idUsuario: existente.id,
-        idUnidade: existente.idUnidade,
-        idUnidadeCargo: existente.idUnidade,
-        empresaId: unidadeExistente?.empresaId ?? existente.empresa?.id ?? null,
-        perfil: existente.perfil as PerfilUsuarioCodigo,
+        idUsuario: existentePorSub.id,
+        idUnidade: existentePorSub.idUnidade,
+        idUnidadeCargo: existentePorSub.idUnidade,
+        empresaId:
+          unidadeExistente?.empresaId ?? existentePorSub.empresa?.id ?? null,
+        perfil: existentePorSub.perfil as PerfilUsuarioCodigo,
       });
 
       const atualizado = await this.usuarios.findByAuthSub(jwt.userId);
@@ -69,7 +70,36 @@ export class EnsureUsuarioLocalUseCase {
         return atualizado;
       }
 
-      return existente;
+      return existentePorSub;
+    }
+
+    const emailJwt = jwt.email?.trim().toLowerCase();
+    if (emailJwt) {
+      const existentePorEmail = await this.usuarios.findByEmail(emailJwt);
+      if (existentePorEmail) {
+        await this.usuarios.updateAuthSub(existentePorEmail.id, jwt.userId);
+
+        const unidadeExistente = await this.unidades.findById(
+          existentePorEmail.idUnidade,
+        );
+        await this.usuarios.ensureAccessContext({
+          idUsuario: existentePorEmail.id,
+          idUnidade: existentePorEmail.idUnidade,
+          idUnidadeCargo: existentePorEmail.idUnidade,
+          empresaId:
+            unidadeExistente?.empresaId ??
+            existentePorEmail.empresa?.id ??
+            null,
+          perfil: existentePorEmail.perfil as PerfilUsuarioCodigo,
+        });
+
+        const atualizado = await this.usuarios.findByAuthSub(jwt.userId);
+        if (atualizado) {
+          return atualizado;
+        }
+
+        return existentePorEmail;
+      }
     }
 
     const idUnidadeFixo = this.config

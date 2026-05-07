@@ -8,6 +8,6 @@ import { SmtpEmailService } from './smtp-email.service';
     SmtpEmailService,
     { provide: EMAIL_PORT, useExisting: SmtpEmailService },
   ],
-  exports: [EMAIL_PORT],
+  exports: [EMAIL_PORT, SmtpEmailService],
 })
 export class EmailModule {}

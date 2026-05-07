@@ -25,7 +25,6 @@ type OrdemServicoRow = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
-  assinaturaDigital: string | null;
   dataAbertura: Date;
   dataFechamento: Date | null;
 };
@@ -112,6 +111,55 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     return item;
   }
 
+  async findByIdInUnidade(
+    idOrdemServico: string,
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem | null> {
+    const rows = await this.listRowsWhere(Prisma.sql`
+      os.id = ${idOrdemServico}::uuid
+      AND os.empresa_id = ${empresaId}::uuid
+      AND a.id_unidade = ${idUnidade}::uuid
+    `);
+    return rows[0] ? this.toListaItem(rows[0]) : null;
+  }
+
+  async updateDados(input: {
+    idOrdemServico: string;
+    empresaId: string;
+    idUnidade: string;
+    descricao?: string;
+    idTecnico?: string | null;
+  }): Promise<OrdemServicoListaItem | null> {
+    const fields: Prisma.Sql[] = [];
+    if (input.descricao !== undefined) {
+      fields.push(Prisma.sql`descricao = ${input.descricao}`);
+    }
+    if (input.idTecnico !== undefined) {
+      fields.push(Prisma.sql`id_tecnico = ${input.idTecnico}::uuid`);
+    }
+    if (fields.length === 0) {
+      return this.findByIdInUnidade(
+        input.idOrdemServico,
+        input.empresaId,
+        input.idUnidade,
+      );
+    }
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ordem_servico
+      SET ${Prisma.join(fields, ', ')}
+      WHERE id = ${input.idOrdemServico}::uuid
+        AND empresa_id = ${input.empresaId}::uuid
+    `);
+
+    return this.findByIdInUnidade(
+      input.idOrdemServico,
+      input.empresaId,
+      input.idUnidade,
+    );
+  }
+
   async findParaFechamento(
     idOrdemServico: string,
     empresaId: string,
@@ -166,8 +214,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           data_fechamento = NOW(),
           foto_anexo = ${input.fotoAnexo},
           foto_problema = ${input.fotoProblema},
-          foto_solucao = ${input.fotoSolucao},
-          assinatura_digital = ${input.assinaturaDigital}
+          foto_solucao = ${input.fotoSolucao}
         WHERE id = ${input.idOrdemServico}::uuid
           AND empresa_id = ${input.empresaId}::uuid
       `);
@@ -338,7 +385,6 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         os.foto_anexo AS "fotoAnexo",
         os.foto_problema AS "fotoProblema",
         os.foto_solucao AS "fotoSolucao",
-        os.assinatura_digital AS "assinaturaDigital",
         os.data_abertura AS "dataAbertura",
         os.data_fechamento AS "dataFechamento"
       FROM ordem_servico os
@@ -360,7 +406,6 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       fotoAnexo: r.fotoAnexo,
       fotoProblema: r.fotoProblema,
       fotoSolucao: r.fotoSolucao,
-      assinaturaDigital: r.assinaturaDigital,
       dataAbertura: r.dataAbertura,
       dataFechamento: r.dataFechamento,
     };

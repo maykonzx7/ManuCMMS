@@ -24,7 +24,6 @@ export type FecharOrdemServicoPersistenciaInput = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
-  assinaturaDigital: string;
 };
 
 export interface IOrdemServicoRepositoryPort {
@@ -32,7 +31,21 @@ export interface IOrdemServicoRepositoryPort {
     empresaId: string,
     idUnidade: string,
   ): Promise<OrdemServicoListaItem[]>;
+  findByIdInUnidade(
+    idOrdemServico: string,
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem | null>;
   create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem>;
+  updateDados(
+    input: {
+      idOrdemServico: string;
+      empresaId: string;
+      idUnidade: string;
+      descricao?: string;
+      idTecnico?: string | null;
+    },
+  ): Promise<OrdemServicoListaItem | null>;
   findParaFechamento(
     idOrdemServico: string,
     empresaId: string,

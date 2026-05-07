@@ -101,6 +101,23 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     return Promise.all(rows.map((row) => this.toLocalContext(row)));
   }
 
+  async findByIdInUnidade(
+    idUsuario: string,
+    idUnidade: string,
+  ): Promise<UsuarioLocalContext | null> {
+    const pertence = await this.existsInUnidade(idUsuario, idUnidade);
+    if (!pertence) {
+      return null;
+    }
+    const row = await this.prisma.usuario.findUnique({
+      where: { id: idUsuario },
+    });
+    if (!row) {
+      return null;
+    }
+    return this.toLocalContext(row);
+  }
+
   async findByAuthSub(authSub: string): Promise<UsuarioLocalContext | null> {
     const row = await this.prisma.usuario.findUnique({
       where: { authSub },
@@ -110,6 +127,42 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     }
 
     return this.toLocalContext(row);
+  }
+
+  async findByEmail(email: string): Promise<UsuarioLocalContext | null> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    const rows = await this.prisma.$queryRaw<UsuarioRow[]>(Prisma.sql`
+      SELECT
+        id,
+        auth_sub AS "authSub",
+        id_unidade AS "idUnidade",
+        nome,
+        email,
+        perfil
+      FROM usuario
+      WHERE lower(email) = ${normalizedEmail}
+      LIMIT 1
+    `);
+
+    if (!rows[0]) {
+      return null;
+    }
+
+    return this.toLocalContext(rows[0]);
+  }
+
+  async updateAuthSub(idUsuario: string, authSub: string): Promise<void> {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE usuario
+      SET
+        auth_sub = ${authSub},
+        updated_at = NOW()
+      WHERE id = ${idUsuario}::uuid
+    `);
   }
 
   async ensureAccessContext(

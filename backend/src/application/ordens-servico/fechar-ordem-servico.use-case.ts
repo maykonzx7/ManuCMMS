@@ -15,7 +15,6 @@ import {
 } from '../../domain/ports/unidade-read.port';
 
 const URL_MAX = 2048;
-const ASSINATURA_MAX = 32_000;
 
 function normalizarUrl(v: unknown): string | null {
   if (v == null || typeof v !== 'string') {
@@ -38,7 +37,6 @@ export class FecharOrdemServicoUseCase {
     idUnidade: string,
     idOrdemServico: string,
     body: {
-      assinaturaDigital: string;
       fotoAnexo?: string | null;
       fotoProblema?: string | null;
       fotoSolucao?: string | null;
@@ -60,13 +58,6 @@ export class FecharOrdemServicoUseCase {
     if (!os) {
       throw new NotFoundException(
         'Ordem de serviço não encontrada ou já encerrada',
-      );
-    }
-
-    const assinatura = body.assinaturaDigital?.trim() ?? '';
-    if (assinatura.length === 0 || assinatura.length > ASSINATURA_MAX) {
-      throw new BadRequestException(
-        'assinaturaDigital é obrigatória e deve ter até 32.000 caracteres',
       );
     }
 
@@ -105,7 +96,6 @@ export class FecharOrdemServicoUseCase {
       fotoAnexo: fotoAnexo ?? null,
       fotoProblema: os.tipo === 'CORRETIVA' ? fotoProblema : null,
       fotoSolucao: os.tipo === 'CORRETIVA' ? fotoSolucao : null,
-      assinaturaDigital: assinatura,
     });
   }
 }

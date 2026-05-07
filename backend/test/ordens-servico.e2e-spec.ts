@@ -35,7 +35,7 @@ describe('OrdensServicoController (e2e)', () => {
       .patch(
         '/unidades/00000000-0000-4000-8000-000000000001/ordens-servico/00000000-0000-4000-8000-000000000002/fechar',
       )
-      .send({ assinaturaDigital: 'x', fotoAnexo: 'https://a.invalid/f.jpg' })
+      .send({ fotoAnexo: 'https://a.invalid/f.jpg' })
       .expect(401);
   });
 
@@ -108,9 +108,9 @@ describe('OrdensServicoController (e2e)', () => {
       const fechar = await request(app.getHttpServer())
         .patch(`/unidades/${unidadeId}/ordens-servico/${osId}/fechar`)
         .set('Authorization', `Bearer ${token}`)
-        .send({
-          assinaturaDigital: 'assinatura-e2e',
-          fotoAnexo: 'https://storage.invalid/bucket/foto-intervencao.jpg',
+        .attach('fotoAnexo', Buffer.from('fake-image-content'), {
+          filename: 'foto-intervencao.jpg',
+          contentType: 'image/jpeg',
         })
         .expect(200);
 
@@ -138,6 +138,100 @@ describe('OrdensServicoController (e2e)', () => {
         .get(`/unidades/${outraUnidade.id}/ordens-servico`)
         .set('Authorization', `Bearer ${token}`)
         .expect(403);
+    },
+  );
+
+  (runComDb ? it : it.skip)(
+    'detail + update de OS aberta',
+    async () => {
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+      const unidadesRes = await request(app.getHttpServer())
+        .get('/unidades')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
+
+      const ativo = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ativos`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ nome: `Ativo OS CRUD ${Date.now()}` })
+        .expect(201);
+      const idAtivo = (ativo.body as { id: string }).id;
+
+      const os = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ordens-servico`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          idAtivo,
+          tipo: 'PREVENTIVA',
+          descricao: `descricao inicial ${Date.now()}`,
+        })
+        .expect(201);
+      const osId = (os.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .get(`/unidades/${unidadeId}/ordens-servico/${osId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const updated = await request(app.getHttpServer())
+        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ descricao: 'descricao atualizada' })
+        .expect(200);
+
+      expect((updated.body as { descricao: string }).descricao).toBe(
+        'descricao atualizada',
+      );
+    },
+  );
+
+  (runComDb ? it : it.skip)(
+    'PATCH OS concluida retorna 400 ao tentar editar',
+    async () => {
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+      const unidadesRes = await request(app.getHttpServer())
+        .get('/unidades')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
+
+      const ativo = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ativos`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ nome: `Ativo update bloqueado ${Date.now()}` })
+        .expect(201);
+      const idAtivo = (ativo.body as { id: string }).id;
+
+      const os = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ordens-servico`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          idAtivo,
+          tipo: 'PREDITIVA',
+          descricao: `os para fechar ${Date.now()}`,
+        })
+        .expect(201);
+      const osId = (os.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}/fechar`)
+        .set('Authorization', `Bearer ${token}`)
+        .attach('fotoAnexo', Buffer.from('fake-image-content'), {
+          filename: 'foto-intervencao.jpg',
+          contentType: 'image/jpeg',
+        })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ descricao: 'tentativa de editar concluida' })
+        .expect(400);
     },
   );
 });

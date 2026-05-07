@@ -31,7 +31,13 @@ export type EnsureUsuarioEmpresaAccessInput = {
 export interface IUsuarioReadPort {
   existsInUnidade(idUsuario: string, idUnidade: string): Promise<boolean>;
   listByUnidade(idUnidade: string): Promise<UsuarioLocalContext[]>;
+  findByIdInUnidade(
+    idUsuario: string,
+    idUnidade: string,
+  ): Promise<UsuarioLocalContext | null>;
   findByAuthSub(authSub: string): Promise<UsuarioLocalContext | null>;
+  findByEmail(email: string): Promise<UsuarioLocalContext | null>;
+  updateAuthSub(idUsuario: string, authSub: string): Promise<void>;
   ensureAccessContext(input: EnsureUsuarioEmpresaAccessInput): Promise<void>;
   createBootstrap(
     input: CreateUsuarioBootstrapInput,

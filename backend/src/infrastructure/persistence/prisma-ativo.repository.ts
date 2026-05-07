@@ -5,6 +5,7 @@ import type { AtivoListaItem } from '../../domain/entities/ativo';
 import type {
   CreateAtivoInput,
   IAtivoRepositoryPort,
+  UpdateAtivoInput,
 } from '../../domain/ports/ativo.repository.port';
 import { PrismaService } from './prisma.service';
 
@@ -72,6 +73,70 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
 
     const row = await this.findById(id);
     return this.toListaItem(row);
+  }
+
+  async findByIdInUnidade(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+  ): Promise<AtivoListaItem | null> {
+    const rows = await this.prisma.$queryRaw<AtivoRow[]>(Prisma.sql`
+      SELECT
+        id,
+        id_unidade AS "idUnidade",
+        nome,
+        status,
+        limite_temp AS "limiteTemp",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM ativo
+      WHERE id = ${idAtivo}::uuid
+        AND empresa_id = ${empresaId}::uuid
+        AND id_unidade = ${idUnidade}::uuid
+      LIMIT 1
+    `);
+    return rows[0] ? this.toListaItem(rows[0]) : null;
+  }
+
+  async update(input: UpdateAtivoInput): Promise<AtivoListaItem | null> {
+    const fields: Prisma.Sql[] = [];
+    if (input.nome !== undefined) {
+      fields.push(Prisma.sql`nome = ${input.nome}`);
+    }
+    if (input.limiteTemp !== undefined) {
+      fields.push(Prisma.sql`limite_temp = ${input.limiteTemp}`);
+    }
+    if (input.status !== undefined) {
+      fields.push(Prisma.sql`status = ${input.status}`);
+    }
+    if (fields.length === 0) {
+      return this.findByIdInUnidade(input.empresaId, input.idUnidade, input.idAtivo);
+    }
+    fields.push(Prisma.sql`updated_at = NOW()`);
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ativo
+      SET ${Prisma.join(fields, ', ')}
+      WHERE id = ${input.idAtivo}::uuid
+        AND empresa_id = ${input.empresaId}::uuid
+        AND id_unidade = ${input.idUnidade}::uuid
+    `);
+
+    return this.findByIdInUnidade(input.empresaId, input.idUnidade, input.idAtivo);
+  }
+
+  async deleteByIdInUnidade(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+  ): Promise<boolean> {
+    const count = await this.prisma.$executeRaw(Prisma.sql`
+      DELETE FROM ativo
+      WHERE id = ${idAtivo}::uuid
+        AND empresa_id = ${empresaId}::uuid
+        AND id_unidade = ${idUnidade}::uuid
+    `);
+    return Number(count) > 0;
   }
 
   async existsInUnidade(

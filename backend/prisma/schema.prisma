@@ -59,7 +59,7 @@ enum TipoOrdemServico {
   PREDITIVA
 }
 
-/// DEM — ciclo de vida da OS (fechamento com foto/assinatura: RN-02, implementação futura).
+/// DEM — ciclo de vida da OS (fechamento com evidências fotográficas: RN-02, RN-13).
 enum StatusOrdemServico {
   ABERTA
   EM_EXECUCAO

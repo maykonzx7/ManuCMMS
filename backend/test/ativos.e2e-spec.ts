@@ -86,4 +86,86 @@ describe('AtivosController (e2e)', () => {
         .expect(403);
     },
   );
+
+  (runComDb ? it : it.skip)(
+    'CRUD de ativo: detail + update + delete',
+    async () => {
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+
+      const unidadesRes = await request(app.getHttpServer())
+        .get('/unidades')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
+
+      const created = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ativos`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ nome: `Ativo CRUD ${Date.now()}` })
+        .expect(201);
+      const ativoId = (created.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .get(`/unidades/${unidadeId}/ativos/${ativoId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const updated = await request(app.getHttpServer())
+        .patch(`/unidades/${unidadeId}/ativos/${ativoId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ nome: 'Ativo atualizado', limiteTemp: 55, status: 'FALHA' })
+        .expect(200);
+      expect((updated.body as { nome: string }).nome).toBe('Ativo atualizado');
+      expect((updated.body as { status: string }).status).toBe('FALHA');
+
+      await request(app.getHttpServer())
+        .delete(`/unidades/${unidadeId}/ativos/${ativoId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .get(`/unidades/${unidadeId}/ativos/${ativoId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+    },
+  );
+
+  (runComDb ? it : it.skip)(
+    'DELETE ativo com OS vinculada retorna erro de negócio',
+    async () => {
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+
+      const unidadesRes = await request(app.getHttpServer())
+        .get('/unidades')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
+
+      const created = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ativos`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ nome: `Ativo bloqueado ${Date.now()}` })
+        .expect(201);
+      const ativoId = (created.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ordens-servico`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          idAtivo: ativoId,
+          tipo: 'PREVENTIVA',
+          descricao: `vinculo delete ${Date.now()}`,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`/unidades/${unidadeId}/ativos/${ativoId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409);
+    },
+  );
 });

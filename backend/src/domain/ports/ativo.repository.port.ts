@@ -11,9 +11,29 @@ export type CreateAtivoInput = {
   limiteTemp?: number;
 };
 
+export type UpdateAtivoInput = {
+  empresaId: string;
+  idUnidade: string;
+  idAtivo: string;
+  nome?: string;
+  limiteTemp?: number;
+  status?: StatusAtivoPersistido;
+};
+
 export interface IAtivoRepositoryPort {
   listByUnidade(empresaId: string, idUnidade: string): Promise<AtivoListaItem[]>;
+  findByIdInUnidade(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+  ): Promise<AtivoListaItem | null>;
   create(input: CreateAtivoInput): Promise<AtivoListaItem>;
+  update(input: UpdateAtivoInput): Promise<AtivoListaItem | null>;
+  deleteByIdInUnidade(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+  ): Promise<boolean>;
   existsInUnidade(
     empresaId: string,
     idAtivo: string,

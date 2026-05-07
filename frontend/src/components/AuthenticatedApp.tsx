@@ -1,39 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
-  Alert,
-  Button,
-  Card,
-  Descriptions,
-  Input,
-  Layout,
-  Menu,
-  Select,
-  Result,
-  Space,
-  Spin,
-  Statistic,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
-import type { MenuProps, TableColumnsType } from 'antd';
-import {
+  Activity,
+  Bell,
   Blocks,
   ClipboardList,
   Factory,
+  FileCheck2,
+  FileSpreadsheet,
   Gauge,
-  KeySquare,
-  LayoutDashboard,
+  Link2,
   LogOut,
+  Radio,
   SearchCheck,
   Shield,
+  UserCog,
   Users,
+  Warehouse,
 } from 'lucide-react';
 import type { BackendMe } from '../lib/auth';
 import { apiFetch, resolveApiBaseUrl } from '../lib/api';
-import { getInvitePortalPath } from '../lib/portal-paths';
+import { Alert } from './ui/alert';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
 
 type AuthenticatedAppProps = {
   authWarning: string | null;
@@ -43,888 +33,1259 @@ type AuthenticatedAppProps = {
   onSignOut: () => Promise<void>;
 };
 
-type Perfil = 'TECNICO' | 'SUPERVISOR' | 'GESTOR' | 'AUDITOR' | 'ADMIN';
-
-type ModuleKey =
-  | 'inicio'
-  | 'ordens'
-  | 'ativos'
-  | 'unidades'
+type ScreenKey =
+  | 'home'
+  | 'os-lista'
+  | 'os-detalhe'
+  | 'ativos-lista'
+  | 'ativos-cadastro'
   | 'dashboard'
   | 'auditoria'
   | 'usuarios'
-  | 'permissoes';
+  | 'permissoes'
+  | 'unidades'
+  | 'iot'
+  | 'notificacoes'
+  | 'relatorios'
+  | 'integracoes';
 
-type ModuleItem = {
-  key: ModuleKey;
-  label: string;
-  description: string;
-  icon: ReactNode;
-};
-
-type Unidade = {
-  id: string;
-  nome: string;
-  localizacao: string;
-  empresaId?: string | null;
-};
-
-type Ativo = {
-  id: string;
-  idUnidade: string;
-  nome: string;
-  status: string;
-  limiteTemp: number;
-};
-
+type Unidade = { id: string; nome: string; localizacao: string };
+type Ativo = { id: string; nome: string; status: string; limiteTemp: number };
 type OrdemServico = {
   id: string;
   idAtivo: string;
   ativoNome: string;
-  idTecnico: string | null;
-  tipo: string;
   status: string;
+  tipo: string;
   descricao: string;
   dataAbertura: string;
-  dataFechamento: string | null;
+  dataFechamento?: string | null;
 };
 
-type CreatedInviteResponse = {
-  convite: {
-    id: string;
-    empresaId: string;
-    emailDestino: string;
-    cargoCodigo: string;
-    idUnidadeDestino: string | null;
-    expiraEm: string;
-    token?: string;
-  };
-  entregaEmail?: {
-    status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU';
-    erro?: string;
-  };
-  links?: {
-    convite?: string;
+type UsuarioUnidade = { id: string; nome: string; email: string; perfil: string; status?: string };
+
+type ScreenDef = {
+  key: ScreenKey;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  profiles: string[];
+  desc: string;
+};
+
+type SimulatedReading = {
+  id: string;
+  ativo: string;
+  temperatura: number;
+  momento: string;
+  origem: 'SIMULADO';
+};
+
+type AuditLogItem = {
+  idLog: string;
+  entidadeAfetada: string;
+  idRegistro: string;
+  valorAnterior: Record<string, unknown>;
+  valorNovo: Record<string, unknown>;
+  dataHora: string;
+};
+
+type IntegracaoStatusItem = {
+  ok: boolean;
+  message: string;
+};
+
+type IntegracoesStatusResponse = {
+  status: 'ok' | 'degraded';
+  checkedAt: string;
+  integrations: {
+    rabbitmq: IntegracaoStatusItem;
+    mongodb: IntegracaoStatusItem;
+    smtp: IntegracaoStatusItem;
+    iot: IntegracaoStatusItem;
   };
 };
 
-type ApiErrorBody = {
-  message?: string | string[];
-  error?: string;
-};
+const screens: ScreenDef[] = [
+  { key: 'home', label: 'Home', icon: Activity, profiles: ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'], desc: 'Visao por perfil e unidade' },
+  { key: 'os-lista', label: 'Ordens de Servico', icon: ClipboardList, profiles: ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'], desc: 'Lista, filtros e criacao de OS' },
+  { key: 'os-detalhe', label: 'Detalhe da OS', icon: FileCheck2, profiles: ['TECNICO', 'SUPERVISOR', 'GESTOR', 'ADMIN'], desc: 'Iniciar, cancelar e fechar OS' },
+  { key: 'ativos-lista', label: 'Ativos', icon: Blocks, profiles: ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'], desc: 'Inventario operacional da unidade' },
+  { key: 'ativos-cadastro', label: 'Cadastro de Ativo', icon: Warehouse, profiles: ['SUPERVISOR', 'GESTOR', 'ADMIN'], desc: 'Criacao de ativos e regras termicas' },
+  { key: 'dashboard', label: 'Dashboard', icon: Gauge, profiles: ['GESTOR', 'ADMIN'], desc: 'KPIs executivos e disponibilidade' },
+  { key: 'auditoria', label: 'Auditoria', icon: SearchCheck, profiles: ['GESTOR', 'AUDITOR', 'ADMIN'], desc: 'Eventos e conformidade operacional' },
+  { key: 'usuarios', label: 'Usuarios', icon: Users, profiles: ['SUPERVISOR', 'GESTOR', 'ADMIN'], desc: 'Usuarios por unidade fabril' },
+  { key: 'permissoes', label: 'Permissoes', icon: UserCog, profiles: ['GESTOR', 'ADMIN'], desc: 'Cargos e permissoes do contexto atual' },
+  { key: 'unidades', label: 'Unidades', icon: Factory, profiles: ['SUPERVISOR', 'GESTOR', 'ADMIN'], desc: 'Estrutura de unidades e contexto' },
+  { key: 'iot', label: 'IoT / Simulacao', icon: Radio, profiles: ['ADMIN'], desc: 'Simulador de telemetria e sinais' },
+  { key: 'notificacoes', label: 'Notificacoes', icon: Bell, profiles: ['SUPERVISOR', 'GESTOR', 'ADMIN'], desc: 'Alertas e eventos relevantes' },
+  { key: 'relatorios', label: 'Relatorios', icon: FileSpreadsheet, profiles: ['GESTOR', 'AUDITOR', 'ADMIN'], desc: 'Consolidado para exportacao' },
+  { key: 'integracoes', label: 'Integracoes', icon: Link2, profiles: ['GESTOR', 'ADMIN'], desc: 'Status da malha de integracao e IoT' },
+];
 
-const moduleIcons: Record<ModuleKey, ReactNode> = {
-  inicio: <LayoutDashboard size={16} />,
-  ordens: <ClipboardList size={16} />,
-  ativos: <Blocks size={16} />,
-  unidades: <Factory size={16} />,
-  dashboard: <Gauge size={16} />,
-  auditoria: <SearchCheck size={16} />,
-  usuarios: <Users size={16} />,
-  permissoes: <KeySquare size={16} />,
-};
-
-function resolvePerfil(backendMe: BackendMe | null): Perfil {
-  const perfil = backendMe?.usuario?.perfil?.toUpperCase();
-  switch (perfil) {
-    case 'SUPERVISOR':
-    case 'GESTOR':
-    case 'AUDITOR':
-    case 'ADMIN':
-    case 'TECNICO':
-      return perfil;
-    default:
-      return 'TECNICO';
-  }
+function resolvePerfil(backendMe: BackendMe | null) {
+  return backendMe?.usuario?.perfil?.toUpperCase() ?? 'TECNICO';
 }
 
-function buildModules(perfil: Perfil): ModuleItem[] {
-  const itemsByPerfil: Record<Perfil, Omit<ModuleItem, 'icon'>[]> = {
-    TECNICO: [
-      { key: 'inicio', label: 'Inicio', description: 'Resumo da conta autenticada' },
-      { key: 'ordens', label: 'Ordens de servico', description: 'Fila real da unidade atual' },
-      { key: 'ativos', label: 'Ativos', description: 'Ativos retornados pela API' },
-      { key: 'unidades', label: 'Unidade', description: 'Escopo operacional disponivel' },
-    ],
-    SUPERVISOR: [
-      { key: 'inicio', label: 'Inicio', description: 'Resumo operacional da unidade' },
-      { key: 'ordens', label: 'Ordens de servico', description: 'Fila e andamento das ordens' },
-      { key: 'ativos', label: 'Ativos', description: 'Ativos vinculados a unidade' },
-      { key: 'unidades', label: 'Unidade', description: 'Contexto da planta atual' },
-    ],
-    GESTOR: [
-      { key: 'inicio', label: 'Inicio', description: 'Visao geral da operacao' },
-      { key: 'dashboard', label: 'Dashboard', description: 'Indicadores executivos' },
-      { key: 'ordens', label: 'Ordens de servico', description: 'Operacao consolidada' },
-      { key: 'ativos', label: 'Ativos', description: 'Base de ativos da unidade' },
-      { key: 'usuarios', label: 'Usuarios', description: 'Acessos e perfis' },
-    ],
-    AUDITOR: [
-      { key: 'inicio', label: 'Inicio', description: 'Escopo autenticado' },
-      { key: 'auditoria', label: 'Auditoria', description: 'Trilhas e evidencias' },
-      { key: 'ordens', label: 'Ordens de servico', description: 'Consulta de registros' },
-      { key: 'ativos', label: 'Ativos', description: 'Consulta de ativos da unidade' },
-    ],
-    ADMIN: [
-      { key: 'inicio', label: 'Inicio', description: 'Visao administrativa' },
-      { key: 'usuarios', label: 'Usuarios', description: 'Cadastro e manutencao' },
-      { key: 'permissoes', label: 'Permissoes', description: 'Perfis e governanca' },
-      { key: 'ordens', label: 'Ordens de servico', description: 'Operacao da unidade' },
-      { key: 'ativos', label: 'Ativos', description: 'Ativos cadastrados' },
-      { key: 'unidades', label: 'Unidades', description: 'Estrutura organizacional' },
-    ],
-  };
-
-  return itemsByPerfil[perfil].map((item) => ({
-    ...item,
-    icon: moduleIcons[item.key],
-  }));
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed);
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return 'Em aberto';
-  }
+function statusBadge(status?: string) {
+  const safeStatus = status && status.trim().length > 0 ? status : 'N/D';
+  const normalized = safeStatus.toUpperCase();
+  const tone =
+    normalized === 'ABERTA'
+      ? 'bg-amber-100 text-amber-700'
+      : normalized === 'EM_EXECUCAO'
+        ? 'bg-blue-100 text-blue-700'
+        : normalized === 'CONCLUIDA' || normalized === 'ATIVO'
+          ? 'bg-emerald-100 text-emerald-700'
+          : normalized === 'CANCELADA'
+            ? 'bg-rose-100 text-rose-700'
+            : 'bg-slate-100 text-slate-700';
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(date);
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{safeStatus}</span>;
 }
 
-function renderStatusTag(status: string) {
-  const normalized = status.toUpperCase();
-  if (normalized === 'ABERTA') {
-    return <Tag color="gold">{status}</Tag>;
-  }
-
-  if (normalized === 'EM_EXECUCAO' || normalized === 'MANUTENCAO') {
-    return <Tag color="processing">{status}</Tag>;
-  }
-
-  if (normalized === 'CONCLUIDA' || normalized === 'ATIVO') {
-    return <Tag color="success">{status}</Tag>;
-  }
-
-  return <Tag>{status}</Tag>;
+function extractMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== 'object') return fallback;
+  const candidate = payload as { message?: string | string[]; error?: string };
+  if (typeof candidate.message === 'string') return candidate.message;
+  if (Array.isArray(candidate.message)) return candidate.message.join(' ');
+  if (typeof candidate.error === 'string') return candidate.error;
+  return fallback;
 }
 
-function extractApiErrorMessage(body: ApiErrorBody, fallback: string) {
-  if (typeof body.message === 'string') {
-    return body.message;
-  }
-
-  if (Array.isArray(body.message)) {
-    return body.message.join(' ');
-  }
-
-  return body.error || fallback;
-}
-
-function UnavailableModule({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card>
-      <Result
-        status="info"
-        title={title}
-        subTitle={description}
-        icon={<Shield size={28} />}
-      />
-    </Card>
-  );
-}
-
-export function AuthenticatedApp({
-  authWarning,
-  session,
-  backendMe,
-  isLoadingUser,
-  onSignOut,
-}: AuthenticatedAppProps) {
+export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUser, onSignOut }: AuthenticatedAppProps) {
   const perfil = resolvePerfil(backendMe);
-  const modules = useMemo(() => buildModules(perfil), [perfil]);
-  const [activeModule, setActiveModule] = useState<ModuleKey>(modules[0]?.key ?? 'inicio');
+  const visibleScreens = useMemo(() => screens.filter((screen) => screen.profiles.includes(perfil)), [perfil]);
+  const [activeScreen, setActiveScreen] = useState<ScreenKey>((visibleScreens[0]?.key ?? 'home') as ScreenKey);
 
   const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [selectedUnidadeId, setSelectedUnidadeId] = useState<string>(backendMe?.usuario?.idUnidade ?? '');
   const [ativos, setAtivos] = useState<Ativo[]>([]);
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
-  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(false);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [inviteCargo, setInviteCargo] = useState('TECNICO');
-  const [inviteUnidadeId, setInviteUnidadeId] = useState<string | undefined>();
-  const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
-  const [createdInvite, setCreatedInvite] = useState<CreatedInviteResponse | null>(null);
+  const [usuarios, setUsuarios] = useState<UsuarioUnidade[]>([]);
 
-  const preferredUnidadeId = backendMe?.usuario?.idUnidade ?? null;
-  const currentUnidade =
-    unidades.find((unidade) => unidade.id === preferredUnidadeId) ?? unidades[0] ?? null;
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [screenError, setScreenError] = useState<string | null>(null);
+  const [screenMessage, setScreenMessage] = useState<string | null>(null);
 
-  const displayName =
-    backendMe?.usuario?.nome ?? session.user.email?.split('@')[0] ?? 'Colaborador';
-  const displayEmail = backendMe?.email ?? session.user.email ?? '-';
-  const empresa = backendMe?.usuario?.empresa ?? null;
-  const permissoes = backendMe?.usuario?.permissoes ?? [];
-  const canInviteUsers = permissoes.includes('usuario.convidar');
-  const canManageCompany = permissoes.includes('empresa.gerenciar');
-  const cargoOptions = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'];
-  const inviteLink =
-    createdInvite?.links?.convite
-      ? createdInvite.links.convite
-      : createdInvite?.convite.token && empresa && typeof window !== 'undefined'
-      ? (() => {
-          const url = new URL('/convite', window.location.origin);
-          url.pathname = getInvitePortalPath();
-          url.searchParams.set('token', createdInvite.convite.token);
-          url.searchParams.set('email', createdInvite.convite.emailDestino);
-          url.searchParams.set('empresa', empresa.slug);
-          return url.toString();
-        })()
-      : null;
+  const [novoAtivoNome, setNovoAtivoNome] = useState('');
+  const [novoAtivoLimiteTemp, setNovoAtivoLimiteTemp] = useState('70');
+  const [isCreatingAtivo, setIsCreatingAtivo] = useState(false);
+  const [ativoSelecionadoId, setAtivoSelecionadoId] = useState('');
+  const [ativoNomeEdicao, setAtivoNomeEdicao] = useState('');
+  const [ativoLimiteEdicao, setAtivoLimiteEdicao] = useState('');
+  const [ativoStatusEdicao, setAtivoStatusEdicao] = useState('OPERACIONAL');
+  const [isUpdatingAtivo, setIsUpdatingAtivo] = useState(false);
+  const [isDeletingAtivo, setIsDeletingAtivo] = useState(false);
+
+  const [novaOsAtivoId, setNovaOsAtivoId] = useState('');
+  const [novaOsTipo, setNovaOsTipo] = useState('PREVENTIVA');
+  const [novaOsDescricao, setNovaOsDescricao] = useState('');
+  const [isCreatingOs, setIsCreatingOs] = useState(false);
+
+  const [ordemSelecionadaId, setOrdemSelecionadaId] = useState('');
+  const [osDescricaoEdicao, setOsDescricaoEdicao] = useState('');
+  const [osTecnicoEdicaoId, setOsTecnicoEdicaoId] = useState('');
+  const [fotoProblema, setFotoProblema] = useState('');
+  const [fotoSolucao, setFotoSolucao] = useState('');
+  const [fotoAnexoFile, setFotoAnexoFile] = useState<File | null>(null);
+  const [fotoProblemaFile, setFotoProblemaFile] = useState<File | null>(null);
+  const [fotoSolucaoFile, setFotoSolucaoFile] = useState<File | null>(null);
+  const [isUpdatingOs, setIsUpdatingOs] = useState(false);
+  const [isEditingOs, setIsEditingOs] = useState(false);
+  const [usuarioSelecionadoId, setUsuarioSelecionadoId] = useState('');
+  const [unidadeDetalhe, setUnidadeDetalhe] = useState<Unidade | null>(null);
+
+  const [simulatedReadings, setSimulatedReadings] = useState<SimulatedReading[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [auditFrom, setAuditFrom] = useState('');
+  const [auditTo, setAuditTo] = useState('');
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+
+  const [integracoesStatus, setIntegracoesStatus] = useState<IntegracoesStatusResponse | null>(null);
+  const [isLoadingIntegracoes, setIsLoadingIntegracoes] = useState(false);
+
+  const [reportFrom, setReportFrom] = useState('');
+  const [reportTo, setReportTo] = useState('');
+  const [reportFormato, setReportFormato] = useState<'excel' | 'pdf'>('excel');
+  const [isExportingReport, setIsExportingReport] = useState(false);
 
   useEffect(() => {
-    setActiveModule(modules[0]?.key ?? 'inicio');
-  }, [modules]);
-
-  useEffect(() => {
-    if (!session.access_token || isLoadingUser || !backendMe) {
-      setUnidades([]);
-      setAtivos([]);
-      setOrdens([]);
-      return;
+    if (!selectedUnidadeId && backendMe?.usuario?.idUnidade) {
+      setSelectedUnidadeId(backendMe.usuario.idUnidade);
     }
+  }, [backendMe?.usuario?.idUnidade, selectedUnidadeId]);
 
-    const controller = new AbortController();
+  async function loadData() {
+    if (!session.access_token) return;
 
-    async function loadWorkspace() {
-      setIsLoadingWorkspace(true);
-      setWorkspaceError(null);
-
-      try {
-        const unidadesResponse = await apiFetch('/unidades', session.access_token, controller.signal);
-
-        if (!unidadesResponse.ok) {
-          throw new Error('Nao foi possivel carregar as unidades.');
-        }
-
-        const unidadesBody = (await unidadesResponse.json()) as Unidade[];
-        setUnidades(unidadesBody);
-
-        const selectedUnidade =
-          unidadesBody.find((unidade) => unidade.id === preferredUnidadeId) ?? unidadesBody[0];
-
-        if (!selectedUnidade) {
-          setAtivos([]);
-          setOrdens([]);
-          return;
-        }
-
-        const [ativosResponse, ordensResponse] = await Promise.all([
-          apiFetch(`/unidades/${selectedUnidade.id}/ativos`, session.access_token, controller.signal),
-          apiFetch(
-            `/unidades/${selectedUnidade.id}/ordens-servico`,
-            session.access_token,
-            controller.signal,
-          ),
-        ]);
-
-        if (!ativosResponse.ok || !ordensResponse.ok) {
-          throw new Error('Nao foi possivel carregar ativos e ordens da unidade atual.');
-        }
-
-        setAtivos((await ativosResponse.json()) as Ativo[]);
-        setOrdens((await ordensResponse.json()) as OrdemServico[]);
-      } catch (workspaceFetchError: unknown) {
-        if ((workspaceFetchError as Error).name !== 'AbortError') {
-          setWorkspaceError(
-            workspaceFetchError instanceof Error
-              ? workspaceFetchError.message
-              : 'Falha ao carregar o workspace autenticado.',
-          );
-          setAtivos([]);
-          setOrdens([]);
-        }
-      } finally {
-        setIsLoadingWorkspace(false);
-      }
-    }
-
-    void loadWorkspace();
-
-    return () => controller.abort();
-  }, [backendMe, isLoadingUser, preferredUnidadeId, session.access_token]);
-
-  const ordensAbertas = ordens.filter((ordem) => ordem.status === 'ABERTA').length;
-  const ordensEmExecucao = ordens.filter((ordem) => ordem.status === 'EM_EXECUCAO').length;
-  const ativosEmManutencao = ativos.filter((ativo) => ativo.status === 'MANUTENCAO').length;
-
-  const menuItems: MenuProps['items'] = modules.map((module) => ({
-    key: module.key,
-    icon: module.icon,
-    label: module.label,
-  }));
-
-  const ordensColumns: TableColumnsType<OrdemServico> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-    },
-    {
-      title: 'Ativo',
-      dataIndex: 'ativoNome',
-      key: 'ativoNome',
-    },
-    {
-      title: 'Tipo',
-      dataIndex: 'tipo',
-      key: 'tipo',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => renderStatusTag(status),
-    },
-    {
-      title: 'Abertura',
-      dataIndex: 'dataAbertura',
-      key: 'dataAbertura',
-      render: (value: string) => formatDateTime(value),
-    },
-  ];
-
-  const ativosColumns: TableColumnsType<Ativo> = [
-    {
-      title: 'Nome',
-      dataIndex: 'nome',
-      key: 'nome',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => renderStatusTag(status),
-    },
-    {
-      title: 'Limite de temperatura',
-      dataIndex: 'limiteTemp',
-      key: 'limiteTemp',
-      render: (value: number) => `${value} C`,
-    },
-  ];
-
-  const unidadesColumns: TableColumnsType<Unidade> = [
-    {
-      title: 'Nome',
-      dataIndex: 'nome',
-      key: 'nome',
-    },
-    {
-      title: 'Localizacao',
-      dataIndex: 'localizacao',
-      key: 'localizacao',
-    },
-  ];
-
-  async function handleCreateInvite() {
-    if (!session.access_token || !empresa) {
-      return;
-    }
-
-    const emailDestino = inviteEmail.trim().toLowerCase();
-    if (!emailDestino) {
-      setInviteError('Informe o email do usuario que sera convidado.');
-      return;
-    }
-
-    setIsSubmittingInvite(true);
-    setInviteError(null);
-    setInviteFeedback(null);
-    setCreatedInvite(null);
+    setIsLoadingData(true);
+    setScreenError(null);
 
     try {
-      const response = await fetch(`${resolveApiBaseUrl()}/empresas/${empresa.id}/convites`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          emailDestino,
-          nomeDestino: inviteName.trim() || undefined,
-          cargoCodigo: inviteCargo,
-          idUnidadeDestino: inviteUnidadeId || null,
-        }),
-      });
+      const unidadeRes = await apiFetch('/unidades', session.access_token);
+      if (unidadeRes.ok) {
+        const unidadePayload = (await unidadeRes.json()) as Unidade[];
+        const nextUnidades = unidadePayload ?? [];
+        setUnidades(nextUnidades);
 
-      const body = (await response.json()) as CreatedInviteResponse | ApiErrorBody;
-      if (!response.ok) {
-        throw new Error(
-          extractApiErrorMessage(body as ApiErrorBody, 'Nao foi possivel gerar o convite.'),
-        );
+        if (!selectedUnidadeId && nextUnidades[0]?.id) {
+          setSelectedUnidadeId(nextUnidades[0].id);
+        }
       }
 
-      const createdBody = body as CreatedInviteResponse;
-      setCreatedInvite(createdBody);
-      setInviteFeedback('Convite criado com sucesso. Agora voce pode enviar o link ao usuario.');
-      setInviteEmail('');
-      setInviteName('');
-      setInviteCargo('TECNICO');
-      setInviteUnidadeId(undefined);
-    } catch (createInviteError: unknown) {
-      setInviteError(
-        createInviteError instanceof Error
-          ? createInviteError.message
-          : 'Falha ao criar convite para o usuario.',
-      );
+      const unidadeId = selectedUnidadeId || backendMe?.usuario?.idUnidade;
+      if (!unidadeId) {
+        setAtivos([]);
+        setOrdens([]);
+        setUsuarios([]);
+        return;
+      }
+
+      const [ativosRes, ordensRes, usuariosRes] = await Promise.all([
+        apiFetch(`/unidades/${unidadeId}/ativos`, session.access_token),
+        apiFetch(`/unidades/${unidadeId}/ordens-servico`, session.access_token),
+        apiFetch(`/unidades/${unidadeId}/usuarios`, session.access_token),
+      ]);
+
+      if (ativosRes.ok) {
+        const payload = (await ativosRes.json()) as Ativo[];
+        setAtivos(payload ?? []);
+      } else {
+        setAtivos([]);
+      }
+
+      if (ordensRes.ok) {
+        const payload = (await ordensRes.json()) as OrdemServico[];
+        const nextOrdens = payload ?? [];
+        setOrdens(nextOrdens);
+        if (!ordemSelecionadaId && nextOrdens[0]?.id) {
+          setOrdemSelecionadaId(nextOrdens[0].id);
+        }
+      } else {
+        setOrdens([]);
+      }
+
+      if (usuariosRes.ok) {
+        const payload = (await usuariosRes.json()) as UsuarioUnidade[];
+        setUsuarios(payload ?? []);
+      } else {
+        setUsuarios([]);
+      }
+    } catch {
+      setScreenError('Falha ao carregar os dados operacionais.');
     } finally {
-      setIsSubmittingInvite(false);
+      setIsLoadingData(false);
     }
   }
 
-  function renderInicio() {
-    return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <div className="stats-grid">
-          <Card>
-            <Statistic title="Unidades" value={unidades.length} />
-          </Card>
-          <Card>
-            <Statistic title="Ativos" value={ativos.length} />
-          </Card>
-          <Card>
-            <Statistic title="Ordens" value={ordens.length} />
-          </Card>
-          <Card>
-            <Statistic title="Em manutencao" value={ativosEmManutencao} />
-          </Card>
-        </div>
+  useEffect(() => {
+    void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUnidadeId, session.access_token]);
 
-        <div className="content-grid">
-          <Card title="Contexto da conta">
-            <Descriptions column={1} size="small">
-              <Descriptions.Item label="Perfil">
-                {backendMe?.usuario?.perfil ?? 'Nao identificado'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Usuario local">
-                {backendMe?.usuario?.id ?? 'Nao retornado'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Unidade preferencial">
-                {preferredUnidadeId ?? 'Nao informada'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Auth UID">
-                {backendMe?.userId ?? session.user.id}
-              </Descriptions.Item>
-              <Descriptions.Item label="Empresa">
-                {empresa?.nomeEmpresa ?? 'Sem empresa vinculada'}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
+  useEffect(() => {
+    if (activeScreen === 'auditoria') {
+      void loadAuditLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScreen, selectedUnidadeId]);
 
-          <Card title="Sinais operacionais">
-            <div className="signal-list">
-              {[
-                currentUnidade
-                  ? `Unidade atual: ${currentUnidade.nome}`
-                  : 'Nenhuma unidade retornada para esta sessao.',
-                ativosEmManutencao > 0
-                  ? `${ativosEmManutencao} ativo(s) em manutencao no retorno atual da API.`
-                  : 'Nenhum ativo em manutencao no retorno atual da API.',
-                ordensEmExecucao > 0
-                  ? `${ordensEmExecucao} ordem(ns) em execucao.`
-                  : ordensAbertas > 0
-                    ? `${ordensAbertas} ordem(ns) abertas aguardando andamento.`
-                    : 'Sem ordens abertas ou em execucao na unidade atual.',
-              ].map((item) => (
-                <div key={item} className="signal-list-item">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </Space>
-    );
-  }
+  useEffect(() => {
+    if (activeScreen === 'integracoes') {
+      void loadIntegracoesStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScreen]);
 
-  function renderOrdens() {
-    return (
-      <Card title="Ordens de servico" extra={currentUnidade?.nome ?? 'Sem unidade selecionada'}>
-        <Table
-          rowKey="id"
-          columns={ordensColumns}
-          dataSource={ordens}
-          loading={isLoadingWorkspace}
-          pagination={{ pageSize: 8 }}
-          locale={{
-            emptyText: 'A API nao retornou ordens para a unidade atual.',
-          }}
-          scroll={{ x: 820 }}
-        />
-      </Card>
-    );
-  }
+  const currentScreen = visibleScreens.find((screen) => screen.key === activeScreen) ?? visibleScreens[0];
 
-  function renderAtivos() {
-    return (
-      <Card title="Ativos" extra={currentUnidade?.nome ?? 'Sem unidade selecionada'}>
-        <Table
-          rowKey="id"
-          columns={ativosColumns}
-          dataSource={ativos}
-          loading={isLoadingWorkspace}
-          pagination={{ pageSize: 8 }}
-          locale={{
-            emptyText: 'Nao ha ativos cadastrados para a unidade atual.',
-          }}
-          scroll={{ x: 720 }}
-        />
-      </Card>
-    );
-  }
+  const unidadeAtual = unidades.find((unidade) => unidade.id === selectedUnidadeId) ?? null;
+  const ordemSelecionada = ordens.find((ordem) => ordem.id === ordemSelecionadaId) ?? null;
 
-  function renderUnidades() {
-    return (
-      <Card title="Unidades disponiveis">
-        <Table
-          rowKey="id"
-          columns={unidadesColumns}
-          dataSource={unidades}
-          loading={isLoadingWorkspace}
-          pagination={{ pageSize: 8 }}
-          locale={{
-            emptyText: 'A API nao retornou unidades para esta sessao.',
-          }}
-        />
-      </Card>
-    );
-  }
+  const kpi = {
+    ordensAbertas: ordens.filter((item) => item.status === 'ABERTA').length,
+    ordensExecucao: ordens.filter((item) => item.status === 'EM_EXECUCAO').length,
+    ordensConcluidas: ordens.filter((item) => item.status === 'CONCLUIDA').length,
+    ativosAtivos: ativos.filter((item) => item.status === 'OPERACIONAL').length,
+  };
 
-  function renderUsuarios() {
-    if (!canInviteUsers || !empresa) {
-      return (
-        <UnavailableModule
-          title="Convites indisponiveis para este usuario"
-          description="O perfil autenticado nao possui permissao para convidar usuarios da empresa."
-        />
-      );
+  const notificacoes = [
+    ...(kpi.ordensAbertas > 5 ? [{ id: 'n1', nivel: 'ATENCAO', texto: `Fila com ${kpi.ordensAbertas} OS abertas na unidade.` }] : []),
+    ...(kpi.ordensExecucao > 0 ? [{ id: 'n2', nivel: 'INFO', texto: `${kpi.ordensExecucao} OS em execucao no momento.` }] : []),
+    ...(simulatedReadings.filter((reading) => reading.temperatura >= 80).map((reading) => ({ id: reading.id, nivel: 'CRITICO', texto: `${reading.ativo} atingiu ${reading.temperatura.toFixed(1)} C na simulacao.` }))),
+  ];
+
+  async function createAtivo() {
+    if (!selectedUnidadeId) {
+      setScreenError('Selecione uma unidade para cadastrar ativo.');
+      return;
     }
 
+    setIsCreatingAtivo(true);
+    setScreenError(null);
+    setScreenMessage(null);
+
+    const response = await fetch(`${resolveApiBaseUrl()}/unidades/${selectedUnidadeId}/ativos`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ nome: novoAtivoNome, limiteTemp: Number(novoAtivoLimiteTemp) }),
+    });
+
+    if (!response.ok) {
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+      setScreenError(extractMessage(body, 'Nao foi possivel cadastrar o ativo.'));
+      setIsCreatingAtivo(false);
+      return;
+    }
+
+    setScreenMessage('Ativo cadastrado com sucesso.');
+    setNovoAtivoNome('');
+    setNovoAtivoLimiteTemp('70');
+    await loadData();
+    setIsCreatingAtivo(false);
+  }
+
+  async function createOs() {
+    if (!selectedUnidadeId) {
+      setScreenError('Selecione uma unidade para criar OS.');
+      return;
+    }
+
+    setIsCreatingOs(true);
+    setScreenError(null);
+    setScreenMessage(null);
+
+    const response = await fetch(`${resolveApiBaseUrl()}/unidades/${selectedUnidadeId}/ordens-servico`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idAtivo: novaOsAtivoId, tipo: novaOsTipo, descricao: novaOsDescricao }),
+    });
+
+    if (!response.ok) {
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+      setScreenError(extractMessage(body, 'Nao foi possivel criar a OS.'));
+      setIsCreatingOs(false);
+      return;
+    }
+
+    setScreenMessage('OS criada com sucesso.');
+    setNovaOsDescricao('');
+    await loadData();
+    setIsCreatingOs(false);
+  }
+
+  async function updateOrdem(acao: 'iniciar' | 'cancelar' | 'fechar') {
+    if (!selectedUnidadeId || !ordemSelecionadaId) {
+      setScreenError('Selecione uma OS para executar a acao.');
+      return;
+    }
+
+    setIsUpdatingOs(true);
+    setScreenError(null);
+    setScreenMessage(null);
+
+    const endpoint = `/unidades/${selectedUnidadeId}/ordens-servico/${ordemSelecionadaId}/${acao}`;
+
+    const body =
+      acao === 'fechar'
+        ? (() => {
+            const form = new FormData();
+            if (fotoAnexoFile) form.append('fotoAnexo', fotoAnexoFile);
+            if (fotoProblemaFile) form.append('fotoProblema', fotoProblemaFile);
+            if (fotoSolucaoFile) form.append('fotoSolucao', fotoSolucaoFile);
+            if (fotoProblema) form.append('fotoProblema', fotoProblema);
+            if (fotoSolucao) form.append('fotoSolucao', fotoSolucao);
+            return form;
+          })()
+        : undefined;
+
+    const response = await fetch(`${resolveApiBaseUrl()}${endpoint}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      setScreenError(extractMessage(payload, `Nao foi possivel ${acao} a OS.`));
+      setIsUpdatingOs(false);
+      return;
+    }
+
+    setScreenMessage(`OS atualizada com sucesso (${acao}).`);
+    await loadData();
+    setIsUpdatingOs(false);
+  }
+
+  async function carregarDetalheAtivo(idAtivo: string) {
+    if (!selectedUnidadeId) return;
+    const res = await apiFetch(`/unidades/${selectedUnidadeId}/ativos/${idAtivo}`, session.access_token);
+    if (!res.ok) return;
+    const ativo = (await res.json()) as Ativo;
+    setAtivoSelecionadoId(ativo.id);
+    setAtivoNomeEdicao(ativo.nome);
+    setAtivoLimiteEdicao(String(ativo.limiteTemp));
+    setAtivoStatusEdicao(ativo.status);
+  }
+
+  async function atualizarAtivo() {
+    if (!selectedUnidadeId || !ativoSelecionadoId) return;
+    setIsUpdatingAtivo(true);
+    setScreenError(null);
+    const response = await fetch(`${resolveApiBaseUrl()}/unidades/${selectedUnidadeId}/ativos/${ativoSelecionadoId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        nome: ativoNomeEdicao || undefined,
+        limiteTemp: ativoLimiteEdicao ? Number(ativoLimiteEdicao) : undefined,
+        status: ativoStatusEdicao || undefined,
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setScreenError(extractMessage(body, 'Falha ao atualizar ativo.'));
+      setIsUpdatingAtivo(false);
+      return;
+    }
+    setScreenMessage('Ativo atualizado com sucesso.');
+    await loadData();
+    setIsUpdatingAtivo(false);
+  }
+
+  async function excluirAtivo() {
+    if (!selectedUnidadeId || !ativoSelecionadoId) return;
+    setIsDeletingAtivo(true);
+    setScreenError(null);
+    const response = await fetch(`${resolveApiBaseUrl()}/unidades/${selectedUnidadeId}/ativos/${ativoSelecionadoId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setScreenError(extractMessage(body, 'Falha ao excluir ativo.'));
+      setIsDeletingAtivo(false);
+      return;
+    }
+    setScreenMessage('Ativo removido com sucesso.');
+    setAtivoSelecionadoId('');
+    await loadData();
+    setIsDeletingAtivo(false);
+  }
+
+  async function carregarDetalheOs(idOs: string) {
+    if (!selectedUnidadeId) return;
+    const res = await apiFetch(`/unidades/${selectedUnidadeId}/ordens-servico/${idOs}`, session.access_token);
+    if (!res.ok) return;
+    const os = (await res.json()) as OrdemServico;
+    setOrdemSelecionadaId(os.id);
+    setOsDescricaoEdicao(os.descricao);
+    setOsTecnicoEdicaoId('');
+  }
+
+  async function editarOrdemServico() {
+    if (!selectedUnidadeId || !ordemSelecionadaId) return;
+    setIsEditingOs(true);
+    setScreenError(null);
+    const response = await fetch(
+      `${resolveApiBaseUrl()}/unidades/${selectedUnidadeId}/ordens-servico/${ordemSelecionadaId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          descricao: osDescricaoEdicao || undefined,
+          idTecnico: osTecnicoEdicaoId || undefined,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setScreenError(extractMessage(body, 'Falha ao atualizar OS.'));
+      setIsEditingOs(false);
+      return;
+    }
+    setScreenMessage('OS atualizada com sucesso.');
+    await loadData();
+    setIsEditingOs(false);
+  }
+
+  async function carregarDetalheUsuario(idUsuario: string) {
+    if (!selectedUnidadeId) return;
+    setUsuarioSelecionadoId(idUsuario);
+    const response = await apiFetch(`/unidades/${selectedUnidadeId}/usuarios/${idUsuario}`, session.access_token);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setScreenError(extractMessage(body, 'Falha ao carregar detalhe do usuario.'));
+      return;
+    }
+    setScreenMessage('Detalhe do usuário carregado.');
+  }
+
+  async function carregarDetalheUnidade() {
+    if (!selectedUnidadeId) return;
+    const response = await apiFetch(`/unidades/${selectedUnidadeId}`, session.access_token);
+    if (!response.ok) return;
+    const unidade = (await response.json()) as Unidade;
+    setUnidadeDetalhe(unidade);
+  }
+
+  function simulateReading() {
+    const sourceAtivo = ativos[Math.floor(Math.random() * Math.max(ativos.length, 1))];
+    const next: SimulatedReading = {
+      id: crypto.randomUUID(),
+      ativo: sourceAtivo?.nome ?? 'Ativo sem cadastro',
+      temperatura: Number((55 + Math.random() * 40).toFixed(1)),
+      momento: new Date().toISOString(),
+      origem: 'SIMULADO',
+    };
+
+    setSimulatedReadings((current) => [next, ...current].slice(0, 12));
+  }
+
+  async function loadAuditLogs() {
+    setIsLoadingAudit(true);
+    setScreenError(null);
+    try {
+      const query = new URLSearchParams();
+      if (selectedUnidadeId) query.set('unidadeId', selectedUnidadeId);
+      if (auditFrom) query.set('from', auditFrom);
+      if (auditTo) query.set('to', auditTo);
+      query.set('limit', '80');
+
+      const response = await apiFetch(`/auditoria?${query.toString()}`, session.access_token);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(extractMessage(body, 'Nao foi possivel carregar auditoria.'));
+      }
+
+      const payload = (await response.json()) as { logs: AuditLogItem[] };
+      setAuditLogs(payload.logs ?? []);
+    } catch (error) {
+      setScreenError(error instanceof Error ? error.message : 'Falha ao carregar auditoria.');
+      setAuditLogs([]);
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  }
+
+  async function loadIntegracoesStatus() {
+    setIsLoadingIntegracoes(true);
+    setScreenError(null);
+
+    try {
+      const response = await apiFetch('/integracoes/status', session.access_token);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(extractMessage(body, 'Nao foi possivel carregar status das integracoes.'));
+      }
+
+      const payload = (await response.json()) as IntegracoesStatusResponse;
+      setIntegracoesStatus(payload);
+    } catch (error) {
+      setScreenError(error instanceof Error ? error.message : 'Falha ao carregar integracoes.');
+      setIntegracoesStatus(null);
+    } finally {
+      setIsLoadingIntegracoes(false);
+    }
+  }
+
+  async function exportReport() {
+    if (!selectedUnidadeId) {
+      setScreenError('Selecione uma unidade para exportar.');
+      return;
+    }
+
+    setIsExportingReport(true);
+    setScreenError(null);
+
+    try {
+      const query = new URLSearchParams({
+        formato: reportFormato,
+        unidadeId: selectedUnidadeId,
+      });
+      if (reportFrom) query.set('from', reportFrom);
+      if (reportTo) query.set('to', reportTo);
+
+      const response = await fetch(`${resolveApiBaseUrl()}/relatorios/export?${query.toString()}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(extractMessage(body, 'Falha ao exportar relatorio.'));
+      }
+
+      const blob = await response.blob();
+      const fileName = `relatorio_${selectedUnidadeId}_${Date.now()}.${reportFormato === 'excel' ? 'csv' : 'pdf'}`;
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.download = fileName;
+      anchor.click();
+      URL.revokeObjectURL(href);
+      setScreenMessage('Relatorio exportado com sucesso.');
+    } catch (error) {
+      setScreenError(error instanceof Error ? error.message : 'Falha ao exportar relatorio.');
+    } finally {
+      setIsExportingReport(false);
+    }
+  }
+
+  function renderSharedHeader() {
     return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card title="Gestao de usuarios convidados">
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label="Empresa">{empresa.nomeEmpresa}</Descriptions.Item>
-            <Descriptions.Item label="Slug">{empresa.slug}</Descriptions.Item>
-            <Descriptions.Item label="Permissao principal">
-              usuario.convidar
-            </Descriptions.Item>
-          </Descriptions>
-        </Card>
+      <>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-border bg-card p-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Unidade em contexto</p>
+            <h2 className="font-display text-xl font-semibold">{unidadeAtual?.nome ?? 'Selecione uma unidade'}</h2>
+            <p className="text-sm text-muted-foreground">{unidadeAtual?.localizacao || 'Sem localizacao definida'}</p>
+          </div>
 
-        <Card title="Novo convite de acesso">
-          <Space direction="vertical" size={14} style={{ width: '100%' }}>
-            <div>
-              <Typography.Text strong>Nome do convidado</Typography.Text>
-              <Input
-                value={inviteName}
-                onChange={(event) => setInviteName(event.target.value)}
-                placeholder="Nome da pessoa que vai receber o convite"
-              />
-            </div>
-
-            <div>
-              <Typography.Text strong>Email do convidado</Typography.Text>
-              <Input
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-                placeholder="colaborador@empresa.com"
-              />
-            </div>
-
-            <div>
-              <Typography.Text strong>Cargo de destino</Typography.Text>
-              <Select
-                value={inviteCargo}
-                onChange={(value) => setInviteCargo(value)}
-                options={cargoOptions.map((codigo) => ({
-                  value: codigo,
-                  label: codigo,
-                }))}
-              />
-            </div>
-
-            <div>
-              <Typography.Text strong>Unidade de destino</Typography.Text>
-              <Select
-                allowClear
-                value={inviteUnidadeId}
-                onChange={(value) => setInviteUnidadeId(value)}
-                placeholder="Opcional: convite corporativo sem unidade fixa"
-                options={unidades.map((unidade) => ({
-                  value: unidade.id,
-                  label: `${unidade.nome} · ${unidade.localizacao}`,
-                }))}
-              />
-            </div>
-
-            <Button
-              type="primary"
-              onClick={() => void handleCreateInvite()}
-              loading={isSubmittingInvite}
+          <div className="min-w-[220px]">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Trocar unidade</label>
+            <select
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              value={selectedUnidadeId}
+              onChange={(event) => setSelectedUnidadeId(event.target.value)}
             >
-              Gerar convite
-            </Button>
+              <option value="">Selecione</option>
+              {unidades.map((unidade) => (
+                <option key={unidade.id} value={unidade.id}>
+                  {unidade.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-            {inviteFeedback ? <Alert type="success" showIcon message={inviteFeedback} /> : null}
-            {inviteError ? <Alert type="error" showIcon message={inviteError} /> : null}
-          </Space>
-        </Card>
-
-        {createdInvite ? (
-          <Card title="Convite pronto para envio">
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              <Descriptions column={1} size="small">
-                <Descriptions.Item label="Email">
-                  {createdInvite.convite.emailDestino}
-                </Descriptions.Item>
-                <Descriptions.Item label="Cargo">
-                  {createdInvite.convite.cargoCodigo}
-                </Descriptions.Item>
-                <Descriptions.Item label="Unidade">
-                  {unidades.find((unidade) => unidade.id === createdInvite.convite.idUnidadeDestino)
-                    ?.nome ?? 'Escopo corporativo'}
-                </Descriptions.Item>
-                <Descriptions.Item label="Expira em">
-                  {formatDateTime(createdInvite.convite.expiraEm)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Entrega do email">
-                  {createdInvite.entregaEmail?.status ?? 'NAO_CONFIGURADO'}
-                </Descriptions.Item>
-              </Descriptions>
-
-              {createdInvite.entregaEmail?.erro ? (
-                <Alert type="warning" showIcon message={createdInvite.entregaEmail.erro} />
-              ) : null}
-
-              {inviteLink ? (
-                <div>
-                  <Typography.Text strong>Link de aceite</Typography.Text>
-                  <Input.TextArea value={inviteLink} readOnly autoSize={{ minRows: 3 }} />
-                </div>
-              ) : null}
-
-              <Typography.Paragraph style={{ margin: 0 }}>
-                O usuario pode entrar pela tela do convite com email e senha ou Google. Depois do
-                aceite, os proximos acessos passam a funcionar pela tela normal de login.
-              </Typography.Paragraph>
-            </Space>
-          </Card>
-        ) : null}
-      </Space>
+        {screenMessage ? <Alert className="mb-3 border-emerald-200 bg-emerald-50 text-emerald-700">{screenMessage}</Alert> : null}
+        {screenError ? <Alert className="mb-3 border-rose-200 bg-rose-50 text-rose-700">{screenError}</Alert> : null}
+      </>
     );
   }
 
-  function renderPermissoes() {
-    if (!canManageCompany) {
-      return (
-        <UnavailableModule
-          title="Governanca indisponivel para este usuario"
-          description="A visualizacao administrativa da empresa so aparece para quem possui gestao do tenant."
-        />
-      );
+  function renderScreen() {
+    if (isLoadingUser) {
+      return <Card><CardContent className="pt-6">Carregando contexto do usuario...</CardContent></Card>;
     }
 
-    return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card title="Resumo da empresa">
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label="Empresa">{empresa?.nomeEmpresa ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="Slug">{empresa?.slug ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="Tema global">
-              Modo claro e escuro global do sistema
-            </Descriptions.Item>
-          </Descriptions>
-        </Card>
+    if (isLoadingData) {
+      return <Card><CardContent className="pt-6">Carregando dados operacionais...</CardContent></Card>;
+    }
 
-        <Card title="Permissoes efetivas da sessao">
-          <Space wrap size={[8, 8]}>
-            {permissoes.length > 0 ? (
-              permissoes.map((permissao) => <Tag key={permissao}>{permissao}</Tag>)
-            ) : (
-              <Typography.Text type="secondary">
-                Nenhuma permissao retornada para esta sessao.
-              </Typography.Text>
-            )}
-          </Space>
-        </Card>
+    switch (activeScreen) {
+      case 'home':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Card><CardHeader><CardDescription>Ordens abertas</CardDescription><CardTitle>{kpi.ordensAbertas}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Ordens em execucao</CardDescription><CardTitle>{kpi.ordensExecucao}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Ordens concluidas</CardDescription><CardTitle>{kpi.ordensConcluidas}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Ativos ativos</CardDescription><CardTitle>{kpi.ativosAtivos}</CardTitle></CardHeader></Card>
+            </div>
+          </div>
+        );
 
-        <Card title="Cargos vinculados">
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            {(backendMe?.usuario?.cargos ?? []).map((cargo) => (
-              <Card key={cargo.id} size="small">
-                <Descriptions column={1} size="small">
-                  <Descriptions.Item label="Cargo">{cargo.nome}</Descriptions.Item>
-                  <Descriptions.Item label="Codigo">{cargo.codigo}</Descriptions.Item>
-                  <Descriptions.Item label="Nivel hierarquico">
-                    {cargo.nivelHierarquico}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Escopo">
-                    {unidades.find((unidade) => unidade.id === cargo.idUnidade)?.nome ??
-                      'Corporativo'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Permissoes">
-                    <Space wrap size={[6, 6]}>
-                      {cargo.permissoes.map((permissao) => (
-                        <Tag key={permissao}>{permissao}</Tag>
+      case 'ativos-lista':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Inventario de ativos</CardTitle>
+                <CardDescription>Lista operacional por unidade com limite termico.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-auto">
+                  <table className="w-full min-w-[560px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="py-2">Ativo</th>
+                        <th className="py-2">Status</th>
+                        <th className="py-2">Limite termico</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ativos.map((ativo) => (
+                        <tr key={ativo.id} className="cursor-pointer border-b border-border/70" onClick={() => void carregarDetalheAtivo(ativo.id)}>
+                          <td className="py-2">{ativo.nome}</td>
+                          <td className="py-2">{statusBadge(ativo.status)}</td>
+                          <td className="py-2">{ativo.limiteTemp} C</td>
+                        </tr>
                       ))}
-                    </Space>
-                  </Descriptions.Item>
-                </Descriptions>
-              </Card>
-            ))}
-          </Space>
-        </Card>
-      </Space>
-    );
-  }
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Editar ativo</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                <Input placeholder="Nome" value={ativoNomeEdicao} onChange={(event) => setAtivoNomeEdicao(event.target.value)} />
+                <Input placeholder="Limite térmico" type="number" value={ativoLimiteEdicao} onChange={(event) => setAtivoLimiteEdicao(event.target.value)} />
+                <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={ativoStatusEdicao} onChange={(event) => setAtivoStatusEdicao(event.target.value)}>
+                  <option value="OPERACIONAL">OPERACIONAL</option>
+                  <option value="MANUTENCAO">MANUTENCAO</option>
+                  <option value="FALHA">FALHA</option>
+                </select>
+                <div className="flex gap-2">
+                  <Button disabled={!ativoSelecionadoId || isUpdatingAtivo} onClick={() => void atualizarAtivo()}>
+                    {isUpdatingAtivo ? 'Salvando...' : 'Salvar ativo'}
+                  </Button>
+                  <Button variant="outline" disabled={!ativoSelecionadoId || isDeletingAtivo} onClick={() => void excluirAtivo()}>
+                    {isDeletingAtivo ? 'Excluindo...' : 'Excluir ativo'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
 
-  function renderModule() {
-    switch (activeModule) {
-      case 'inicio':
-        return renderInicio();
-      case 'ordens':
-        return renderOrdens();
-      case 'ativos':
-        return renderAtivos();
-      case 'unidades':
-        return renderUnidades();
+      case 'ativos-cadastro':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Novo ativo</CardTitle>
+                <CardDescription>Cadastro rapido com limite termico (RF-04 / RN-06).</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Input placeholder="Nome do ativo" value={novoAtivoNome} onChange={(event) => setNovoAtivoNome(event.target.value)} />
+                <Input placeholder="Limite termico (C)" type="number" value={novoAtivoLimiteTemp} onChange={(event) => setNovoAtivoLimiteTemp(event.target.value)} />
+                <Button disabled={!novoAtivoNome || isCreatingAtivo} onClick={() => void createAtivo()}>
+                  {isCreatingAtivo ? 'Salvando...' : 'Cadastrar ativo'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'os-lista':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Criar ordem de servico</CardTitle>
+                <CardDescription>Fluxo de abertura manual por unidade (RF-05).</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Ativo</label>
+                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={novaOsAtivoId} onChange={(event) => setNovaOsAtivoId(event.target.value)}>
+                    <option value="">Selecione um ativo</option>
+                    {ativos.map((ativo) => <option key={ativo.id} value={ativo.id}>{ativo.nome}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Tipo</label>
+                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={novaOsTipo} onChange={(event) => setNovaOsTipo(event.target.value)}>
+                    <option value="PREVENTIVA">PREVENTIVA</option>
+                    <option value="CORRETIVA">CORRETIVA</option>
+                    <option value="PREDITIVA">PREDITIVA</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Input placeholder="Descricao da ordem" value={novaOsDescricao} onChange={(event) => setNovaOsDescricao(event.target.value)} />
+                </div>
+
+                <div className="md:col-span-2">
+                  <Button disabled={isCreatingOs || !novaOsAtivoId || !novaOsDescricao} onClick={() => void createOs()}>
+                    {isCreatingOs ? 'Criando...' : 'Criar OS'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Ordens da unidade</CardTitle>
+                <CardDescription>Fila operacional com status atual.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-auto">
+                  <table className="w-full min-w-[700px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="py-2">Ativo</th>
+                        <th className="py-2">Tipo</th>
+                        <th className="py-2">Status</th>
+                        <th className="py-2">Abertura</th>
+                        <th className="py-2">Descricao</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ordens.map((ordem) => (
+                        <tr key={ordem.id} className="cursor-pointer border-b border-border/70" onClick={() => { void carregarDetalheOs(ordem.id); setActiveScreen('os-detalhe'); }}>
+                          <td className="py-2">{ordem.ativoNome}</td>
+                          <td className="py-2">{ordem.tipo}</td>
+                          <td className="py-2">{statusBadge(ordem.status)}</td>
+                          <td className="py-2">{formatDate(ordem.dataAbertura)}</td>
+                          <td className="py-2">{ordem.descricao}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'os-detalhe':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Execucao e fechamento da OS</CardTitle>
+                <CardDescription>Fluxo alinhado a RN-02 / RN-13.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Selecionar OS</label>
+                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={ordemSelecionadaId} onChange={(event) => setOrdemSelecionadaId(event.target.value)}>
+                    <option value="">Selecione</option>
+                    {ordens.map((ordem) => <option key={ordem.id} value={ordem.id}>{ordem.ativoNome} · {ordem.tipo} · {ordem.status}</option>)}
+                  </select>
+                </div>
+
+                {ordemSelecionada ? (
+                  <div className="rounded-lg border border-border bg-background p-3 text-sm">
+                    <p><strong>Ativo:</strong> {ordemSelecionada.ativoNome}</p>
+                    <p><strong>Status:</strong> {ordemSelecionada.status}</p>
+                    <p><strong>Abertura:</strong> {formatDate(ordemSelecionada.dataAbertura)}</p>
+                    <p><strong>Descricao:</strong> {ordemSelecionada.descricao}</p>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input placeholder="Descrição para edição da OS" value={osDescricaoEdicao} onChange={(event) => setOsDescricaoEdicao(event.target.value)} />
+                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={osTecnicoEdicaoId} onChange={(event) => setOsTecnicoEdicaoId(event.target.value)}>
+                    <option value="">Sem técnico</option>
+                    {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nome}</option>)}
+                  </select>
+                  <Input placeholder="URL foto problema (opcional)" value={fotoProblema} onChange={(event) => setFotoProblema(event.target.value)} />
+                  <Input placeholder="URL foto solucao (opcional)" value={fotoSolucao} onChange={(event) => setFotoSolucao(event.target.value)} />
+                  <Input type="file" accept="image/*" onChange={(event) => setFotoAnexoFile(event.target.files?.[0] ?? null)} />
+                  <Input type="file" accept="image/*" onChange={(event) => setFotoProblemaFile(event.target.files?.[0] ?? null)} />
+                  <Input type="file" accept="image/*" onChange={(event) => setFotoSolucaoFile(event.target.files?.[0] ?? null)} />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" disabled={!ordemSelecionadaId || isEditingOs} onClick={() => void editarOrdemServico()}>
+                    {isEditingOs ? 'Salvando...' : 'Salvar edição'}
+                  </Button>
+                  <Button variant="outline" disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('iniciar')}>Iniciar execucao</Button>
+                  <Button variant="outline" disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('cancelar')}>Cancelar OS</Button>
+                  <Button disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('fechar')}>
+                    {isUpdatingOs ? 'Atualizando...' : 'Fechar OS'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
       case 'dashboard':
         return (
-          <UnavailableModule
-            title="Dashboard ainda nao implementado"
-            description="Os indicadores executivos ainda nao possuem endpoint dedicado no backend atual."
-          />
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Card><CardHeader><CardDescription>Backlog OS</CardDescription><CardTitle>{kpi.ordensAbertas}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Execucao em curso</CardDescription><CardTitle>{kpi.ordensExecucao}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Conclusoes</CardDescription><CardTitle>{kpi.ordensConcluidas}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Base de ativos</CardDescription><CardTitle>{ativos.length}</CardTitle></CardHeader></Card>
+            </div>
+          </div>
         );
+
       case 'auditoria':
         return (
-          <UnavailableModule
-            title="Modulo de auditoria indisponivel"
-            description="A consulta de trilhas e logs ainda nao foi exposta como endpoint de leitura no backend."
-          />
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Trilha de auditoria operacional</CardTitle>
+                <CardDescription>Consulta real da colecao log_auditoria no MongoDB.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">De</label>
+                    <Input type="datetime-local" value={auditFrom} onChange={(event) => setAuditFrom(event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Ate</label>
+                    <Input type="datetime-local" value={auditTo} onChange={(event) => setAuditTo(event.target.value)} />
+                  </div>
+                  <div className="flex items-end">
+                    <Button variant="outline" disabled={isLoadingAudit} onClick={() => void loadAuditLogs()}>
+                      {isLoadingAudit ? 'Consultando...' : 'Atualizar auditoria'}
+                    </Button>
+                  </div>
+                </div>
+
+                {auditLogs.length === 0 ? <p className="text-muted-foreground">Nenhum evento encontrado.</p> : null}
+                {auditLogs.map((item) => (
+                  <div key={item.idLog} className="rounded-md border border-border bg-background p-3">
+                    <p><strong>{item.entidadeAfetada}</strong> · registro {item.idRegistro.slice(0, 8)}</p>
+                    <p className="text-muted-foreground">{formatDate(item.dataHora)}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         );
+
       case 'usuarios':
-        return renderUsuarios();
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Usuarios da unidade</CardTitle>
+                <CardDescription>Leitura operacional de usuarios vinculados.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-auto">
+                  <table className="w-full min-w-[620px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="py-2">Nome</th>
+                        <th className="py-2">Email</th>
+                        <th className="py-2">Perfil</th>
+                        <th className="py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usuarios.map((usuario) => (
+                        <tr key={usuario.id} className="cursor-pointer border-b border-border/70" onClick={() => void carregarDetalheUsuario(usuario.id)}>
+                          <td className="py-2">{usuario.nome}</td>
+                          <td className="py-2">{usuario.email}</td>
+                          <td className="py-2">{usuario.perfil}</td>
+                          <td className="py-2">{statusBadge(usuario.status)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+            {usuarioSelecionadoId ? (
+              <p className="text-sm text-muted-foreground">Usuário selecionado: {usuarioSelecionadoId}</p>
+            ) : null}
+          </div>
+        );
+
       case 'permissoes':
-        return renderPermissoes();
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => void carregarDetalheUnidade()}>Carregar detalhe da unidade</Button>
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Permissoes do contexto atual</CardTitle>
+                <CardDescription>Visao de cargos e permissoes retornadas no /me.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(backendMe?.usuario?.cargos ?? []).map((cargo) => (
+                  <div key={cargo.id} className="rounded-lg border border-border bg-background p-3 text-sm">
+                    <p><strong>{cargo.nome}</strong> ({cargo.codigo})</p>
+                    <p className="text-muted-foreground">Nivel {cargo.nivelHierarquico} · Unidade {cargo.idUnidade ?? 'Corporativo'}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {cargo.permissoes.map((permissao) => (
+                        <span key={permissao} className="rounded-full bg-muted px-2 py-0.5 text-xs">{permissao}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            {unidadeDetalhe ? (
+              <Card>
+                <CardHeader><CardTitle>Detalhe da unidade</CardTitle></CardHeader>
+                <CardContent className="text-sm">
+                  <p><strong>ID:</strong> {unidadeDetalhe.id}</p>
+                  <p><strong>Nome:</strong> {unidadeDetalhe.nome}</p>
+                  <p><strong>Localização:</strong> {unidadeDetalhe.localizacao}</p>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+        );
+
+      case 'unidades':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Mapa de unidades</CardTitle>
+                <CardDescription>Contexto organizacional para operacao e integracao.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                {unidades.map((unidade) => (
+                  <div key={unidade.id} className="rounded-lg border border-border bg-background p-3 text-sm">
+                    <p className="font-semibold">{unidade.nome}</p>
+                    <p className="text-muted-foreground">{unidade.localizacao || 'Sem localizacao'}</p>
+                    <p className="text-xs text-muted-foreground">ID: {unidade.id}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'iot':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Simulador IoT</CardTitle>
+                <CardDescription>Gera sinais para validar alertas e fluxos operacionais (RF-19).</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button onClick={simulateReading}>Gerar leitura simulada</Button>
+                <div className="space-y-2">
+                  {simulatedReadings.map((reading) => (
+                    <div key={reading.id} className="rounded-md border border-border bg-background p-3 text-sm">
+                      <p><strong>{reading.ativo}</strong> · {reading.temperatura.toFixed(1)} C</p>
+                      <p className="text-muted-foreground">{formatDate(reading.momento)} · {reading.origem}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'notificacoes':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Centro de notificacoes</CardTitle>
+                <CardDescription>Alertas operacionais e sinais de telemetria.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {notificacoes.length === 0 ? <p className="text-muted-foreground">Sem alertas ativos no momento.</p> : null}
+                {notificacoes.map((notification) => (
+                  <div key={notification.id} className="rounded-md border border-border bg-background p-3">
+                    <p className="font-semibold">{notification.nivel}</p>
+                    <p>{notification.texto}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'relatorios':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Resumo para exportacao</CardTitle>
+                <CardDescription>Exportacao real em CSV (Excel) ou PDF com filtro por periodo/unidade.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>Total de ativos: {ativos.length}</p>
+                <p>Total de ordens: {ordens.length}</p>
+                <p>Ordens concluidas: {kpi.ordensConcluidas}</p>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">De</label>
+                    <Input type="datetime-local" value={reportFrom} onChange={(event) => setReportFrom(event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Ate</label>
+                    <Input type="datetime-local" value={reportTo} onChange={(event) => setReportTo(event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Formato</label>
+                    <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={reportFormato} onChange={(event) => setReportFormato(event.target.value as 'excel' | 'pdf')}>
+                      <option value="excel">Excel (CSV)</option>
+                      <option value="pdf">PDF</option>
+                    </select>
+                  </div>
+                </div>
+                <Button disabled={isExportingReport} onClick={() => void exportReport()}>
+                  {isExportingReport ? 'Exportando...' : 'Exportar relatorio'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'integracoes':
+        return (
+          <div className="space-y-4">
+            {renderSharedHeader()}
+            <div className="flex justify-end">
+              <Button variant="outline" disabled={isLoadingIntegracoes} onClick={() => void loadIntegracoesStatus()}>
+                {isLoadingIntegracoes ? 'Verificando...' : 'Atualizar status'}
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Broker de mensagens</CardTitle>
+                  <CardDescription>Pipeline operacional para eventos assíncronos.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <p>Status: {integracoesStatus?.integrations.rabbitmq.ok ? 'ONLINE' : 'INDISPONIVEL'}</p>
+                  <p className="text-muted-foreground">{integracoesStatus?.integrations.rabbitmq.message ?? 'Sem dados.'}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Gateway IoT</CardTitle>
+                  <CardDescription>Entrada de sensores e normalizacao de leituras.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <p>Status: {integracoesStatus?.integrations.iot.ok ? 'ONLINE' : 'INDISPONIVEL'}</p>
+                  <p className="text-muted-foreground">{integracoesStatus?.integrations.iot.message ?? 'Sem dados.'}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Integracao SMTP</CardTitle>
+                  <CardDescription>Canal de notificacao e convites.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <p>Status: {integracoesStatus?.integrations.smtp.ok ? 'ONLINE' : 'INDISPONIVEL'}</p>
+                  <p className="text-muted-foreground">{integracoesStatus?.integrations.smtp.message ?? 'Sem dados.'}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>MongoDB / Auditoria</CardTitle>
+                  <CardDescription>Status da trilha de auditoria.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <p>Status: {integracoesStatus?.integrations.mongodb.ok ? 'ONLINE' : 'INDISPONIVEL'}</p>
+                  <p className="text-muted-foreground">{integracoesStatus?.integrations.mongodb.message ?? 'Sem dados.'}</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        );
+
       default:
-        return renderInicio();
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tela indisponivel</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">A tela solicitada nao esta habilitada para este perfil.</CardContent>
+          </Card>
+        );
     }
   }
 
-  const activeModuleData = modules.find((module) => module.key === activeModule) ?? modules[0];
-
   return (
-    <Layout className="app-layout">
-      <Layout.Sider width={272} breakpoint="lg" collapsedWidth="0" theme="light" className="app-sider">
-        <div className="sider-inner">
-          <Space direction="vertical" size={18} style={{ width: '100%' }}>
-            <div className="sider-brand">
-              <Typography.Text className="sider-kicker">ManuCMMS</Typography.Text>
-              <Typography.Title level={4} style={{ margin: 0 }}>
-                Sistema corporativo
-              </Typography.Title>
-              <Typography.Paragraph style={{ margin: 0 }}>
-                Navegacao por modulos conforme o cargo da conta autenticada.
-              </Typography.Paragraph>
-            </div>
+    <div className="min-h-screen lg:grid lg:grid-cols-[300px_1fr]">
+      <aside className="border-r border-border bg-card/70 p-4">
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">ManuCMMS</p>
+        <h2 className="mt-2 font-display text-xl font-semibold">Centro operacional</h2>
+        <p className="text-sm text-muted-foreground">{backendMe?.usuario?.empresa?.nomeEmpresa ?? 'Ambiente padrao'}</p>
 
-            <Card size="small">
-              <Space direction="vertical" size={2}>
-                <Typography.Text strong>{displayName}</Typography.Text>
-                <Typography.Text type="secondary">{displayEmail}</Typography.Text>
-                <Tag color="blue" style={{ width: 'fit-content' }}>
-                  {perfil}
-                </Tag>
-              </Space>
-            </Card>
+        <nav className="mt-4 space-y-1">
+          {visibleScreens.map((screen) => {
+            const Icon = screen.icon;
+            return (
+              <button
+                key={screen.key}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${activeScreen === screen.key ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                onClick={() => setActiveScreen(screen.key as ScreenKey)}
+              >
+                <Icon className="h-4 w-4" />
+                {screen.label}
+              </button>
+            );
+          })}
+        </nav>
 
-            <Menu
-              mode="inline"
-              selectedKeys={[activeModule]}
-              items={menuItems}
-              onClick={({ key }) => setActiveModule(key as ModuleKey)}
-            />
-          </Space>
-
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Card size="small">
-              <Space direction="vertical" size={2}>
-                <Typography.Text type="secondary">Unidade atual</Typography.Text>
-                <Typography.Text strong>{currentUnidade?.nome ?? 'Nao definida'}</Typography.Text>
-                <Typography.Text type="secondary">
-                  {isLoadingUser
-                    ? 'Carregando contexto...'
-                    : currentUnidade?.localizacao ?? 'Sem localizacao disponivel'}
-                </Typography.Text>
-              </Space>
-            </Card>
-
-            <Button icon={<LogOut size={16} />} onClick={() => void onSignOut()} block>
-              Sair
-            </Button>
-          </Space>
+        <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm">
+          <p className="font-medium">{backendMe?.usuario?.nome ?? session.user.email}</p>
+          <p className="text-muted-foreground">Perfil {perfil}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{backendMe?.usuario?.empresa?.slug ?? 'tenant-padrao'}</p>
         </div>
-      </Layout.Sider>
 
-      <Layout>
-        <Layout.Header className="app-header">
-          <div>
-            <Typography.Text type="secondary">Modulo atual</Typography.Text>
-            <Typography.Title level={2} style={{ margin: '4px 0 6px' }}>
-              {activeModuleData?.label ?? 'Sistema'}
-            </Typography.Title>
-            <Typography.Paragraph style={{ margin: 0 }}>
-              {activeModuleData?.description ?? 'Navegacao por modulos conforme o perfil da conta.'}
-            </Typography.Paragraph>
-          </div>
-        </Layout.Header>
+        <Button className="mt-3 w-full" variant="outline" onClick={() => void onSignOut()}>
+          <LogOut className="h-4 w-4" /> Sair
+        </Button>
+      </aside>
 
-        <Layout.Content className="app-content">
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            {authWarning ? <Alert type="warning" showIcon message={authWarning} /> : null}
-            {workspaceError ? <Alert type="error" showIcon message={workspaceError} /> : null}
+      <main className="p-5 md:p-7">
+        <h1 className="font-display text-2xl font-semibold">{currentScreen?.label}</h1>
+        <p className="mb-4 text-sm text-muted-foreground">{currentScreen?.desc}</p>
 
-            {isLoadingWorkspace && activeModule === 'inicio' ? (
-              <Card>
-                <div className="loading-block">
-                  <Spin size="large" />
-                  <Typography.Text type="secondary">
-                    Carregando dados reais do workspace autenticado...
-                  </Typography.Text>
-                </div>
-              </Card>
-            ) : (
-              renderModule()
-            )}
-          </Space>
-        </Layout.Content>
-      </Layout>
-    </Layout>
+        {authWarning ? (
+          <Card className="mb-4 border-amber-300">
+            <CardContent className="pt-6 text-sm">{authWarning}</CardContent>
+          </Card>
+        ) : null}
+
+        {renderScreen()}
+
+        <div className="mt-6 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
+          <p className="inline-flex items-center gap-1"><Shield className="h-3.5 w-3.5" /> Escopo aplicado por perfil, permissoes e unidade.</p>
+        </div>
+      </main>
+    </div>
   );
 }

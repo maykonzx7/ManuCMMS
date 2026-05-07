@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { MongoClient } from 'mongodb';
 import { randomUUID } from 'node:crypto';
 import type {
+  AuditLogConsulta,
+  AuditLogItem,
   AuditLogEntrada,
   IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
@@ -71,5 +73,65 @@ export class AuditLogService
         err instanceof Error ? err.stack : String(err),
       );
     }
+  }
+
+  async list(filtro: AuditLogConsulta = {}): Promise<AuditLogItem[]> {
+    if (!this.client) {
+      return [];
+    }
+
+    const query: Record<string, unknown> = {};
+    const fromDate = filtro.from ? new Date(filtro.from) : null;
+    const toDate = filtro.to ? new Date(filtro.to) : null;
+
+    if (
+      fromDate &&
+      toDate &&
+      !Number.isNaN(fromDate.getTime()) &&
+      !Number.isNaN(toDate.getTime())
+    ) {
+      query.data_hora = { $gte: fromDate, $lte: toDate };
+    } else if (fromDate && !Number.isNaN(fromDate.getTime())) {
+      query.data_hora = { $gte: fromDate };
+    } else if (toDate && !Number.isNaN(toDate.getTime())) {
+      query.data_hora = { $lte: toDate };
+    }
+
+    if (filtro.entidade?.trim()) {
+      query.entidade_afetada = filtro.entidade.trim();
+    }
+
+    if (filtro.unidadeId?.trim()) {
+      const unidadeId = filtro.unidadeId.trim();
+      query.$or = [
+        { 'valor_novo.idUnidade': unidadeId },
+        { 'valor_novo.idUnidadeCargo': unidadeId },
+        { 'valor_novo.id_unidade': unidadeId },
+      ];
+    }
+
+    const limit = Math.min(Math.max(filtro.limit ?? 100, 1), 500);
+
+    const docs = await this.client
+      .db()
+      .collection('log_auditoria')
+      .find(query)
+      .sort({ data_hora: -1 })
+      .limit(limit)
+      .toArray();
+
+    return docs.map((doc) => ({
+      idLog: String(doc.id_log ?? ''),
+      idUsuario: (doc.id_usuario as string | null | undefined) ?? null,
+      entidadeAfetada: String(doc.entidade_afetada ?? ''),
+      idRegistro: String(doc.id_registro ?? ''),
+      valorAnterior:
+        (doc.valor_anterior as Record<string, unknown> | undefined) ?? {},
+      valorNovo: (doc.valor_novo as Record<string, unknown> | undefined) ?? {},
+      dataHora:
+        doc.data_hora instanceof Date
+          ? doc.data_hora.toISOString()
+          : new Date().toISOString(),
+    }));
   }
 }

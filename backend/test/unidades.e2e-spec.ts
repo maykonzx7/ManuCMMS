@@ -60,4 +60,26 @@ describe('UnidadesController (e2e)', () => {
       expect(body[0]).toHaveProperty('localizacao');
     },
   );
+
+  (runComDb ? it : it.skip)(
+    'GET /unidades/:id retorna detalhe da unidade autorizada',
+    async () => {
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+
+      const listaRes = await request(app.getHttpServer())
+        .get('/unidades')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const unidadeId = (listaRes.body as Array<{ id: string }>)[0].id;
+
+      const detailRes = await request(app.getHttpServer())
+        .get(`/unidades/${unidadeId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect((detailRes.body as { id: string }).id).toBe(unidadeId);
+    },
+  );
 });

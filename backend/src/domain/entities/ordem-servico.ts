@@ -17,7 +17,6 @@ export type OrdemServicoListaItem = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
-  assinaturaDigital: string | null;
   dataAbertura: Date;
   dataFechamento: Date | null;
 };

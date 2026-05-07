@@ -1,94 +1,38 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
-  Alert,
-  Button,
-  Card,
-  Checkbox,
-  Col,
-  Divider,
-  Input,
-  Row,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
-import {
-  ArrowRight,
-  Building2,
+  ArrowUpRight,
+  CheckCircle2,
+  Eye,
+  EyeOff,
   Globe,
   LockKeyhole,
   Mail,
+  ShieldCheck,
   Sparkles,
-  Users,
+  Waves,
 } from 'lucide-react';
 import { supabase, supabaseConfig } from '../lib/supabase';
-
-type AuthMode = 'login' | 'reset';
+import { Alert } from './ui/alert';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 type LoginPageProps = {
   authWarning: string | null;
   isLoadingSession: boolean;
 };
 
-const INITIAL_FORM = {
-  email: '',
-  password: '',
-  confirmPassword: '',
-  remember: true,
-};
-
-const capabilityCards = [
-  {
-    title: 'Acesso personalizado',
-    body: 'Cada pessoa entra no ambiente com a visao e as liberacoes que fazem sentido para o seu papel.',
-  },
-  {
-    title: 'Convite da empresa',
-    body: 'Seu primeiro acesso acontece por convite, com todo o contexto ja preparado pela administracao da empresa.',
-  },
-  {
-    title: 'Entrada simples',
-    body: 'Depois do aceite, voce pode voltar quando quiser com email, senha ou Google.',
-  },
+const operationalSignals = [
+  'Rastreabilidade ponta a ponta',
+  'Visao por perfil e unidade',
+  'Respostas orientadas por dados',
 ];
 
-const modeConfig: Record<
-  AuthMode,
-  {
-    eyebrow: string;
-    title: string;
-    description: string;
-    buttonLabel: string;
-  }
-> = {
-  login: {
-    eyebrow: 'Acesso ao sistema',
-    title: 'Entrar no ManuCMMS',
-    description:
-      'Use sua conta para acessar o ambiente da sua empresa com rapidez e seguranca.',
-    buttonLabel: 'Entrar',
-  },
-  reset: {
-    eyebrow: 'Recuperar acesso',
-    title: 'Redefinir senha de acesso',
-    description:
-      'Informe seu email para receber um link e definir uma nova senha.',
-    buttonLabel: 'Enviar link',
-  },
-};
-
-function getRedirectUrl() {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  return window.location.origin;
-}
-
 export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
-  const [mode, setMode] = useState<AuthMode>('login');
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,40 +46,18 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        setMessage('Acesso validado. Preparando seu ambiente no ManuCMMS...');
-        setError(null);
-      }
-
-      if (event === 'PASSWORD_RECOVERY') {
-        setMode('reset');
-        setMessage('Sessao de recuperacao identificada. Siga o fluxo para redefinir sua senha.');
+        setMessage('Acesso validado. Redirecionando para seu ambiente.');
         setError(null);
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  function changeMode(nextMode: AuthMode) {
-    setMode(nextMode);
-    setError(null);
-    setMessage(null);
-  }
-
-  function updateField(field: keyof typeof INITIAL_FORM, value: string | boolean) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!supabase) {
-      setError('O acesso esta temporariamente indisponivel. Tente novamente em instantes.');
+      setError('Autenticacao indisponivel.');
       return;
     }
 
@@ -143,42 +65,24 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
     setError(null);
     setMessage(null);
 
-    const email = form.email.trim();
-
-    if (mode === 'login') {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: form.password,
-      });
-
-      if (signInError) {
-        setError('Nao foi possivel entrar. Revise seus dados e tente novamente.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      setMessage('Acesso validado. Preparando seu ambiente no ManuCMMS...');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: getRedirectUrl(),
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
     });
 
-    if (resetError) {
-      setError('Nao foi possivel enviar o link agora. Tente novamente em instantes.');
+    if (loginError) {
+      setError('Nao foi possivel entrar. Revise seus dados.');
       setIsSubmitting(false);
       return;
     }
 
-    setMessage('Link de redefinicao enviado. Verifique sua caixa de entrada e spam.');
+    setMessage(remember ? 'Acesso validado. Redirecionando.' : 'Acesso validado para esta sessao.');
     setIsSubmitting(false);
   }
 
-  async function handleGoogleSignIn() {
+  async function handleGoogleLogin() {
     if (!supabase) {
-      setError('O acesso com Google esta temporariamente indisponivel.');
+      setError('Autenticacao indisponivel.');
       return;
     }
 
@@ -189,199 +93,203 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: getRedirectUrl(),
+        redirectTo: typeof window === 'undefined' ? undefined : window.location.origin,
       },
     });
 
     if (oauthError) {
-      setError('Nao foi possivel iniciar o acesso com Google.');
+      setError('Nao foi possivel iniciar o login com Google.');
       setIsSubmitting(false);
       return;
     }
 
-    setMessage('Redirecionando para o acesso com Google...');
+    setMessage('Redirecionando para autenticacao Google...');
   }
 
-  const currentMode = modeConfig[mode];
-  const isConfigured = supabaseConfig.isConfigured;
-  const formIsValid = form.email.trim().length > 0 && (mode === 'reset' || form.password.length > 0);
+  async function handleResetPassword() {
+    if (!supabase) {
+      setError('Autenticacao indisponivel.');
+      return;
+    }
+
+    if (!email.trim()) {
+      setError('Informe o email institucional para recuperar a senha.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    setMessage(null);
+
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: typeof window === 'undefined' ? undefined : window.location.origin,
+    });
+
+    if (resetError) {
+      setError('Nao foi possivel enviar o link de recuperacao.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    setMessage('Link de recuperacao enviado. Verifique seu email.');
+    setIsSubmitting(false);
+  }
 
   return (
-    <div className="login-page">
-      <Row gutter={[24, 24]} className="login-page-row">
-        <Col xs={24} lg={11}>
-          <Card variant="borderless" className="login-brand-card">
-            <Space direction="vertical" size={24} style={{ width: '100%' }}>
-              <Space align="center" size={12}>
-                <div className="brand-icon-box">
-                  <Building2 size={20} />
-                </div>
-                <div>
-                  <Typography.Text className="brand-label">Sistema de manutencao</Typography.Text>
-                  <Typography.Title level={3} style={{ margin: 0, color: '#f5f7f9' }}>
-                    ManuCMMS
-                  </Typography.Title>
-                </div>
-              </Space>
+    <main className="relative min-h-screen overflow-hidden bg-[#0a1319] text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(36,127,153,0.34),transparent_38%),radial-gradient(circle_at_85%_15%,rgba(16,185,129,0.20),transparent_40%),radial-gradient(circle_at_50%_85%,rgba(59,130,246,0.20),transparent_48%)]" />
+      <div className="pointer-events-none absolute -left-36 top-20 h-72 w-72 rounded-full border border-cyan-300/20" />
+      <div className="pointer-events-none absolute right-[-7rem] top-[20%] h-96 w-96 rounded-full border border-emerald-300/15" />
 
+      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center p-4 md:p-8">
+        <div className="grid w-full items-stretch gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-white/5 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl md:p-10">
+            <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-300/15 blur-2xl" />
+            <div className="absolute bottom-0 right-0 h-24 w-48 bg-gradient-to-l from-cyan-300/20 to-transparent" />
+
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-200/10 px-4 py-1 text-xs uppercase tracking-[0.2em] text-cyan-100">
+              <Sparkles className="h-3.5 w-3.5" />
+              ManuCMMS Control Layer
+            </div>
+
+            <h1 className="max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-6xl">
+              Operacao industrial em um cockpit digital de alta confianca.
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-base text-slate-200/85 md:text-lg">
+              Conecte manutencao, ativos e conformidade em uma interface desenhada para decisoes rapidas no chao de fabrica.
+            </p>
+
+            <div className="mt-9 grid gap-3 sm:grid-cols-3">
+              {operationalSignals.map((signal) => (
+                <div
+                  key={signal}
+                  className="rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-slate-100"
+                >
+                  <Waves className="mb-3 h-4 w-4 text-cyan-200" />
+                  {signal}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-10 flex flex-wrap items-center gap-4 text-sm text-slate-300">
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-300" />
+                Acesso governado por RBAC
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                Fluxo alinhado ao RF-02
+              </span>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-slate-200/20 bg-[#f8fbfc] p-6 text-slate-900 shadow-[0_30px_80px_rgba(2,8,23,0.28)] md:p-8">
+            <div className="mb-6 flex items-start justify-between gap-3">
               <div>
-                <Typography.Title level={1} className="brand-title">
-                  O ponto de entrada da sua operacao industrial.
-                </Typography.Title>
-                <Typography.Paragraph className="brand-paragraph">
-                  Acompanhe ativos, ordens de servico e a rotina da sua equipe em um ambiente
-                  pensado para uso diario, com uma experiencia simples desde o primeiro acesso.
-                </Typography.Paragraph>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Secure Access</p>
+                <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900 md:text-3xl">Entrar na operacao</h2>
+                <p className="mt-2 text-sm text-slate-600">Perfil, contexto e permissoes aplicados no login.</p>
               </div>
+              <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                v2.0
+              </span>
+            </div>
 
-              <Space wrap size={[8, 8]}>
-                <Tag className="brand-tag" variant="filled">
-                  <Sparkles size={14} /> Experiencia clara
-                </Tag>
-                <Tag className="brand-tag" variant="filled">
-                  <Users size={14} /> Acesso por equipe
-                </Tag>
-                <Tag className="brand-tag" variant="filled">
-                  <ArrowRight size={14} /> Fluxo operacional
-                </Tag>
-              </Space>
+            <div className="mb-4 space-y-2">
+              {isLoadingSession ? <Alert>Verificando sessao existente...</Alert> : null}
+              {authWarning ? <Alert>{authWarning}</Alert> : null}
+              {!supabaseConfig.isConfigured ? <Alert>Supabase nao configurado no frontend.</Alert> : null}
+              {message ? <Alert className="border-emerald-200 bg-emerald-50 text-emerald-700">{message}</Alert> : null}
+              {error ? <Alert className="border-rose-200 bg-rose-50 text-rose-700">{error}</Alert> : null}
+            </div>
 
-              <div className="brand-capability-list">
-                {capabilityCards.map((item) => (
-                  <Card key={item.title} size="small" className="brand-capability-card">
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Typography.Paragraph>{item.body}</Typography.Paragraph>
-                  </Card>
-                ))}
-              </div>
-            </Space>
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={13}>
-          <Card variant="borderless" className="login-form-card">
-            <Space direction="vertical" size={20} style={{ width: '100%' }}>
-              <div className="login-header">
-                <div>
-                  <Typography.Text type="secondary">{currentMode.eyebrow}</Typography.Text>
-                  <Typography.Title level={2} style={{ marginTop: 6, marginBottom: 8 }}>
-                    {currentMode.title}
-                  </Typography.Title>
-                  <Typography.Paragraph style={{ margin: 0 }}>
-                    {currentMode.description}
-                  </Typography.Paragraph>
+            <form className="space-y-3" onSubmit={(event) => void onSubmit(event)}>
+              <label className="block space-y-1.5 text-sm font-medium text-slate-700">
+                <span>Email institucional</span>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    className="h-11 rounded-xl border-slate-300 bg-white pl-9"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="voce@empresa.com"
+                  />
                 </div>
-                <Tag color="blue">ManuCMMS</Tag>
+              </label>
+
+              <label className="block space-y-1.5 text-sm font-medium text-slate-700">
+                <span>Senha</span>
+                <div className="relative">
+                  <LockKeyhole className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    className="h-11 rounded-xl border-slate-300 bg-white pl-9 pr-10"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Sua senha"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-2 rounded-md p-1 text-slate-500 hover:bg-slate-100"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </label>
+
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300"
+                    checked={remember}
+                    onChange={(event) => setRemember(event.target.checked)}
+                  />
+                  Lembrar acesso
+                </label>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-slate-700 hover:text-slate-950"
+                  disabled={isSubmitting}
+                  onClick={() => void handleResetPassword()}
+                >
+                  Esqueci minha senha
+                </button>
               </div>
-
-              {isLoadingSession ? (
-                <Alert
-                  type="info"
-                  showIcon
-                  title="Verificando acesso"
-                  description="Aguarde enquanto identificamos se voce ja possui uma sessao ativa."
-                />
-              ) : null}
-
-              {authWarning ? <Alert type="warning" showIcon title={authWarning} /> : null}
-
-              {!isConfigured ? (
-                <Alert
-                  type="warning"
-                  showIcon
-                  title="Acesso temporariamente indisponivel"
-                  description="No momento nao foi possivel disponibilizar a autenticacao. Tente novamente em instantes."
-                />
-              ) : null}
-
-              {message ? <Alert type="success" showIcon title={message} /> : null}
-              {error ? <Alert type="error" showIcon title={error} /> : null}
-
-              <Space.Compact block>
-                <Button
-                  type={mode === 'login' ? 'primary' : 'default'}
-                  onClick={() => changeMode('login')}
-                >
-                  Entrar
-                </Button>
-                <Button
-                  type={mode === 'reset' ? 'primary' : 'default'}
-                  onClick={() => changeMode('reset')}
-                >
-                  Recuperar senha
-                </Button>
-              </Space.Compact>
 
               <Button
-                block
-                icon={<Globe size={16} />}
-                size="large"
-                onClick={() => void handleGoogleSignIn()}
-                loading={isSubmitting && mode === 'login'}
+                className="mt-2 h-11 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                size="lg"
+                disabled={!email || !password || isSubmitting}
+                type="submit"
               >
-                Continuar com Google
+                {isSubmitting ? 'Entrando...' : 'Entrar no sistema'}
+                <ArrowUpRight className="h-4 w-4" />
               </Button>
 
-              <Divider style={{ margin: 0 }}>ou use seu email</Divider>
+              <Button
+                className="h-11 w-full rounded-xl border-slate-300"
+                size="lg"
+                type="button"
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => void handleGoogleLogin()}
+              >
+                <Globe className="h-4 w-4" />
+                Entrar com Google
+              </Button>
+            </form>
 
-              <form onSubmit={(event) => void handleSubmit(event)} className="antd-form-stack">
-                <Space direction="vertical" size={14} style={{ width: '100%' }}>
-                  <div>
-                  <Typography.Text strong>Email corporativo</Typography.Text>
-                    <Input
-                      prefix={<Mail size={16} />}
-                      size="large"
-                      type="email"
-                      value={form.email}
-                      onChange={(event) => updateField('email', event.target.value)}
-                      placeholder="nome@empresa.com"
-                    />
-                  </div>
-
-                  {mode !== 'reset' ? (
-                    <div>
-                      <Typography.Text strong>Senha</Typography.Text>
-                      <Input.Password
-                        prefix={<LockKeyhole size={16} />}
-                        size="large"
-                        value={form.password}
-                        onChange={(event) => updateField('password', event.target.value)}
-                        placeholder="Digite sua senha"
-                      />
-                    </div>
-                  ) : null}
-
-                  {mode === 'login' ? (
-                    <Checkbox
-                      checked={form.remember}
-                      onChange={(event) => updateField('remember', event.target.checked)}
-                    >
-                      Manter sessao ativa neste navegador
-                    </Checkbox>
-                  ) : null}
-
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    size="large"
-                    loading={isSubmitting}
-                    disabled={!formIsValid || !isConfigured}
-                  >
-                    {currentMode.buttonLabel}
-                  </Button>
-                </Space>
-              </form>
-
-              <Alert
-                type="info"
-                showIcon
-                title="Primeiro acesso por convite"
-                description="Se esta for sua primeira entrada, use o link de convite enviado pela sua empresa. Depois do aceite, os proximos acessos acontecem por esta tela."
-              />
-            </Space>
-          </Card>
-        </Col>
-      </Row>
-    </div>
+            <div className="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-500">
+              O acesso e monitorado por politica de seguranca, perfil corporativo e escopo de unidade fabril.
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
   );
 }

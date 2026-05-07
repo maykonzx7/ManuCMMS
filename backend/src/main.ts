@@ -1,6 +1,8 @@
 import { ensureDatabaseUrl } from './config/compose-database-url';
 import './presentation/auth/request-augment';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'node:path';
 import { AppModule } from './app.module';
 
 ensureDatabaseUrl();
@@ -54,7 +56,11 @@ function buildCorsOriginChecker() {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const uploadsDir = process.env.UPLOAD_DIR ?? 'uploads';
+  app.useStaticAssets(join(process.cwd(), uploadsDir), {
+    prefix: `/${uploadsDir}/`,
+  });
   app.enableCors({
     origin: buildCorsOriginChecker(),
     credentials: true,

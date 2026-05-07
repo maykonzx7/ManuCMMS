@@ -119,4 +119,36 @@ describe('UsuariosController (e2e)', () => {
         .expect(403);
     },
   );
+
+  (runComDb ? it : it.skip)(
+    'GET /unidades/:id/usuarios/:usuarioId retorna detalhe do usuario da unidade',
+    async () => {
+      const token = signTestJwt({
+        sub: '00000000-0000-4000-8000-000000000003',
+      });
+
+      const meResponse = await request(app.getHttpServer())
+        .get('/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const unidadeId = (meResponse.body as { usuario: { idUnidade: string } })
+        .usuario.idUnidade;
+
+      const usuario = await prisma.usuario.create({
+        data: {
+          authSub: `detail-${Date.now()}`,
+          email: `detail-${Date.now()}@manucmms.local`,
+          nome: 'Usuario detalhe unidade',
+          idUnidade: unidadeId,
+          perfil: 'TECNICO',
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get(`/unidades/${unidadeId}/usuarios/${usuario.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect((res.body as { id: string }).id).toBe(usuario.id);
+    },
+  );
 });
