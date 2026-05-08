@@ -19,16 +19,11 @@ headers {
 }
 
 tests {
-  test("deve retornar 200 com bearer token valido", function() {
-    expect(res.status).to.equal(200);
+  test("deve retornar 403 sem vinculo local", function() {
+    expect(res.status).to.equal(403);
   });
 
-  test("deve expor o userId do JWT", function() {
-    expect(res.body.userId).to.equal("00000000-0000-4000-8000-000000000001");
-  });
-
-  test("deve incluir o usuario local bootstrapado", function() {
-    expect(res.body.usuario).to.be.an("object");
-    expect(res.body.usuario.email).to.equal("teste@manucmms.local");
+  test("deve orientar uso de convite de acesso", function() {
+    expect((res.body.message || "").toLowerCase()).to.include("convite");
   });
 }

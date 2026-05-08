@@ -5,6 +5,7 @@ import { CreateConviteAcessoUseCase } from '../../application/onboarding/create-
 import { CreateEmpresaWithInviteUseCase } from '../../application/onboarding/create-empresa-with-invite.use-case';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import type { AuthUserContext } from '../auth/auth-user.types';
+import { AllowPendingUser } from '../auth/allow-pending-user.decorator';
 import { Public } from '../auth/public.decorator';
 
 type RequestWithUser = Request & { user: AuthUserContext };
@@ -55,6 +56,7 @@ export class OnboardingController {
   }
 
   @Post('convites/aceitar')
+  @AllowPendingUser()
   acceptConvite(
     @Body() body: { token: string; nome?: string },
     @Req() req: RequestWithUser,

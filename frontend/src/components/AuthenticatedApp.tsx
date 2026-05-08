@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { BackendMe } from '../lib/auth';
 import { apiFetch, resolveApiBaseUrl } from '../lib/api';
+import { getAccessPortalPath, getPlatformPortalPath } from '../lib/portal-paths';
 import { Alert } from './ui/alert';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -63,6 +64,7 @@ type OrdemServico = {
 };
 
 type UsuarioUnidade = { id: string; nome: string; email: string; perfil: string; status?: string };
+type CargoConvite = 'TECNICO' | 'SUPERVISOR' | 'GESTOR' | 'AUDITOR' | 'ADMIN';
 
 type ScreenDef = {
   key: ScreenKey;
@@ -192,8 +194,6 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
   const [ordemSelecionadaId, setOrdemSelecionadaId] = useState('');
   const [osDescricaoEdicao, setOsDescricaoEdicao] = useState('');
   const [osTecnicoEdicaoId, setOsTecnicoEdicaoId] = useState('');
-  const [fotoProblema, setFotoProblema] = useState('');
-  const [fotoSolucao, setFotoSolucao] = useState('');
   const [fotoAnexoFile, setFotoAnexoFile] = useState<File | null>(null);
   const [fotoProblemaFile, setFotoProblemaFile] = useState<File | null>(null);
   const [fotoSolucaoFile, setFotoSolucaoFile] = useState<File | null>(null);
@@ -201,6 +201,11 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
   const [isEditingOs, setIsEditingOs] = useState(false);
   const [usuarioSelecionadoId, setUsuarioSelecionadoId] = useState('');
   const [unidadeDetalhe, setUnidadeDetalhe] = useState<Unidade | null>(null);
+  const [conviteEmailDestino, setConviteEmailDestino] = useState('');
+  const [conviteNomeDestino, setConviteNomeDestino] = useState('');
+  const [conviteCargoCodigo, setConviteCargoCodigo] = useState<CargoConvite>('TECNICO');
+  const [conviteUnidadeDestinoId, setConviteUnidadeDestinoId] = useState('');
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
 
   const [simulatedReadings, setSimulatedReadings] = useState<SimulatedReading[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
@@ -305,6 +310,14 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
   }, [activeScreen]);
 
   const currentScreen = visibleScreens.find((screen) => screen.key === activeScreen) ?? visibleScreens[0];
+  const canInviteUsers = (backendMe?.usuario?.permissoes ?? []).includes('usuario.convidar');
+  const isTecnico = perfil === 'TECNICO';
+  const isAdmin = perfil === 'ADMIN';
+  const accessCompanySlug = backendMe?.usuario?.empresa?.slug?.trim().toLowerCase() ?? '';
+  const baseCompanyUrl =
+    typeof window !== 'undefined' && accessCompanySlug
+      ? `${window.location.origin}${getAccessPortalPath()}/${accessCompanySlug}`
+      : null;
 
   const unidadeAtual = unidades.find((unidade) => unidade.id === selectedUnidadeId) ?? null;
   const ordemSelecionada = ordens.find((ordem) => ordem.id === ordemSelecionadaId) ?? null;
@@ -416,8 +429,6 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
             if (fotoAnexoFile) form.append('fotoAnexo', fotoAnexoFile);
             if (fotoProblemaFile) form.append('fotoProblema', fotoProblemaFile);
             if (fotoSolucaoFile) form.append('fotoSolucao', fotoSolucaoFile);
-            if (fotoProblema) form.append('fotoProblema', fotoProblema);
-            if (fotoSolucao) form.append('fotoSolucao', fotoSolucao);
             return form;
           })()
         : undefined;
@@ -562,6 +573,81 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
     if (!response.ok) return;
     const unidade = (await response.json()) as Unidade;
     setUnidadeDetalhe(unidade);
+  }
+
+  async function enviarConviteUsuario() {
+    const empresaId = backendMe?.usuario?.empresa?.id;
+    if (!empresaId) {
+      setScreenError('Empresa do usuario autenticado nao encontrada.');
+      return;
+    }
+    if (!canInviteUsers) {
+      setScreenError('Voce nao possui permissao para convidar usuarios.');
+      return;
+    }
+    if (!conviteEmailDestino.trim()) {
+      setScreenError('Informe o email de destino do convite.');
+      return;
+    }
+
+    setIsSendingInvite(true);
+    setScreenError(null);
+    setScreenMessage(null);
+
+    const response = await fetch(`${resolveApiBaseUrl()}/empresas/${empresaId}/convites`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        emailDestino: conviteEmailDestino.trim(),
+        nomeDestino: conviteNomeDestino.trim() || undefined,
+        cargoCodigo: conviteCargoCodigo,
+        idUnidadeDestino: conviteUnidadeDestinoId || selectedUnidadeId || undefined,
+      }),
+    });
+
+    const body = await response.json().catch(() => null) as
+      | {
+          entregaEmail?: { status?: string; erro?: string };
+          links?: { convite?: string };
+        }
+      | null;
+
+    if (!response.ok) {
+      setScreenError(extractMessage(body, 'Falha ao enviar convite.'));
+      setIsSendingInvite(false);
+      return;
+    }
+
+    if (body?.entregaEmail?.status === 'FALHOU') {
+      const linkConvite = body?.links?.convite;
+      setScreenError(
+        body.entregaEmail.erro
+          ? `Convite criado, mas o email falhou: ${body.entregaEmail.erro}`
+          : 'Convite criado, mas o email falhou.',
+      );
+      if (linkConvite) {
+        setScreenMessage(`Use o link do convite para concluir o aceite: ${linkConvite}`);
+      } else {
+        setScreenMessage(null);
+      }
+      setIsSendingInvite(false);
+      return;
+    }
+
+    const linkConvite = body?.links?.convite;
+    setScreenMessage(
+      linkConvite
+        ? `Convite enviado com sucesso. Link atribuido: ${linkConvite}`
+        : 'Convite enviado com sucesso.',
+    );
+    setConviteEmailDestino('');
+    setConviteNomeDestino('');
+    setConviteCargoCodigo('TECNICO');
+    setConviteUnidadeDestinoId('');
+    setIsSendingInvite(false);
   }
 
   function simulateReading() {
@@ -716,6 +802,19 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
         return (
           <div className="space-y-4">
             {renderSharedHeader()}
+            {isAdmin ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Base do cliente (Admin)</CardTitle>
+                  <CardDescription>Escopo isolado da empresa ativa com acesso por slug.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  <p><strong>Empresa:</strong> {backendMe?.usuario?.empresa?.nomeEmpresa ?? 'N/D'}</p>
+                  <p><strong>Slug:</strong> {backendMe?.usuario?.empresa?.slug ?? 'N/D'}</p>
+                  {baseCompanyUrl ? <p><strong>Link da base:</strong> {baseCompanyUrl}</p> : null}
+                </CardContent>
+              </Card>
+            ) : null}
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <Card><CardHeader><CardDescription>Ordens abertas</CardDescription><CardTitle>{kpi.ordensAbertas}</CardTitle></CardHeader></Card>
               <Card><CardHeader><CardDescription>Ordens em execucao</CardDescription><CardTitle>{kpi.ordensExecucao}</CardTitle></CardHeader></Card>
@@ -806,40 +905,46 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
         return (
           <div className="space-y-4">
             {renderSharedHeader()}
-            <Card>
-              <CardHeader>
-                <CardTitle>Criar ordem de servico</CardTitle>
-                <CardDescription>Fluxo de abertura manual por unidade (RF-05).</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Ativo</label>
-                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={novaOsAtivoId} onChange={(event) => setNovaOsAtivoId(event.target.value)}>
-                    <option value="">Selecione um ativo</option>
-                    {ativos.map((ativo) => <option key={ativo.id} value={ativo.id}>{ativo.nome}</option>)}
-                  </select>
-                </div>
+            {!isTecnico ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Criar ordem de servico</CardTitle>
+                  <CardDescription>Fluxo de abertura manual por unidade (RF-05).</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Ativo</label>
+                    <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={novaOsAtivoId} onChange={(event) => setNovaOsAtivoId(event.target.value)}>
+                      <option value="">Selecione um ativo</option>
+                      {ativos.map((ativo) => <option key={ativo.id} value={ativo.id}>{ativo.nome}</option>)}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Tipo</label>
-                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={novaOsTipo} onChange={(event) => setNovaOsTipo(event.target.value)}>
-                    <option value="PREVENTIVA">PREVENTIVA</option>
-                    <option value="CORRETIVA">CORRETIVA</option>
-                    <option value="PREDITIVA">PREDITIVA</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-[0.08em] text-muted-foreground">Tipo</label>
+                    <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={novaOsTipo} onChange={(event) => setNovaOsTipo(event.target.value)}>
+                      <option value="PREVENTIVA">PREVENTIVA</option>
+                      <option value="CORRETIVA">CORRETIVA</option>
+                      <option value="PREDITIVA">PREDITIVA</option>
+                    </select>
+                  </div>
 
-                <div className="md:col-span-2">
-                  <Input placeholder="Descricao da ordem" value={novaOsDescricao} onChange={(event) => setNovaOsDescricao(event.target.value)} />
-                </div>
+                  <div className="md:col-span-2">
+                    <Input placeholder="Descricao da ordem" value={novaOsDescricao} onChange={(event) => setNovaOsDescricao(event.target.value)} />
+                  </div>
 
-                <div className="md:col-span-2">
-                  <Button disabled={isCreatingOs || !novaOsAtivoId || !novaOsDescricao} onClick={() => void createOs()}>
-                    {isCreatingOs ? 'Criando...' : 'Criar OS'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="md:col-span-2">
+                    <Button disabled={isCreatingOs || !novaOsAtivoId || !novaOsDescricao} onClick={() => void createOs()}>
+                      {isCreatingOs ? 'Criando...' : 'Criar OS'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert className="border-amber-200 bg-amber-50 text-amber-700">
+                Perfil TECNICO pode visualizar e operar apenas ordens de servico atribuidas a voce.
+              </Alert>
+            )}
 
             <Card>
               <CardHeader>
@@ -903,25 +1008,35 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Input placeholder="Descrição para edição da OS" value={osDescricaoEdicao} onChange={(event) => setOsDescricaoEdicao(event.target.value)} />
-                  <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={osTecnicoEdicaoId} onChange={(event) => setOsTecnicoEdicaoId(event.target.value)}>
-                    <option value="">Sem técnico</option>
-                    {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nome}</option>)}
-                  </select>
-                  <Input placeholder="URL foto problema (opcional)" value={fotoProblema} onChange={(event) => setFotoProblema(event.target.value)} />
-                  <Input placeholder="URL foto solucao (opcional)" value={fotoSolucao} onChange={(event) => setFotoSolucao(event.target.value)} />
-                  <Input type="file" accept="image/*" onChange={(event) => setFotoAnexoFile(event.target.files?.[0] ?? null)} />
-                  <Input type="file" accept="image/*" onChange={(event) => setFotoProblemaFile(event.target.files?.[0] ?? null)} />
-                  <Input type="file" accept="image/*" onChange={(event) => setFotoSolucaoFile(event.target.files?.[0] ?? null)} />
-                </div>
+                {!isTecnico ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input placeholder="Descrição para edição da OS" value={osDescricaoEdicao} onChange={(event) => setOsDescricaoEdicao(event.target.value)} />
+                    <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={osTecnicoEdicaoId} onChange={(event) => setOsTecnicoEdicaoId(event.target.value)}>
+                      <option value="">Sem técnico</option>
+                      {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nome}</option>)}
+                    </select>
+                    <Input type="file" accept="image/*" onChange={(event) => setFotoAnexoFile(event.target.files?.[0] ?? null)} />
+                    <Input type="file" accept="image/*" onChange={(event) => setFotoProblemaFile(event.target.files?.[0] ?? null)} />
+                    <Input type="file" accept="image/*" onChange={(event) => setFotoSolucaoFile(event.target.files?.[0] ?? null)} />
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input type="file" accept="image/*" onChange={(event) => setFotoAnexoFile(event.target.files?.[0] ?? null)} />
+                    <Input type="file" accept="image/*" onChange={(event) => setFotoProblemaFile(event.target.files?.[0] ?? null)} />
+                    <Input type="file" accept="image/*" onChange={(event) => setFotoSolucaoFile(event.target.files?.[0] ?? null)} />
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" disabled={!ordemSelecionadaId || isEditingOs} onClick={() => void editarOrdemServico()}>
-                    {isEditingOs ? 'Salvando...' : 'Salvar edição'}
-                  </Button>
+                  {!isTecnico ? (
+                    <Button variant="outline" disabled={!ordemSelecionadaId || isEditingOs} onClick={() => void editarOrdemServico()}>
+                      {isEditingOs ? 'Salvando...' : 'Salvar edição'}
+                    </Button>
+                  ) : null}
                   <Button variant="outline" disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('iniciar')}>Iniciar execucao</Button>
-                  <Button variant="outline" disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('cancelar')}>Cancelar OS</Button>
+                  {!isTecnico ? (
+                    <Button variant="outline" disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('cancelar')}>Cancelar OS</Button>
+                  ) : null}
                   <Button disabled={!ordemSelecionadaId || isUpdatingOs} onClick={() => void updateOrdem('fechar')}>
                     {isUpdatingOs ? 'Atualizando...' : 'Fechar OS'}
                   </Button>
@@ -986,6 +1101,80 @@ export function AuthenticatedApp({ authWarning, session, backendMe, isLoadingUse
         return (
           <div className="space-y-4">
             {renderSharedHeader()}
+            <Card>
+              <CardHeader>
+                <CardTitle>Convidar colaborador</CardTitle>
+                <CardDescription>
+                  Convite operacional para colaborador da empresa autenticada (perfil e unidade).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-md border border-border bg-background p-3 text-xs text-muted-foreground">
+                  <p>Empresa em contexto: {backendMe?.usuario?.empresa?.nomeEmpresa ?? 'N/D'} ({backendMe?.usuario?.empresa?.slug ?? 'sem-slug'})</p>
+                  <p>Use esta tela para colaboradores. Ativacao de nova empresa deve ser feita no portal da plataforma.</p>
+                  <div className="mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (typeof window !== 'undefined') {
+                          window.location.href = getPlatformPortalPath();
+                        }
+                      }}
+                    >
+                      Ir para ativacao de empresa
+                    </Button>
+                  </div>
+                </div>
+                {!canInviteUsers ? (
+                  <Alert className="border-amber-200 bg-amber-50 text-amber-700">
+                    Seu usuario nao possui a permissao `usuario.convidar`.
+                  </Alert>
+                ) : null}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input
+                    placeholder="Email do colaborador"
+                    type="email"
+                    value={conviteEmailDestino}
+                    onChange={(event) => setConviteEmailDestino(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Nome (opcional)"
+                    value={conviteNomeDestino}
+                    onChange={(event) => setConviteNomeDestino(event.target.value)}
+                  />
+                  <select
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+                    value={conviteCargoCodigo}
+                    onChange={(event) => setConviteCargoCodigo(event.target.value as CargoConvite)}
+                  >
+                    <option value="TECNICO">TECNICO</option>
+                    <option value="SUPERVISOR">SUPERVISOR</option>
+                    <option value="GESTOR">GESTOR</option>
+                    <option value="AUDITOR">AUDITOR</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </select>
+                  <select
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+                    value={conviteUnidadeDestinoId}
+                    onChange={(event) => setConviteUnidadeDestinoId(event.target.value)}
+                  >
+                    <option value="">Unidade atual ({unidadeAtual?.nome ?? 'nao selecionada'})</option>
+                    {unidades.map((unidade) => (
+                      <option key={unidade.id} value={unidade.id}>
+                        {unidade.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  disabled={!canInviteUsers || !conviteEmailDestino.trim() || isSendingInvite}
+                  onClick={() => void enviarConviteUsuario()}
+                >
+                  {isSendingInvite ? 'Enviando convite...' : 'Enviar convite'}
+                </Button>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Usuarios da unidade</CardTitle>

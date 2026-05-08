@@ -19,6 +19,7 @@ import { Input } from './ui/input';
 
 type LoginPageProps = {
   authWarning: string | null;
+  companySlug: string | null;
   isLoadingSession: boolean;
 };
 
@@ -28,7 +29,7 @@ const operationalSignals = [
   'Respostas orientadas por dados',
 ];
 
-export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
+export function LoginPage({ authWarning, companySlug, isLoadingSession }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
@@ -190,6 +191,11 @@ export function LoginPage({ authWarning, isLoadingSession }: LoginPageProps) {
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Secure Access</p>
                 <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900 md:text-3xl">Entrar na operacao</h2>
                 <p className="mt-2 text-sm text-slate-600">Perfil, contexto e permissoes aplicados no login.</p>
+                {companySlug ? (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">
+                    Portal da empresa: {companySlug}
+                  </p>
+                ) : null}
               </div>
               <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                 v2.0

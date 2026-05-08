@@ -93,7 +93,7 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private resolveSmtpHost() {
-    const host = this.firstDefined('SMTP_HOST', 'BREVO_SMTP_HOST');
+    const host = this.firstDefinedByProvider('SMTP_HOST', 'BREVO_SMTP_HOST');
     if (host) {
       return host;
     }
@@ -106,7 +106,7 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private resolveSmtpPort() {
-    const portRaw = this.firstDefined('SMTP_PORT', 'BREVO_SMTP_PORT');
+    const portRaw = this.firstDefinedByProvider('SMTP_PORT', 'BREVO_SMTP_PORT');
     if (!portRaw && this.resolveSmtpProvider() === 'BREVO') {
       return 587;
     }
@@ -116,7 +116,10 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private resolveSmtpSecure() {
-    const secureRaw = this.firstDefined('SMTP_SECURE', 'BREVO_SMTP_SECURE');
+    const secureRaw = this.firstDefinedByProvider(
+      'SMTP_SECURE',
+      'BREVO_SMTP_SECURE',
+    );
     if (!secureRaw && this.resolveSmtpProvider() === 'BREVO') {
       return false;
     }
@@ -125,19 +128,30 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private resolveSmtpUser() {
-    return this.firstDefined('SMTP_USER', 'BREVO_SMTP_LOGIN');
+    return this.firstDefinedByProvider('SMTP_USER', 'BREVO_SMTP_LOGIN');
   }
 
   private resolveSmtpPassword() {
-    return this.firstDefined('SMTP_PASSWORD', 'BREVO_SMTP_KEY');
+    return this.firstDefinedByProvider('SMTP_PASSWORD', 'BREVO_SMTP_KEY');
   }
 
   private resolveSmtpFromEmail() {
-    return this.firstDefined('SMTP_FROM_EMAIL', 'BREVO_SMTP_FROM_EMAIL');
+    return this.firstDefinedByProvider(
+      'SMTP_FROM_EMAIL',
+      'BREVO_SMTP_FROM_EMAIL',
+    );
   }
 
   private resolveSmtpFromName() {
-    return this.firstDefined('SMTP_FROM_NAME', 'BREVO_SMTP_FROM_NAME');
+    return this.firstDefinedByProvider('SMTP_FROM_NAME', 'BREVO_SMTP_FROM_NAME');
+  }
+
+  private firstDefinedByProvider(defaultKey: string, brevoKey: string) {
+    if (this.resolveSmtpProvider() === 'BREVO') {
+      return this.firstDefined(brevoKey, defaultKey);
+    }
+
+    return this.firstDefined(defaultKey, brevoKey);
   }
 
   private firstDefined(...keys: string[]) {

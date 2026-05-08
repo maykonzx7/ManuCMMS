@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -25,6 +26,7 @@ import { GetOrdemServicoByIdUseCase } from '../../application/ordens-servico/get
 import { IniciarExecucaoOrdemServicoUseCase } from '../../application/ordens-servico/iniciar-execucao-ordem-servico.use-case';
 import { ListOrdensServicoByUnidadeUseCase } from '../../application/ordens-servico/list-ordens-servico-by-unidade.use-case';
 import { UpdateOrdemServicoUseCase } from '../../application/ordens-servico/update-ordem-servico.use-case';
+import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 
 type CreateOrdemServicoBody = {
   idAtivo: string;
@@ -90,7 +92,8 @@ export class OrdensServicoController {
       'os.visualizar_unidade',
     );
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.listOrdens.execute(unidadeId);
+    const ordens = await this.listOrdens.execute(unidadeId);
+    return this.filterOrdensByTecnicoScope(req, ordens);
   }
 
   @Post()
@@ -99,6 +102,7 @@ export class OrdensServicoController {
     @Body() body: CreateOrdemServicoBody,
     @Req() req: Request,
   ) {
+    this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.createOrdem.execute(unidadeId, body);
@@ -112,7 +116,9 @@ export class OrdensServicoController {
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.getOrdemById.execute(unidadeId, ordemServicoId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    return ordem;
   }
 
   @Patch(':ordemServicoId')
@@ -122,6 +128,7 @@ export class OrdensServicoController {
     @Body() body: UpdateOrdemServicoBody,
     @Req() req: Request,
   ) {
+    this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.updateOrdem.execute(unidadeId, ordemServicoId, body);
@@ -135,6 +142,8 @@ export class OrdensServicoController {
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.executar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
     return this.iniciarExecucao.execute(unidadeId, ordemServicoId);
   }
 
@@ -144,6 +153,7 @@ export class OrdensServicoController {
     @Param('ordemServicoId') ordemServicoId: string,
     @Req() req: Request,
   ) {
+    this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.cancelar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.cancelarOrdem.execute(unidadeId, ordemServicoId);
@@ -183,6 +193,8 @@ export class OrdensServicoController {
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.fechar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
     return this.fecharOrdem.execute(unidadeId, ordemServicoId, {
       fotoAnexo: files.fotoAnexo?.[0] ? fileToPublicUrl(req, files.fotoAnexo[0]) : body.fotoAnexo,
       fotoProblema: files.fotoProblema?.[0]
@@ -192,5 +204,44 @@ export class OrdensServicoController {
         ? fileToPublicUrl(req, files.fotoSolucao[0])
         : body.fotoSolucao,
     });
+  }
+
+  private isTecnico(req: Request): boolean {
+    return req.usuarioLocal?.perfil?.toUpperCase() === 'TECNICO';
+  }
+
+  private assertTecnicoCannotCreateOrEdit(req: Request): void {
+    if (!this.isTecnico(req)) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Perfil TECNICO nao pode criar, editar ou cancelar ordens de servico.',
+    );
+  }
+
+  private filterOrdensByTecnicoScope(
+    req: Request,
+    ordens: OrdemServicoListaItem[],
+  ): OrdemServicoListaItem[] {
+    if (!this.isTecnico(req)) {
+      return ordens;
+    }
+    const usuarioId = req.usuarioLocal?.id;
+    return ordens.filter((ordem) => ordem.idTecnico === usuarioId);
+  }
+
+  private assertTecnicoCanAccessOrdem(
+    req: Request,
+    ordem: OrdemServicoListaItem,
+  ): void {
+    if (!this.isTecnico(req)) {
+      return;
+    }
+    if (ordem.idTecnico === req.usuarioLocal?.id) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Acesso negado: tecnico so pode operar ordens de servico atribuidas a ele.',
+    );
   }
 }

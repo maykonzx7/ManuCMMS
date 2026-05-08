@@ -86,7 +86,7 @@ export class AcceptConviteAcessoUseCase {
 
     if (normalizeEmail(convite.emailDestino) !== emailAuth) {
       throw new BadRequestException(
-        'O email autenticado nao corresponde ao convite.',
+        `O email autenticado nao corresponde ao convite. Este convite foi emitido para ${normalizeEmail(convite.emailDestino)}.`,
       );
     }
 

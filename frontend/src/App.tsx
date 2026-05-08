@@ -34,6 +34,19 @@ function resolvePublicPortal(): PublicPortal {
   return 'access';
 }
 
+function resolveAccessCompanySlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  const accessPath = normalize(getAccessPortalPath());
+  const currentPath = normalize(window.location.pathname);
+  if (!currentPath.startsWith(`${accessPath}/`)) {
+    return null;
+  }
+  const suffix = currentPath.slice(accessPath.length + 1);
+  const [slug] = suffix.split('/');
+  const normalizedSlug = slug?.trim().toLowerCase() ?? '';
+  return normalizedSlug.length > 0 ? normalizedSlug : null;
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [backendMe, setBackendMe] = useState<BackendMe | null>(null);
@@ -41,10 +54,16 @@ export default function App() {
   const [isLoadingUser, setIsLoadingUser] = useState(false);
   const [authWarning, setAuthWarning] = useState<string | null>(null);
   const [publicPortal, setPublicPortal] = useState<PublicPortal>(resolvePublicPortal());
+  const [accessCompanySlug, setAccessCompanySlug] = useState<string | null>(
+    resolveAccessCompanySlug(),
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const sync = () => setPublicPortal(resolvePublicPortal());
+    const sync = () => {
+      setPublicPortal(resolvePublicPortal());
+      setAccessCompanySlug(resolveAccessCompanySlug());
+    };
     sync();
     window.addEventListener('popstate', sync);
     return () => window.removeEventListener('popstate', sync);
@@ -99,10 +118,29 @@ export default function App() {
     return () => controller.abort();
   }, [session]);
 
+  useEffect(() => {
+    if (!session || !backendMe || !accessCompanySlug) {
+      return;
+    }
+    const userCompanySlug = backendMe.usuario?.empresa?.slug?.toLowerCase() ?? null;
+    if (userCompanySlug === accessCompanySlug) {
+      return;
+    }
+    setAuthWarning('Este login e exclusivo da empresa informada. Use o portal correto.');
+    void (async () => {
+      if (supabase) {
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+      setSession(null);
+      setBackendMe(null);
+    })();
+  }, [accessCompanySlug, backendMe, session]);
+
   function navigateTo(pathname: string) {
     if (typeof window === 'undefined') return;
     window.history.pushState({}, '', pathname);
     setPublicPortal(resolvePublicPortal());
+    setAccessCompanySlug(resolveAccessCompanySlug());
   }
 
   async function handleSignOut() {
@@ -122,7 +160,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Suspense fallback={<div className="min-h-screen grid place-items-center">Carregando...</div>}><LoginPage authWarning={authWarning} isLoadingSession={isLoadingSession} /></Suspense>;
+    return <Suspense fallback={<div className="min-h-screen grid place-items-center">Carregando...</div>}><LoginPage authWarning={authWarning} companySlug={accessCompanySlug} isLoadingSession={isLoadingSession} /></Suspense>;
   }
 
   return (
