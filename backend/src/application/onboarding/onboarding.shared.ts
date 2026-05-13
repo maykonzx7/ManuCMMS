@@ -67,34 +67,56 @@ export function buildInviteLink(input: {
   return url.toString();
 }
 
+export function resolveInviteFrontendBaseUrl(input: {
+  frontendPublicBaseUrl?: string;
+  frontendNgrokBaseUrl?: string;
+  nodeEnv?: string;
+}) {
+  const baseUrl =
+    input.frontendNgrokBaseUrl?.trim() || input.frontendPublicBaseUrl?.trim();
+  if (baseUrl) {
+    return baseUrl;
+  }
+  if (input.nodeEnv === 'production') {
+    throw new BadRequestException(
+      'FRONTEND_PUBLIC_BASE_URL deve ser configurada em producao para gerar links de convite validos.',
+    );
+  }
+  return 'http://localhost:5173';
+}
+
 export function buildInviteEmailTemplate(input: {
   nomeDestinatario: string;
   nomeEmpresa: string;
   linkConvite: string;
   dataExpiracao: string;
   cargoCodigo: string;
+  cargoExibicao?: string;
   nomeUnidadeDestino?: string | null;
 }) {
+  const cargoExibicao = input.cargoExibicao?.trim() || input.cargoCodigo;
   const unidadeTexto = input.nomeUnidadeDestino
     ? `Unidade vinculada: ${input.nomeUnidadeDestino}.`
     : 'Escopo inicial: corporativo da empresa.';
 
-  const subject = `Seu acesso ao ManuCMMS foi liberado`;
+  const subject = `[${input.nomeEmpresa}] Convite de acesso ao ManuCMMS`;
   const text = [
-    `Ola, ${input.nomeDestinatario},`,
+    `Ola, ${input.nomeDestinatario}!`,
     '',
     `Voce recebeu um convite para acessar o ambiente da empresa ${input.nomeEmpresa} no ManuCMMS.`,
-    `Cargo inicial: ${input.cargoCodigo}.`,
+    `Perfil inicial: ${cargoExibicao}.`,
     unidadeTexto,
     '',
-    `Para concluir seu primeiro acesso, use o link abaixo:`,
+    `Para ativar seu acesso, use o link exclusivo abaixo:`,
     input.linkConvite,
     '',
-    `Esse convite expira em ${input.dataExpiracao}.`,
+    `Validade do convite: ${input.dataExpiracao}.`,
     '',
-    `Se voce nao esperava este convite, ignore este email.`,
+    `Importante: entre/crie conta com o mesmo email que recebeu este convite.`,
+    `Se voce nao reconhece este convite, ignore esta mensagem.`,
     '',
-    'Equipe ManuCMMS',
+    `Atenciosamente,`,
+    `Equipe ${input.nomeEmpresa} via ManuCMMS`,
   ].join('\n');
 
   const html = `
@@ -109,29 +131,33 @@ export function buildInviteEmailTemplate(input: {
               <td style="background:#23485c;padding:28px 32px;color:#ffffff;">
                 <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;">ManuCMMS</div>
                 <div style="font-size:28px;font-weight:700;margin-top:8px;">Convite de acesso</div>
+                <div style="font-size:13px;opacity:.9;margin-top:6px;">${input.nomeEmpresa}</div>
               </td>
             </tr>
             <tr>
               <td style="padding:32px;">
-                <p style="margin:0 0 16px;font-size:16px;">Ola, <strong>${input.nomeDestinatario}</strong>,</p>
+                <p style="margin:0 0 16px;font-size:16px;">Ola, <strong>${input.nomeDestinatario}</strong>!</p>
                 <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">
                   Voce recebeu um convite para acessar o ambiente da empresa
                   <strong>${input.nomeEmpresa}</strong> no ManuCMMS.
                 </p>
                 <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
-                  Cargo inicial: <strong>${input.cargoCodigo}</strong><br />
+                  Perfil inicial: <strong>${cargoExibicao}</strong><br />
                   ${unidadeTexto}
                 </p>
                 <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">
-                  Para concluir seu primeiro acesso, clique no botao abaixo:
+                  Para ativar seu acesso, clique no botao abaixo:
                 </p>
                 <p style="margin:0 0 24px;">
                   <a href="${input.linkConvite}" style="display:inline-block;background:#23485c;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600;">
-                    Concluir primeiro acesso
+                    Ativar meu acesso
                   </a>
                 </p>
                 <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4d6472;">
-                  Este convite expira em <strong>${input.dataExpiracao}</strong>.
+                  Validade do convite: <strong>${input.dataExpiracao}</strong>.
+                </p>
+                <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4d6472;">
+                  Entre ou crie sua conta com o mesmo email que recebeu este convite.
                 </p>
                 <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4d6472;">
                   Se o botao nao funcionar, copie e cole este link no navegador:
@@ -141,13 +167,13 @@ export function buildInviteEmailTemplate(input: {
                 </p>
                 <hr style="border:none;border-top:1px solid #d9e0e4;margin:24px 0;" />
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#6a7d88;">
-                  Se voce nao esperava este convite, ignore este email.
+                  Se voce nao reconhece este convite, ignore este email.
                 </p>
               </td>
             </tr>
             <tr>
               <td style="padding:20px 32px;background:#eef2f4;font-size:12px;color:#5f7280;">
-                Equipe ManuCMMS
+                Equipe ${input.nomeEmpresa} via ManuCMMS
               </td>
             </tr>
           </table>

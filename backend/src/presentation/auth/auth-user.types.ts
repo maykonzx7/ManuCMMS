@@ -3,4 +3,5 @@ export type AuthUserContext = {
   userId: string;
   email: string | null;
   role: string | null;
+  emailConfirmedAt: string | null;
 };

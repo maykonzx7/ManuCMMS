@@ -318,6 +318,9 @@ O contexto autenticado deve evoluir para carregar:
 
 - toda requisição autenticada deve resolver a `Empresa` ativa;
 - toda leitura e escrita operacional deve filtrar por `empresa_id`;
+- permissões de **Admin da Empresa** são restritas ao contexto da própria empresa;
+- onboarding global (`POST /empresas`) é operação exclusiva de **Administrador da Plataforma**;
+- para operações globais, usar credencial separada de plataforma (`x-platform-admin-key`), sem reaproveitar permissões RBAC de empresa.
 - quando a operação for sensível à planta, também filtrar por `id_unidade`;
 - o cliente não deve escolher livremente `empresa_id` no corpo da requisição;
 - a API resolve contexto por URL, JWT e vínculo do usuário com a empresa.

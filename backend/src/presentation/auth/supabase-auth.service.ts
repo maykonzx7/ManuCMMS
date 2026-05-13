@@ -7,6 +7,8 @@ type SupabaseJwtPayload = {
   sub?: string;
   email?: string;
   role?: string;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
   aud?: string | string[];
   iss?: string;
 };
@@ -15,6 +17,8 @@ type SupabaseUserResponse = {
   id: string;
   email?: string | null;
   role?: string | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
 };
 
 function isPlaceholder(value: string | undefined) {
@@ -95,6 +99,8 @@ export class SupabaseAuthService {
       userId: payload.sub,
       email: payload.email ?? null,
       role: payload.role ?? null,
+      emailConfirmedAt:
+        payload.email_confirmed_at ?? payload.confirmed_at ?? null,
     };
   }
 
@@ -139,6 +145,7 @@ export class SupabaseAuthService {
       userId: body.id,
       email: body.email ?? null,
       role: body.role ?? null,
+      emailConfirmedAt: body.email_confirmed_at ?? body.confirmed_at ?? null,
     };
   }
 }

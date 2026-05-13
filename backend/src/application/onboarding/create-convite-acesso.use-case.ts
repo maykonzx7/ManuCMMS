@@ -22,6 +22,7 @@ import {
   normalizeDisplayName,
   normalizeEmail,
   normalizePortalPath,
+  resolveInviteFrontendBaseUrl,
 } from './onboarding.shared';
 
 const PERFIS_CONVITE: PerfilUsuarioCodigo[] = [
@@ -168,9 +169,13 @@ export class CreateConviteAcessoUseCase {
     });
 
     const isProd = this.config.get<string>('NODE_ENV') === 'production';
-    const frontendBaseUrl =
-      this.config.get<string>('FRONTEND_PUBLIC_BASE_URL')?.trim() ||
-      'http://localhost:5173';
+    const frontendBaseUrl = resolveInviteFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      nodeEnv: this.config.get<string>('NODE_ENV'),
+    });
     const invitePath = normalizePortalPath(
       this.config.get<string>('FRONTEND_INVITE_PORTAL_PATH'),
       '/convite',

@@ -23,6 +23,7 @@ Matriz viva: atualizar a coluna **Implementação** a cada merge relevante. Regr
 | RN-13 | OS **corretiva**: foto do **problema** e da **solução** obrigatórias | Essencial | RF-07 | OrdemServico tipo Corretiva | Pendente |
 | RN-14 | Ao finalizar OS → atualizar **status do ativo** (ex.: manutenção → operacional) | Essencial | RF-07 | Transação ou evento AtualizarAtivo | Pendente |
 | RN-15 | Após fechamento, **sem alteração** nos dados principais sem **Gestor** | Essencial | RF-07 | Estado Concluída + comando restrito | Pendente |
+| RN-16 | **Admin da empresa cliente não** pode executar onboarding global de empresas | Essencial | RF-01, RF-03, NF-02 | Guard de plataforma (`x-platform-admin-key`) separado do RBAC da empresa | Implementado no backend (`POST /empresas`) |
 
 ---
 

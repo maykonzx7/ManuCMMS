@@ -35,6 +35,7 @@ docker compose ps
 | MongoDB    | 27017      | Auditoria (**RN-04**, **NF-05**) |
 | RabbitMQ AMQP | 5672   | Filas (**NF-08**) |
 | RabbitMQ Management UI | **15672** | http://localhost:15672 — usuário/senha padrão iguais ao `.env.example` |
+| Redis      | 6379       | Rate limit e operações de baixa latência |
 
 Credenciais padrão (apenas desenvolvimento): usuário `manucmms`, senha `manucmms_dev`. Personalize em `.env` na raiz.
 
@@ -58,6 +59,11 @@ Por padrão a API escuta na porta **3000** (ou a variável `PORT`). Raiz HTTP: `
 
 Configure `SUPABASE_URL` e `SUPABASE_JWT_SECRET` em `backend/.env` (valores no **Dashboard do projeto** → *Settings* → *API*). O frontend obtém o access token com o client Supabase; a API valida o **Bearer JWT** (HS256, issuer `/auth/v1`, audience `authenticated`). Rota de exemplo protegida: `GET /me`.
 
+Segurança adicional de onboarding e vínculo:
+- `POST /empresas` exige header `x-platform-admin-key` com o valor de `PLATFORM_ADMIN_KEY` (admin global da plataforma).
+- `ADMIN` de empresa cliente nao possui esse privilegio global.
+- `ALLOW_AUTH_SUB_LINK_BY_EMAIL` controla auto-vinculo por email na primeira autenticacao. O recomendado e `false` para manter acesso apenas por convite.
+
 ### Health check (**NF-04**)
 
 Com Docker no ar e `backend/.env` configurado:
@@ -66,7 +72,7 @@ Com Docker no ar e `backend/.env` configurado:
 curl -s http://localhost:3000/health
 ```
 
-Resposta **200** com `status: "ok"` e `postgres`, `mongodb`, `rabbitmq` em `up` quando os três serviços respondem. **503** se algum falhar ou variável de conexão estiver ausente.
+Resposta **200** com `status: "ok"` e `postgres`, `mongodb`, `rabbitmq`, `redis` em `up` quando os serviços respondem. **503** se algum falhar ou variável de conexão estiver ausente.
 
 Validar só os containers:
 

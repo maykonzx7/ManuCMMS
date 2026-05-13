@@ -10,6 +10,7 @@ type PlatformOwnerPageProps = {
 };
 
 export function PlatformOwnerPage({ onGoToAccess }: PlatformOwnerPageProps) {
+  const platformAdminKey = import.meta.env.VITE_PLATFORM_ADMIN_KEY?.trim() ?? '';
   const [nomeEmpresa, setNomeEmpresa] = useState('');
   const [slug, setSlug] = useState('');
   const [emailResponsavel, setEmailResponsavel] = useState('');
@@ -37,9 +38,14 @@ export function PlatformOwnerPage({ onGoToAccess }: PlatformOwnerPageProps) {
     setMessage(null);
     setResult(null);
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (platformAdminKey) {
+      headers['x-platform-admin-key'] = platformAdminKey;
+    }
+
     const response = await fetch(`${resolveApiBaseUrl()}/empresas`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         nomeEmpresa: nomeEmpresa.trim(),
         slug: slug.trim() || undefined,
@@ -79,6 +85,11 @@ export function PlatformOwnerPage({ onGoToAccess }: PlatformOwnerPageProps) {
           <p className="text-sm text-muted-foreground">
             Defina a nova base (empresa), o contato inicial e gere automaticamente o convite de ativacao.
           </p>
+          {!platformAdminKey ? (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-700">
+              Defina <strong>VITE_PLATFORM_ADMIN_KEY</strong> no frontend para habilitar criacao de empresas.
+            </Alert>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             <Input placeholder="Nome da empresa" value={nomeEmpresa} onChange={(event) => setNomeEmpresa(event.target.value)} />
             <Input placeholder="Slug (opcional)" value={slug} onChange={(event) => setSlug(event.target.value)} />
@@ -92,7 +103,10 @@ export function PlatformOwnerPage({ onGoToAccess }: PlatformOwnerPageProps) {
           {error ? <Alert className="border-rose-200 bg-rose-50 text-rose-700">{error}</Alert> : null}
 
           <div className="flex flex-wrap gap-2">
-            <Button disabled={isSubmitting || !nomeEmpresa.trim() || !emailResponsavel.trim()} onClick={() => void criarEmpresaEConviteInicial()}>
+            <Button
+              disabled={isSubmitting || !platformAdminKey || !nomeEmpresa.trim() || !emailResponsavel.trim()}
+              onClick={() => void criarEmpresaEConviteInicial()}
+            >
               {isSubmitting ? 'Criando...' : 'Criar empresa e enviar convite'}
             </Button>
             <Button variant="outline" onClick={onGoToAccess}>Ir para tela de acesso</Button>

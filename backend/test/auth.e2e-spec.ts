@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
@@ -33,9 +34,10 @@ describe('Supabase JWT (e2e)', () => {
   });
 
   it('GET /me com JWT assinado como Supabase sem vínculo local retorna 403', async () => {
+    const sub = randomUUID();
     const token = signTestJwt({
-      sub: '00000000-0000-4000-8000-000000000001',
-      email: 'teste@manucmms.local',
+      sub,
+      email: `sem-vinculo-${sub.slice(0, 8)}@manucmms.local`,
     });
     const res = await request(app.getHttpServer())
       .get('/me')

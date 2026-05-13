@@ -225,6 +225,8 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     usuarioId: string,
     input: CreateUsuarioBootstrapInput,
   ) {
+    await this.promoteUsuarioPerfilIfNeeded(executor, usuarioId, input.perfil);
+
     const empresaId = input.empresaId;
     if (!empresaId) {
       return;
@@ -438,6 +440,30 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     return rows[0]?.id ?? null;
   }
 
+  private async promoteUsuarioPerfilIfNeeded(
+    executor: PrismaExecutor,
+    usuarioId: string,
+    perfilNovo: PerfilUsuarioCodigo,
+  ) {
+    const usuario = await executor.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { perfil: true },
+    });
+    const perfilAtual = (usuario?.perfil ?? '').trim().toUpperCase() as PerfilUsuarioCodigo;
+    const perfilMaisForte = pickHighestPerfil(perfilAtual, perfilNovo);
+    if (perfilMaisForte === perfilAtual) {
+      return;
+    }
+
+    await executor.$executeRaw(Prisma.sql`
+      UPDATE usuario
+      SET
+        perfil = ${perfilMaisForte},
+        updated_at = NOW()
+      WHERE id = ${usuarioId}::uuid
+    `);
+  }
+
   private async toLocalContext(r: UsuarioRow): Promise<UsuarioLocalContext> {
     const [empresa, cargos] = await Promise.all([
       this.loadEmpresaContext(r.id, r.idUnidade),
@@ -543,6 +569,17 @@ const perfilHierarchy: Record<PerfilUsuarioCodigo, number> = {
   AUDITOR: 40,
   ADMIN: 50,
 };
+
+function pickHighestPerfil(
+  maybeCurrent: string | null | undefined,
+  incoming: PerfilUsuarioCodigo,
+): PerfilUsuarioCodigo {
+  const current = (maybeCurrent ?? '').trim().toUpperCase() as PerfilUsuarioCodigo;
+  if (!(current in perfilHierarchy)) {
+    return incoming;
+  }
+  return perfilHierarchy[current] >= perfilHierarchy[incoming] ? current : incoming;
+}
 
 function formatPerfilLabel(perfil: PerfilUsuarioCodigo) {
   return perfil.charAt(0) + perfil.slice(1).toLowerCase();

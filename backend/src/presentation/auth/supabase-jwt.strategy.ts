@@ -8,6 +8,8 @@ type SupabaseJwtPayload = {
   sub?: string;
   email?: string;
   role?: string;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
 };
 
 /** Mesmos valores de `test/jest-setup-env.ts` — só para dev sem `.env` completo. */
@@ -75,6 +77,8 @@ export class SupabaseJwtStrategy extends PassportStrategy(
       userId: payload.sub,
       email: payload.email ?? null,
       role: payload.role ?? null,
+      emailConfirmedAt:
+        payload.email_confirmed_at ?? payload.confirmed_at ?? null,
     };
   }
 }

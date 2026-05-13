@@ -49,6 +49,11 @@ export class AcceptConviteAcessoUseCase {
         'O token autenticado precisa conter email para aceitar o convite.',
       );
     }
+    if (!authUser.emailConfirmedAt) {
+      throw new BadRequestException(
+        'Confirme o email da conta antes de aceitar o convite.',
+      );
+    }
 
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const conviteRows = await this.prisma.$queryRaw<

@@ -1,4 +1,14 @@
-import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Headers,
+  InternalServerErrorException,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { AcceptConviteAcessoUseCase } from '../../application/onboarding/accept-convite-acesso.use-case';
 import { CreateConviteAcessoUseCase } from '../../application/onboarding/create-convite-acesso.use-case';
@@ -7,16 +17,19 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import type { AuthUserContext } from '../auth/auth-user.types';
 import { AllowPendingUser } from '../auth/allow-pending-user.decorator';
 import { Public } from '../auth/public.decorator';
+import { RequestRateLimitService } from './request-rate-limit.service';
 
 type RequestWithUser = Request & { user: AuthUserContext };
 
 @Controller()
 export class OnboardingController {
   constructor(
+    private readonly config: ConfigService,
     private readonly createEmpresaWithInvite: CreateEmpresaWithInviteUseCase,
     private readonly createConviteAcesso: CreateConviteAcessoUseCase,
     private readonly acceptConviteAcesso: AcceptConviteAcessoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+    private readonly rateLimit: RequestRateLimitService,
   ) {}
 
   /**
@@ -25,7 +38,9 @@ export class OnboardingController {
    */
   @Public()
   @Post('empresas')
-  createEmpresa(
+  async createEmpresa(
+    @Headers('x-platform-admin-key') platformAdminKey: string | undefined,
+    @Req() req: Request,
     @Body()
     body: {
       nomeEmpresa: string;
@@ -36,6 +51,24 @@ export class OnboardingController {
       localizacaoUnidadeInicial?: string;
     },
   ) {
+    await this.rateLimit.enforce({
+      scope: 'onboarding:create-empresa',
+      key: this.getClientIp(req),
+      maxHits: this.getNumberConfig('RATE_LIMIT_CREATE_EMPRESA_MAX_HITS', 10),
+      windowMs: this.getNumberConfig('RATE_LIMIT_CREATE_EMPRESA_WINDOW_MS', 60_000),
+      message: 'Muitas tentativas de criar empresa. Aguarde e tente novamente.',
+    });
+
+    const requiredPlatformKey = this.config.get<string>('PLATFORM_ADMIN_KEY')?.trim() ?? '';
+    if (!requiredPlatformKey) {
+      throw new InternalServerErrorException(
+        'PLATFORM_ADMIN_KEY nao configurada para onboarding da plataforma.',
+      );
+    }
+    if ((platformAdminKey ?? '').trim() !== requiredPlatformKey) {
+      throw new ForbiddenException('Acesso restrito ao administrador da plataforma.');
+    }
+
     return this.createEmpresaWithInvite.execute(body);
   }
 
@@ -57,10 +90,36 @@ export class OnboardingController {
 
   @Post('convites/aceitar')
   @AllowPendingUser()
-  acceptConvite(
+  async acceptConvite(
     @Body() body: { token: string; nome?: string },
     @Req() req: RequestWithUser,
   ) {
+    await this.rateLimit.enforce({
+      scope: 'onboarding:accept-convite',
+      key: this.getClientIp(req),
+      maxHits: this.getNumberConfig('RATE_LIMIT_ACCEPT_CONVITE_MAX_HITS', 20),
+      windowMs: this.getNumberConfig('RATE_LIMIT_ACCEPT_CONVITE_WINDOW_MS', 60_000),
+      message: 'Muitas tentativas de aceite de convite. Aguarde e tente novamente.',
+    });
+
     return this.acceptConviteAcesso.execute(req.user, body);
+  }
+
+  private getNumberConfig(key: string, fallback: number): number {
+    const raw = this.config.get<string>(key)?.trim();
+    if (!raw) return fallback;
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  private getClientIp(req: Request): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+      return forwarded.split(',')[0].trim();
+    }
+    if (Array.isArray(forwarded) && forwarded.length > 0) {
+      return forwarded[0]?.trim() || req.ip || 'unknown';
+    }
+    return req.ip || 'unknown';
   }
 }

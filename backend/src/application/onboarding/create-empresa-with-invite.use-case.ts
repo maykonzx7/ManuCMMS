@@ -21,6 +21,7 @@ import {
   normalizeDisplayName,
   normalizeEmail,
   normalizePortalPath,
+  resolveInviteFrontendBaseUrl,
 } from './onboarding.shared';
 
 type CreateEmpresaInput = {
@@ -188,9 +189,13 @@ export class CreateEmpresaWithInviteUseCase {
     });
 
     const isProd = this.config.get<string>('NODE_ENV') === 'production';
-    const frontendBaseUrl =
-      this.config.get<string>('FRONTEND_PUBLIC_BASE_URL')?.trim() ||
-      'http://localhost:5173';
+    const frontendBaseUrl = resolveInviteFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      nodeEnv: this.config.get<string>('NODE_ENV'),
+    });
     const invitePath = normalizePortalPath(
       this.config.get<string>('FRONTEND_INVITE_PORTAL_PATH'),
       '/convite',
@@ -219,6 +224,7 @@ export class CreateEmpresaWithInviteUseCase {
           linkConvite: inviteLink,
           dataExpiracao,
           cargoCodigo: 'ADMIN',
+          cargoExibicao: 'Administrador empresa',
         });
         await this.emailPort.send({
           to: emailResponsavel,

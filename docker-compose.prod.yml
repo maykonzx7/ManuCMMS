@@ -1,4 +1,4 @@
-raservices:
+services:
   api:
     build:
       context: ./backend
@@ -7,6 +7,11 @@ raservices:
     restart: unless-stopped
     env_file:
       - ./backend/.env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-manucmms}:${POSTGRES_PASSWORD:-manucmms_prod}@postgres:5432/${POSTGRES_DB:-manucmms}
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-manucmms}:${MONGO_INITDB_ROOT_PASSWORD:-manucmms_prod}@mongo:27017/manucmms?authSource=admin
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-manucmms}:${RABBITMQ_DEFAULT_PASS:-manucmms_prod}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379
     ports:
       - "${API_PORT:-3000}:3000"
     depends_on:
@@ -15,6 +20,8 @@ raservices:
       mongo:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:
@@ -86,7 +93,21 @@ raservices:
       retries: 10
       start_period: 30s
 
+  redis:
+    image: redis:7-alpine
+    container_name: manucmms-redis-prod
+    restart: unless-stopped
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 volumes:
   postgres_prod_data:
   mongo_prod_data:
   rabbitmq_prod_data:
+  redis_prod_data:

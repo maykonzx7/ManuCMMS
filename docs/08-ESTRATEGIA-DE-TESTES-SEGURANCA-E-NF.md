@@ -44,6 +44,13 @@ Armazenar evidências na pasta `docs/evidencias/` (ou repositório separado) com
 - Rate limiting em rotas públicas (login, recuperação senha, ingestão IoT se exposta).
 - Segredos apenas em variáveis de ambiente; nunca no Git.
 - Revisão de dependências (npm audit / Dependabot) na CI.
+- Separar privilégios de **Admin da Empresa** e **Administrador da Plataforma** em testes automatizados.
+
+### 3.1 Casos mínimos obrigatórios de autorização
+
+- `GET /me` sem vínculo local deve retornar `403` (acesso somente por convite/vínculo válido).
+- `POST /empresas` sem `x-platform-admin-key` deve retornar `403`.
+- `POST /empresas` com `x-platform-admin-key` válida deve permitir onboarding.
 
 ---
 

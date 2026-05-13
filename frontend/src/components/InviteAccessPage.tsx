@@ -7,6 +7,12 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 
+function formatPerfilLabel(value?: string | null) {
+  const perfil = value?.trim().toUpperCase() ?? '';
+  if (perfil === 'ADMIN') return 'Administrador empresa';
+  return perfil || 'N/D';
+}
+
 type InviteAccessPageProps = {
   session: Session | null;
   onGoToAccess: () => void;
@@ -16,6 +22,10 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
   const tokenFromUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') ?? '';
+  }, []);
+  const inviteRedirectTo = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    return `${window.location.origin}${window.location.pathname}${window.location.search}`;
   }, []);
   const nomeFromUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -35,6 +45,7 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<{
     convite?: { id?: string; empresaId?: string; cargoCodigo?: string };
     usuario?: { id?: string; nome?: string; email?: string; perfil?: string };
@@ -50,8 +61,8 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
     }
   }, [nomeFromUrl, tokenFromUrl]);
 
-  async function aceitarConvite() {
-    if (!session?.access_token) {
+  async function aceitarConviteComToken(accessToken: string) {
+    if (!accessToken) {
       setError('Voce precisa autenticar antes de aceitar o convite.');
       return;
     }
@@ -59,7 +70,7 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
       setError('Token de convite ausente.');
       return;
     }
-    const emailSessao = (session.user.email ?? '').trim().toLowerCase();
+    const emailSessao = (session?.user.email ?? '').trim().toLowerCase();
     if (emailFromUrl && emailSessao && emailSessao !== emailFromUrl) {
       setError(
         `Este convite foi emitido para ${emailFromUrl}. Troque de conta para continuar.`,
@@ -75,7 +86,7 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
     const response = await fetch(`${resolveApiBaseUrl()}/convites/aceitar`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -100,13 +111,21 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
     setIsSubmitting(false);
   }
 
+  async function aceitarConvite() {
+    if (!session?.access_token) {
+      setError('Voce precisa autenticar antes de aceitar o convite.');
+      return;
+    }
+    await aceitarConviteComToken(session.access_token);
+  }
+
   async function entrarComSessao() {
     if (!supabase) return;
     await supabase.auth.signOut({ scope: 'local' });
     onGoToAccess();
   }
 
-  async function autenticarEContinuar(mode: 'signup' | 'signin') {
+  async function autenticarEContinuar() {
     if (!supabase) {
       setError('Autenticacao indisponivel.');
       return;
@@ -125,36 +144,95 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
     setError(null);
     setMessage(null);
 
-    if (mode === 'signup') {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: passwordAuth,
-      });
-      if (signUpError) {
-        setError(signUpError.message || 'Nao foi possivel criar conta.');
-        setIsSubmitting(false);
-        return;
-      }
-      if (!data.session) {
-        setMessage('Conta criada. Se necessario, confirme o email e depois faça login para aceitar o convite.');
-        setIsSubmitting(false);
-        return;
-      }
-      setMessage('Conta criada e autenticada. Agora aceite o convite.');
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: passwordAuth,
+    });
+    if (!signInError && data.session?.access_token) {
+      await aceitarConviteComToken(data.session.access_token);
+      return;
+    }
+
+    const signInMessage = (signInError?.message ?? '').toLowerCase();
+    const shouldTrySignup =
+      signInMessage.includes('invalid login credentials') ||
+      signInMessage.includes('email not confirmed') ||
+      signInMessage.includes('invalid_credentials');
+
+    if (!shouldTrySignup) {
+      setError(signInError?.message || 'Nao foi possivel autenticar.');
       setIsSubmitting(false);
       return;
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password: passwordAuth,
+      options: {
+        emailRedirectTo: inviteRedirectTo,
+      },
     });
-    if (signInError) {
-      setError(signInError.message || 'Nao foi possivel autenticar.');
+    if (signUpError) {
+      setError(signUpError.message || 'Nao foi possivel criar conta.');
       setIsSubmitting(false);
       return;
     }
-    setMessage('Login realizado. Agora aceite o convite.');
+
+    const alreadyExists = (signUpData.user?.identities?.length ?? 0) === 0;
+    if (alreadyExists) {
+      setPendingConfirmationEmail(email);
+      setError('Conta ja existe para este email. Confira a senha ou use reenvio/link de acesso.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (signUpData.session) {
+      await supabase.auth.signOut({ scope: 'local' });
+    }
+    setPendingConfirmationEmail(email);
+    setMessage('Conta criada. Enviamos o email de confirmacao. Valide seu email e depois continue por aqui.');
+    setIsSubmitting(false);
+  }
+
+  async function reenviarConfirmacao() {
+    if (!supabase || !pendingConfirmationEmail) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: pendingConfirmationEmail,
+      options: {
+        emailRedirectTo: inviteRedirectTo,
+      },
+    });
+    if (resendError) {
+      setError(resendError.message || 'Nao foi possivel reenviar a confirmacao.');
+      setIsSubmitting(false);
+      return;
+    }
+    setMessage('Email de confirmacao reenviado. Verifique caixa de entrada e spam.');
+    setIsSubmitting(false);
+  }
+
+  async function enviarLinkMagicoAcesso() {
+    if (!supabase || !pendingConfirmationEmail) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: pendingConfirmationEmail,
+      options: {
+        emailRedirectTo: inviteRedirectTo,
+        shouldCreateUser: false,
+      },
+    });
+    if (otpError) {
+      setError(otpError.message || 'Nao foi possivel enviar link de acesso.');
+      setIsSubmitting(false);
+      return;
+    }
+    setMessage('Link de acesso enviado por email. Abra o link para entrar e concluir o convite.');
     setIsSubmitting(false);
   }
 
@@ -198,18 +276,12 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
                 onChange={(event) => setPasswordAuth(event.target.value)}
               />
               <Button
+                className="md:col-span-2"
                 variant="outline"
                 disabled={isSubmitting || !emailAuth.trim() || !passwordAuth}
-                onClick={() => void autenticarEContinuar('signup')}
+                onClick={() => void autenticarEContinuar()}
               >
-                Criar conta
-              </Button>
-              <Button
-                variant="outline"
-                disabled={isSubmitting || !emailAuth.trim() || !passwordAuth}
-                onClick={() => void autenticarEContinuar('signin')}
-              >
-                Entrar
+                Continuar com e-mail
               </Button>
             </div>
           ) : null}
@@ -228,14 +300,32 @@ export function InviteAccessPage({ session, onGoToAccess }: InviteAccessPageProp
             </Button>
             <Button variant="outline" onClick={onGoToAccess}>Ir para tela de acesso</Button>
             <Button variant="outline" onClick={() => void entrarComSessao()}>Trocar conta</Button>
+            {pendingConfirmationEmail ? (
+              <Button
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => void reenviarConfirmacao()}
+              >
+                Reenviar confirmacao
+              </Button>
+            ) : null}
+            {pendingConfirmationEmail ? (
+              <Button
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => void enviarLinkMagicoAcesso()}
+              >
+                Enviar link de acesso
+              </Button>
+            ) : null}
           </div>
 
           {accepted ? (
             <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
               <p><strong>Usuario:</strong> {accepted.usuario?.nome} ({accepted.usuario?.email})</p>
-              <p><strong>Perfil:</strong> {accepted.usuario?.perfil}</p>
+              <p><strong>Perfil:</strong> {formatPerfilLabel(accepted.usuario?.perfil)}</p>
               <p><strong>Empresa ID:</strong> {accepted.convite?.empresaId}</p>
-              <p><strong>Cargo:</strong> {accepted.convite?.cargoCodigo}</p>
+              <p><strong>Cargo:</strong> {formatPerfilLabel(accepted.convite?.cargoCodigo)}</p>
             </div>
           ) : null}
         </CardContent>

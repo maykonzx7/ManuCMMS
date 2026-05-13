@@ -28,6 +28,7 @@ import { AtivosController } from './http/ativos.controller';
 import { OrdensServicoController } from './http/ordens-servico.controller';
 import { HealthController } from './http/health.controller';
 import { IntegracoesController } from './http/integracoes.controller';
+import { GestaoEmpresaController } from './http/gestao-empresa.controller';
 import { MeController } from './http/me.controller';
 import { OnboardingController } from './http/onboarding.controller';
 import { RelatoriosController } from './http/relatorios.controller';
@@ -36,6 +37,8 @@ import { UsuariosController } from './http/usuarios.controller';
 import { PostgresHealthIndicator } from '../infrastructure/health/postgres-health.indicator';
 import { MongoHealthIndicator } from '../infrastructure/health/mongo-health.indicator';
 import { RabbitmqHealthIndicator } from '../infrastructure/health/rabbitmq-health.indicator';
+import { RedisHealthIndicator } from '../infrastructure/health/redis-health.indicator';
+import { RequestRateLimitService } from './http/request-rate-limit.service';
 
 @Module({
   imports: [TerminusModule],
@@ -44,6 +47,7 @@ import { RabbitmqHealthIndicator } from '../infrastructure/health/rabbitmq-healt
     HealthController,
     AuditoriaController,
     IntegracoesController,
+    GestaoEmpresaController,
     MeController,
     OnboardingController,
     RelatoriosController,
@@ -78,6 +82,8 @@ import { RabbitmqHealthIndicator } from '../infrastructure/health/rabbitmq-healt
     PostgresHealthIndicator,
     MongoHealthIndicator,
     RabbitmqHealthIndicator,
+    RedisHealthIndicator,
+    RequestRateLimitService,
   ],
 })
 export class PresentationModule {}

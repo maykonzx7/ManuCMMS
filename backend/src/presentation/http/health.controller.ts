@@ -3,6 +3,7 @@ import { HealthCheck, HealthCheckService } from '@nestjs/terminus';
 import { PostgresHealthIndicator } from '../../infrastructure/health/postgres-health.indicator';
 import { MongoHealthIndicator } from '../../infrastructure/health/mongo-health.indicator';
 import { RabbitmqHealthIndicator } from '../../infrastructure/health/rabbitmq-health.indicator';
+import { RedisHealthIndicator } from '../../infrastructure/health/redis-health.indicator';
 import { Public } from '../auth/public.decorator';
 
 /**
@@ -15,6 +16,7 @@ export class HealthController {
     private readonly postgresHealth: PostgresHealthIndicator,
     private readonly mongoHealth: MongoHealthIndicator,
     private readonly rabbitmqHealth: RabbitmqHealthIndicator,
+    private readonly redisHealth: RedisHealthIndicator,
   ) {}
 
   @Public()
@@ -25,6 +27,7 @@ export class HealthController {
       () => this.postgresHealth.isHealthy('postgres'),
       () => this.mongoHealth.isHealthy('mongodb'),
       () => this.rabbitmqHealth.isHealthy('rabbitmq'),
+      () => this.redisHealth.isHealthy('redis'),
     ]);
   }
 }

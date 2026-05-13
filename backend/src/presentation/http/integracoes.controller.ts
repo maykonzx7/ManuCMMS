@@ -5,6 +5,7 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import { SmtpEmailService } from '../../infrastructure/email/smtp-email.service';
 import { MongoHealthIndicator } from '../../infrastructure/health/mongo-health.indicator';
 import { RabbitmqHealthIndicator } from '../../infrastructure/health/rabbitmq-health.indicator';
+import { RedisHealthIndicator } from '../../infrastructure/health/redis-health.indicator';
 
 type IntegrationStatus = {
   ok: boolean;
@@ -17,6 +18,7 @@ export class IntegracoesController {
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly rabbitmqHealth: RabbitmqHealthIndicator,
     private readonly mongoHealth: MongoHealthIndicator,
+    private readonly redisHealth: RedisHealthIndicator,
     private readonly smtpService: SmtpEmailService,
     private readonly config: ConfigService,
   ) {}
@@ -25,14 +27,15 @@ export class IntegracoesController {
   async status(@Req() req: Request) {
     this.authorizePermission.execute(req.usuarioLocal, 'unidade.visualizar');
 
-    const [rabbitmq, mongodb, smtp, iot] = await Promise.all([
+    const [rabbitmq, mongodb, redis, smtp, iot] = await Promise.all([
       this.checkRabbitMq(),
       this.checkMongo(),
+      this.checkRedis(),
       this.checkSmtp(),
       this.checkIot(),
     ]);
 
-    const allOk = rabbitmq.ok && mongodb.ok && smtp.ok && iot.ok;
+    const allOk = rabbitmq.ok && mongodb.ok && redis.ok && smtp.ok && iot.ok;
 
     return {
       status: allOk ? 'ok' : 'degraded',
@@ -40,6 +43,7 @@ export class IntegracoesController {
       integrations: {
         rabbitmq,
         mongodb,
+        redis,
         smtp,
         iot,
       },
@@ -66,6 +70,18 @@ export class IntegracoesController {
       return {
         ok: false,
         message: error instanceof Error ? error.message : 'MongoDB indisponivel.',
+      };
+    }
+  }
+
+  private async checkRedis(): Promise<IntegrationStatus> {
+    try {
+      await this.redisHealth.isHealthy('redis');
+      return { ok: true, message: 'Redis conectado.' };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Redis indisponivel.',
       };
     }
   }

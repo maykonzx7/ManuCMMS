@@ -22,3 +22,7 @@ src/
 Instruções de execução, **Docker Compose** e clone estão no [README da raiz](../README.md).
 
 Variáveis da API: copie [`.env.example`](.env.example) para `backend/.env` (valores alinhados ao `docker-compose.yml` da raiz).
+
+Variáveis críticas de segurança:
+- `PLATFORM_ADMIN_KEY`: obrigatória para `POST /empresas` via header `x-platform-admin-key` (escopo admin global).
+- `ALLOW_AUTH_SUB_LINK_BY_EMAIL`: por padrão `false`; quando `true`, permite auto-vincular `auth_sub` por email na primeira autenticação.

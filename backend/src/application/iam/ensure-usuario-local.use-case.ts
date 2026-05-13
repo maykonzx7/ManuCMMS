@@ -1,8 +1,10 @@
 import {
   ForbiddenException,
+  InternalServerErrorException,
   Inject,
   Injectable,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 import {
   USUARIO_READ_PORT,
@@ -17,6 +19,7 @@ import {
 @Injectable()
 export class EnsureUsuarioLocalUseCase {
   constructor(
+    private readonly config: ConfigService,
     @Inject(USUARIO_READ_PORT)
     private readonly usuarios: IUsuarioReadPort,
   ) {}
@@ -25,6 +28,7 @@ export class EnsureUsuarioLocalUseCase {
     userId: string;
     email: string | null;
     role: string | null;
+    emailConfirmedAt: string | null;
   },
   ): Promise<UsuarioLocalContext> {
     const existentePorSub = await this.usuarios.findByAuthSub(jwt.userId);
@@ -45,8 +49,18 @@ export class EnsureUsuarioLocalUseCase {
       return existentePorSub;
     }
 
+    const allowAuthSubLinkByEmail =
+      this.config.get<string>('ALLOW_AUTH_SUB_LINK_BY_EMAIL') === 'true';
+    const nodeEnv = this.config.get<string>('NODE_ENV')?.trim().toLowerCase() ?? 'development';
+    const isProduction = nodeEnv === 'production';
+    if (isProduction && allowAuthSubLinkByEmail) {
+      throw new InternalServerErrorException(
+        'Configuracao insegura: ALLOW_AUTH_SUB_LINK_BY_EMAIL=true nao e permitido em producao.',
+      );
+    }
+
     const emailJwt = jwt.email?.trim().toLowerCase();
-    if (emailJwt) {
+    if (allowAuthSubLinkByEmail && emailJwt) {
       const existentePorEmail = await this.usuarios.findByEmail(emailJwt);
       if (existentePorEmail) {
         await this.usuarios.updateAuthSub(existentePorEmail.id, jwt.userId);
