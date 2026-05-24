@@ -14,6 +14,7 @@ export type CreateOrdemServicoInput = {
   tipo: OrdemServicoListaItem['tipo'];
   descricao: string;
   idTecnico?: string | null;
+  criadoPorUsuarioId: string;
 };
 
 /** Persistência atômica: OS concluída + ativo OPERACIONAL (RN-14). */
@@ -24,6 +25,9 @@ export type FecharOrdemServicoPersistenciaInput = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
+  descricaoSolucao: string | null;
+  assinaturaDigital: string | null;
+  finalizadoPorUsuarioId: string;
 };
 
 export interface IOrdemServicoRepositoryPort {
@@ -44,6 +48,8 @@ export interface IOrdemServicoRepositoryPort {
       idUnidade: string;
       descricao?: string;
       idTecnico?: string | null;
+      transferidoPorUsuarioId?: string;
+      motivoTransferencia?: string;
     },
   ): Promise<OrdemServicoListaItem | null>;
   findParaFechamento(
@@ -58,6 +64,8 @@ export interface IOrdemServicoRepositoryPort {
     idOrdemServico: string,
     empresaId: string,
     idUnidade: string,
+    iniciadoPorUsuarioId: string,
+    fotoProblema?: string | null,
   ): Promise<OrdemServicoListaItem>;
   cancelar(
     input: {
@@ -65,6 +73,7 @@ export interface IOrdemServicoRepositoryPort {
       empresaId: string;
       idUnidade: string;
       observacaoCancelamento: string;
+      canceladoPorUsuarioId: string;
     },
   ): Promise<OrdemServicoListaItem>;
 }

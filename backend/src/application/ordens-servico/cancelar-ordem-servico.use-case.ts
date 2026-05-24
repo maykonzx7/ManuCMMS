@@ -27,6 +27,7 @@ export class CancelarOrdemServicoUseCase {
     idUnidade: string,
     idOrdemServico: string,
     input: { observacaoCancelamento?: string | null },
+    canceladoPorUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -67,6 +68,7 @@ export class CancelarOrdemServicoUseCase {
       empresaId: unidadeOk.empresaId,
       idUnidade,
       observacaoCancelamento,
+      canceladoPorUsuarioId,
     });
   }
 }

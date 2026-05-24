@@ -18,6 +18,8 @@ type AtivoRow = {
   modelo: string | null;
   numeroSerie: string | null;
   observacoes: string | null;
+  custoHoraParada: number;
+  custoManutencaoMensal: number;
   status: string;
   limiteTemp: number;
   createdAt: Date;
@@ -42,6 +44,8 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         modelo,
         numero_serie AS "numeroSerie",
         observacoes,
+        custo_hora_parada AS "custoHoraParada",
+        custo_manutencao_mensal AS "custoManutencaoMensal",
         status,
         limite_temp AS "limiteTemp",
         created_at AS "createdAt",
@@ -69,6 +73,8 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         modelo,
         numero_serie,
         observacoes,
+        custo_hora_parada,
+        custo_manutencao_mensal,
         status,
         limite_temp,
         created_at,
@@ -84,6 +90,8 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         ${input.modelo ?? null},
         ${input.numeroSerie ?? null},
         ${input.observacoes ?? null},
+        ${input.custoHoraParada ?? 0},
+        ${input.custoManutencaoMensal ?? 0},
         'OPERACIONAL',
         ${input.limiteTemp ?? 48},
         NOW(),
@@ -110,6 +118,8 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         modelo,
         numero_serie AS "numeroSerie",
         observacoes,
+        custo_hora_parada AS "custoHoraParada",
+        custo_manutencao_mensal AS "custoManutencaoMensal",
         status,
         limite_temp AS "limiteTemp",
         created_at AS "createdAt",
@@ -145,6 +155,14 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     }
     if (input.observacoes !== undefined) {
       fields.push(Prisma.sql`observacoes = ${input.observacoes}`);
+    }
+    if (input.custoHoraParada !== undefined) {
+      fields.push(Prisma.sql`custo_hora_parada = ${input.custoHoraParada}`);
+    }
+    if (input.custoManutencaoMensal !== undefined) {
+      fields.push(
+        Prisma.sql`custo_manutencao_mensal = ${input.custoManutencaoMensal}`,
+      );
     }
     if (input.status !== undefined) {
       fields.push(Prisma.sql`status = ${input.status}::"StatusAtivo"`);
@@ -227,6 +245,8 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         modelo,
         numero_serie AS "numeroSerie",
         observacoes,
+        custo_hora_parada AS "custoHoraParada",
+        custo_manutencao_mensal AS "custoManutencaoMensal",
         status,
         limite_temp AS "limiteTemp",
         created_at AS "createdAt",
@@ -249,6 +269,8 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
       modelo: r.modelo,
       numeroSerie: r.numeroSerie,
       observacoes: r.observacoes,
+      custoHoraParada: r.custoHoraParada,
+      custoManutencaoMensal: r.custoManutencaoMensal,
       status: r.status as AtivoListaItem['status'],
       limiteTemp: r.limiteTemp,
       createdAt: r.createdAt,

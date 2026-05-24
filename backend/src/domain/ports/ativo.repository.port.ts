@@ -14,6 +14,8 @@ export type CreateAtivoInput = {
   modelo?: string;
   numeroSerie?: string;
   observacoes?: string;
+  custoHoraParada?: number;
+  custoManutencaoMensal?: number;
 };
 
 export type UpdateAtivoInput = {
@@ -28,6 +30,8 @@ export type UpdateAtivoInput = {
   modelo?: string;
   numeroSerie?: string;
   observacoes?: string;
+  custoHoraParada?: number;
+  custoManutencaoMensal?: number;
 };
 
 export interface IAtivoRepositoryPort {

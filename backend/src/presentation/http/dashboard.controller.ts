@@ -9,6 +9,7 @@ type AssetStatsRow = {
   total: number;
   emManutencao: number;
   falha: number;
+  custoMensalBase: number | null;
 };
 
 type OrderStatsRow = {
@@ -23,6 +24,7 @@ type OrderStatsRow = {
   mttrHoras: number | null;
   falhasCount: number;
   downtimeHorasConcluidas: number | null;
+  custoParada: number | null;
 };
 
 type RecentOrderRow = {
@@ -79,7 +81,8 @@ export class DashboardController {
         SELECT
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE status = 'MANUTENCAO')::int AS "emManutencao",
-          COUNT(*) FILTER (WHERE status = 'FALHA')::int AS falha
+          COUNT(*) FILTER (WHERE status = 'FALHA')::int AS falha,
+          SUM(COALESCE(custo_manutencao_mensal, 0))::float8 AS "custoMensalBase"
         FROM ativo
         WHERE id_unidade = ${unidadeId}::uuid
       `),
@@ -109,7 +112,16 @@ export class DashboardController {
                 THEN EXTRACT(EPOCH FROM (${toDate}::timestamptz - os.data_abertura)) / 3600.0
               ELSE 0
             END
-          )::float8 AS "downtimeHorasConcluidas"
+          )::float8 AS "downtimeHorasConcluidas",
+          SUM(
+            CASE
+              WHEN os.status = 'CONCLUIDA' AND os.data_fechamento IS NOT NULL
+                THEN (EXTRACT(EPOCH FROM (os.data_fechamento - os.data_abertura)) / 3600.0) * COALESCE(a.custo_hora_parada, 0)
+              WHEN os.status = 'EM_EXECUCAO'
+                THEN (EXTRACT(EPOCH FROM (${toDate}::timestamptz - os.data_abertura)) / 3600.0) * COALESCE(a.custo_hora_parada, 0)
+              ELSE 0
+            END
+          )::float8 AS "custoParada"
         FROM ordem_servico os
         JOIN ativo a ON a.id = os.id_ativo
         WHERE a.id_unidade = ${unidadeId}::uuid
@@ -147,7 +159,7 @@ export class DashboardController {
       `),
     ]);
 
-    const a = assetStats[0] ?? { total: 0, emManutencao: 0, falha: 0 };
+    const a = assetStats[0] ?? { total: 0, emManutencao: 0, falha: 0, custoMensalBase: 0 };
     const o = orderStats[0] ?? {
       total: 0,
       abertas: 0,
@@ -160,6 +172,7 @@ export class DashboardController {
       mttrHoras: null,
       falhasCount: 0,
       downtimeHorasConcluidas: null,
+      custoParada: null,
     };
 
     const periodHours = Math.max(1, (toDate.getTime() - fromDate.getTime()) / 3600000);
@@ -182,12 +195,9 @@ export class DashboardController {
       (Number(o.preventivas ?? 0) / Math.max(1, Number(o.preventivas ?? 0) + Number(o.corretivas ?? 0))) * 100,
     );
 
-    const hourlyCost = Number(process.env.DASHBOARD_HOURLY_COST_BRL ?? '120');
-    const fixedOrderCost = Number(process.env.DASHBOARD_FIXED_ORDER_COST_BRL ?? '35');
-    const custoMensalEstimado =
-      Number.isFinite(hourlyCost) && Number.isFinite(fixedOrderCost)
-        ? Number((downtimeHours * hourlyCost + Number(o.concluidas ?? 0) * fixedOrderCost).toFixed(2))
-        : 0;
+    const custoMensalBase = Number(a.custoMensalBase ?? 0);
+    const custoParada = Number(o.custoParada ?? 0);
+    const custoMensalEstimado = Number((custoMensalBase + custoParada).toFixed(2));
 
     return {
       periodo: {
@@ -234,7 +244,7 @@ export class DashboardController {
       },
       notas: {
         custoMensalEstimado:
-          'Estimativa baseada em horas de indisponibilidade e custo fixo por OS concluída.',
+          'Estimativa baseada em custo mensal informado por ativo + custo de parada por hora em OS.',
         oee:
           'OEE derivado de disponibilidade, performance (concluídas/total) e qualidade (concluídas/(concluídas+canceladas)).',
       },

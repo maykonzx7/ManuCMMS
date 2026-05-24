@@ -61,6 +61,7 @@ export class CreateOrdemServicoUseCase {
       descricao: string;
       idTecnico?: string | null;
     },
+    criadoPorUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -140,6 +141,7 @@ export class CreateOrdemServicoUseCase {
       tipo,
       descricao,
       idTecnico,
+      criadoPorUsuarioId,
     };
 
     try {

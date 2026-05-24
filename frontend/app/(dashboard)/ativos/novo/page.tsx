@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,6 +24,7 @@ import { ASSET_STATUS_OPTIONS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { usePermissions } from '@/hooks/use-permissions'
 
 const assetSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
@@ -34,6 +35,8 @@ const assetSchema = z.object({
   modelo: z.string().optional(),
   numeroSerie: z.string().optional(),
   dataAquisicao: z.string().optional(),
+  custoHoraParada: z.coerce.number().min(0, 'Custo/hora deve ser >= 0').optional(),
+  custoManutencaoMensal: z.coerce.number().min(0, 'Custo mensal deve ser >= 0').optional(),
   status: z.enum(['ATIVO', 'INATIVO', 'EM_MANUTENCAO', 'DESATIVADO']),
 })
 
@@ -43,7 +46,14 @@ export default function NewAssetPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const { accessToken } = useAuth()
+  const { canManageAssets } = usePermissions()
   const unit = useCurrentUnit()
+
+  useEffect(() => {
+    if (canManageAssets) return
+    toast.error('Seu perfil não pode cadastrar ativos.')
+    router.replace('/ativos')
+  }, [canManageAssets, router])
 
   const {
     register,
@@ -62,6 +72,7 @@ export default function NewAssetPage() {
     setIsLoading(true)
     try {
       if (!accessToken || !unit?.id) throw new Error('Sessão inválida')
+      if (!canManageAssets) throw new Error('Sem permissão para cadastrar ativo')
       await apiRequest(`/unidades/${unit.id}/ativos`, {
         method: 'POST',
         accessToken,
@@ -72,6 +83,8 @@ export default function NewAssetPage() {
           fabricante: data.fabricante || undefined,
           modelo: data.modelo || undefined,
           numeroSerie: data.numeroSerie || undefined,
+          custoHoraParada: data.custoHoraParada ?? 0,
+          custoManutencaoMensal: data.custoManutencaoMensal ?? 0,
           observacoes: [data.descricao, data.localizacao].filter(Boolean).join(' | ') || undefined,
         },
       })
@@ -223,6 +236,28 @@ export default function NewAssetPage() {
                   id="dataAquisicao"
                   type="date"
                   {...register('dataAquisicao')}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="custoHoraParada">Custo de parada por hora (R$)</Label>
+                <Input
+                  id="custoHoraParada"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('custoHoraParada')}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="custoManutencaoMensal">Custo mensal base (R$)</Label>
+                <Input
+                  id="custoManutencaoMensal"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('custoManutencaoMensal')}
                   disabled={isLoading}
                 />
               </div>

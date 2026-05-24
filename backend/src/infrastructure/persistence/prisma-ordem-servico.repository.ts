@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   OrdemServicoListaItem,
   OrdemServicoParaFechamento,
+  OrdemServicoTransferenciaItem,
 } from '../../domain/entities/ordem-servico';
 import type { IAuditLogPort } from '../../domain/ports/audit-log.port';
 import { AUDIT_LOG_PORT } from '../../domain/ports/audit-log.port';
@@ -25,9 +26,29 @@ type OrdemServicoRow = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
+  descricaoSolucao: string | null;
+  assinaturaDigital: string | null;
   observacaoCancelamento: string | null;
   dataAbertura: Date;
   dataFechamento: Date | null;
+  idCriadoPorUsuario: string | null;
+  criadoPorNome: string | null;
+  idIniciadoPorUsuario: string | null;
+  iniciadoPorNome: string | null;
+  idFinalizadoPorUsuario: string | null;
+  finalizadoPorNome: string | null;
+};
+
+type OrdemTransferenciaRow = {
+  id: string;
+  deTecnicoId: string | null;
+  deTecnicoNome: string | null;
+  paraTecnicoId: string;
+  paraTecnicoNome: string | null;
+  transferidoPorUsuarioId: string;
+  transferidoPorNome: string | null;
+  motivo: string;
+  createdAt: Date;
 };
 
 function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
@@ -40,8 +61,13 @@ function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
       o.descricao.length > 500 ? `${o.descricao.slice(0, 500)}…` : o.descricao,
     idTecnico: o.idTecnico,
     observacaoCancelamento: o.observacaoCancelamento,
+    descricaoSolucao: o.descricaoSolucao,
+    assinaturaDigital: o.assinaturaDigital,
     dataAbertura: o.dataAbertura.toISOString(),
     dataFechamento: o.dataFechamento?.toISOString() ?? null,
+    idCriadoPorUsuario: o.idCriadoPorUsuario,
+    idIniciadoPorUsuario: o.idIniciadoPorUsuario,
+    idFinalizadoPorUsuario: o.idFinalizadoPorUsuario,
   };
 }
 
@@ -61,7 +87,11 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       AND a.id_unidade = ${idUnidade}::uuid
     `);
 
-    return rows.map((row) => this.toListaItem(row));
+    return Promise.all(
+      rows.map(async (row) =>
+        this.toListaItem(row, await this.listTransferencias(row.id)),
+      ),
+    );
   }
 
   async create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem> {
@@ -74,6 +104,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           empresa_id,
           id_ativo,
           id_tecnico,
+          criado_por_usuario_id,
           tipo,
           status,
           descricao,
@@ -84,6 +115,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           ${input.empresaId}::uuid,
           ${input.idAtivo}::uuid,
           ${input.idTecnico ?? null}::uuid,
+          ${input.criadoPorUsuarioId}::uuid,
           ${input.tipo}::"TipoOrdemServico",
           'ABERTA',
           ${input.descricao},
@@ -104,7 +136,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
 
     const item = await this.findById(id, input.empresaId);
     await this.auditLog.append({
-      idUsuario: null,
+      idUsuario: input.criadoPorUsuarioId,
       entidadeAfetada: 'OrdemServico',
       idRegistro: item.id,
       valorAnterior: {},
@@ -123,7 +155,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       AND os.empresa_id = ${empresaId}::uuid
       AND a.id_unidade = ${idUnidade}::uuid
     `);
-    return rows[0] ? this.toListaItem(rows[0]) : null;
+    if (!rows[0]) return null;
+    return this.toListaItem(rows[0], await this.listTransferencias(rows[0].id));
   }
 
   async updateDados(input: {
@@ -132,7 +165,15 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     idUnidade: string;
     descricao?: string;
     idTecnico?: string | null;
+    transferidoPorUsuarioId?: string;
+    motivoTransferencia?: string;
   }): Promise<OrdemServicoListaItem | null> {
+    const before = await this.findByIdInUnidade(
+      input.idOrdemServico,
+      input.empresaId,
+      input.idUnidade,
+    );
+
     const fields: Prisma.Sql[] = [];
     if (input.descricao !== undefined) {
       fields.push(Prisma.sql`descricao = ${input.descricao}`);
@@ -141,11 +182,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       fields.push(Prisma.sql`id_tecnico = ${input.idTecnico}::uuid`);
     }
     if (fields.length === 0) {
-      return this.findByIdInUnidade(
-        input.idOrdemServico,
-        input.empresaId,
-        input.idUnidade,
-      );
+      return before;
     }
 
     await this.prisma.$executeRaw(Prisma.sql`
@@ -155,11 +192,70 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         AND empresa_id = ${input.empresaId}::uuid
     `);
 
-    return this.findByIdInUnidade(
+    let transferenciaId: string | null = null;
+    if (
+      before &&
+      input.transferidoPorUsuarioId &&
+      input.idTecnico !== undefined &&
+      (before.idTecnico ?? null) !== (input.idTecnico ?? null)
+    ) {
+      transferenciaId = randomUUID();
+      await this.prisma.$executeRaw(Prisma.sql`
+        INSERT INTO ordem_servico_transferencia (
+          id,
+          ordem_servico_id,
+          de_tecnico_id,
+          para_tecnico_id,
+          transferido_por_usuario_id,
+          motivo,
+          created_at
+        )
+        VALUES (
+          ${transferenciaId}::uuid,
+          ${input.idOrdemServico}::uuid,
+          ${before.idTecnico ?? null}::uuid,
+          ${input.idTecnico}::uuid,
+          ${input.transferidoPorUsuarioId}::uuid,
+          ${input.motivoTransferencia ?? 'Transferência operacional'}::varchar,
+          NOW()
+        )
+      `);
+    }
+
+    const after = await this.findByIdInUnidade(
       input.idOrdemServico,
       input.empresaId,
       input.idUnidade,
     );
+    if (before && after) {
+      await this.auditLog.append({
+        idUsuario: input.transferidoPorUsuarioId ?? null,
+        entidadeAfetada: 'OrdemServico',
+        idRegistro: after.id,
+        valorAnterior: osParaAuditoria(before),
+        valorNovo: {
+          ...osParaAuditoria(after),
+          acao: 'UPDATE',
+        },
+      });
+      if (transferenciaId && input.transferidoPorUsuarioId) {
+        await this.auditLog.append({
+          idUsuario: input.transferidoPorUsuarioId,
+          entidadeAfetada: 'OrdemServicoTransferencia',
+          idRegistro: transferenciaId,
+          valorAnterior: {},
+          valorNovo: {
+            acao: 'CREATE',
+            ordemServicoId: after.id,
+            deTecnicoId: before.idTecnico ?? null,
+            paraTecnicoId: after.idTecnico ?? null,
+            motivoTransferencia:
+              input.motivoTransferencia ?? 'Transferência operacional',
+          },
+        });
+      }
+    }
+    return after;
   }
 
   async findParaFechamento(
@@ -206,7 +302,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       );
     }
 
-    const antes = osParaAuditoria(await this.findById(input.idOrdemServico, input.empresaId));
+    const antes = osParaAuditoria(
+      await this.findById(input.idOrdemServico, input.empresaId),
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`
@@ -216,7 +314,10 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           data_fechamento = NOW(),
           foto_anexo = ${input.fotoAnexo},
           foto_problema = ${input.fotoProblema},
-          foto_solucao = ${input.fotoSolucao}
+          foto_solucao = ${input.fotoSolucao},
+          descricao_solucao = ${input.descricaoSolucao},
+          assinatura_digital = ${input.assinaturaDigital},
+          finalizado_por_usuario_id = ${input.finalizadoPorUsuarioId}::uuid
         WHERE id = ${input.idOrdemServico}::uuid
           AND empresa_id = ${input.empresaId}::uuid
       `);
@@ -234,7 +335,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
 
     const item = await this.findById(input.idOrdemServico, input.empresaId);
     await this.auditLog.append({
-      idUsuario: null,
+      idUsuario: input.finalizadoPorUsuarioId,
       entidadeAfetada: 'OrdemServico',
       idRegistro: item.id,
       valorAnterior: antes,
@@ -248,6 +349,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     idOrdemServico: string,
     empresaId: string,
     idUnidade: string,
+    iniciadoPorUsuarioId: string,
+    fotoProblema?: string | null,
   ): Promise<OrdemServicoListaItem> {
     const atual = await this.findStatusTransitionCandidate(
       idOrdemServico,
@@ -263,16 +366,23 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
 
     const antes = osParaAuditoria(await this.findById(idOrdemServico, empresaId));
 
+    const fields: Prisma.Sql[] = [
+      Prisma.sql`status = 'EM_EXECUCAO'`,
+      Prisma.sql`iniciado_por_usuario_id = ${iniciadoPorUsuarioId}::uuid`,
+    ];
+    if (fotoProblema) {
+      fields.push(Prisma.sql`foto_problema = ${fotoProblema}`);
+    }
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE ordem_servico
-      SET status = 'EM_EXECUCAO'
+      SET ${Prisma.join(fields, ', ')}
       WHERE id = ${idOrdemServico}::uuid
         AND empresa_id = ${empresaId}::uuid
     `);
 
     const item = await this.findById(idOrdemServico, empresaId);
     await this.auditLog.append({
-      idUsuario: null,
+      idUsuario: iniciadoPorUsuarioId,
       entidadeAfetada: 'OrdemServico',
       idRegistro: item.id,
       valorAnterior: antes,
@@ -286,6 +396,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     empresaId: string;
     idUnidade: string;
     observacaoCancelamento: string;
+    canceladoPorUsuarioId: string;
   }): Promise<OrdemServicoListaItem> {
     const atual = await this.findStatusTransitionCandidate(
       input.idOrdemServico,
@@ -337,11 +448,14 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
 
     const item = await this.findById(input.idOrdemServico, input.empresaId);
     await this.auditLog.append({
-      idUsuario: null,
+      idUsuario: input.canceladoPorUsuarioId,
       entidadeAfetada: 'OrdemServico',
       idRegistro: item.id,
       valorAnterior: antes,
-      valorNovo: osParaAuditoria(item),
+      valorNovo: {
+        ...osParaAuditoria(item),
+        acao: 'DELETE',
+      },
     });
 
     return item;
@@ -379,7 +493,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       AND os.empresa_id = ${empresaId}::uuid
     `);
 
-    return this.toListaItem(rows[0]);
+    return this.toListaItem(rows[0], await this.listTransferencias(idOrdemServico));
   }
 
   private async listRowsWhere(whereSql: Prisma.Sql): Promise<OrdemServicoRow[]> {
@@ -395,17 +509,31 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         os.foto_anexo AS "fotoAnexo",
         os.foto_problema AS "fotoProblema",
         os.foto_solucao AS "fotoSolucao",
+        os.descricao_solucao AS "descricaoSolucao",
+        os.assinatura_digital AS "assinaturaDigital",
         os.observacao_cancelamento AS "observacaoCancelamento",
         os.data_abertura AS "dataAbertura",
-        os.data_fechamento AS "dataFechamento"
+        os.data_fechamento AS "dataFechamento",
+        os.criado_por_usuario_id AS "idCriadoPorUsuario",
+        uc.nome AS "criadoPorNome",
+        os.iniciado_por_usuario_id AS "idIniciadoPorUsuario",
+        ui.nome AS "iniciadoPorNome",
+        os.finalizado_por_usuario_id AS "idFinalizadoPorUsuario",
+        uf.nome AS "finalizadoPorNome"
       FROM ordem_servico os
       JOIN ativo a ON a.id = os.id_ativo
+      LEFT JOIN usuario uc ON uc.id = os.criado_por_usuario_id
+      LEFT JOIN usuario ui ON ui.id = os.iniciado_por_usuario_id
+      LEFT JOIN usuario uf ON uf.id = os.finalizado_por_usuario_id
       WHERE ${whereSql}
       ORDER BY os.data_abertura DESC
     `);
   }
 
-  private toListaItem(r: OrdemServicoRow): OrdemServicoListaItem {
+  private toListaItem(
+    r: OrdemServicoRow,
+    transferencias: OrdemServicoTransferenciaItem[] = [],
+  ): OrdemServicoListaItem {
     return {
       id: r.id,
       idAtivo: r.idAtivo,
@@ -417,9 +545,53 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       fotoAnexo: r.fotoAnexo,
       fotoProblema: r.fotoProblema,
       fotoSolucao: r.fotoSolucao,
+      descricaoSolucao: r.descricaoSolucao,
+      assinaturaDigital: r.assinaturaDigital,
       observacaoCancelamento: r.observacaoCancelamento,
       dataAbertura: r.dataAbertura,
       dataFechamento: r.dataFechamento,
+      idCriadoPorUsuario: r.idCriadoPorUsuario,
+      criadoPorNome: r.criadoPorNome,
+      idIniciadoPorUsuario: r.idIniciadoPorUsuario,
+      iniciadoPorNome: r.iniciadoPorNome,
+      idFinalizadoPorUsuario: r.idFinalizadoPorUsuario,
+      finalizadoPorNome: r.finalizadoPorNome,
+      transferencias,
     };
+  }
+
+  private async listTransferencias(
+    ordemServicoId: string,
+  ): Promise<OrdemServicoTransferenciaItem[]> {
+    const rows = await this.prisma.$queryRaw<OrdemTransferenciaRow[]>(Prisma.sql`
+      SELECT
+        t.id,
+        t.de_tecnico_id AS "deTecnicoId",
+        du.nome AS "deTecnicoNome",
+        t.para_tecnico_id AS "paraTecnicoId",
+        pu.nome AS "paraTecnicoNome",
+        t.transferido_por_usuario_id AS "transferidoPorUsuarioId",
+        tu.nome AS "transferidoPorNome",
+        t.motivo,
+        t.created_at AS "createdAt"
+      FROM ordem_servico_transferencia t
+      LEFT JOIN usuario du ON du.id = t.de_tecnico_id
+      LEFT JOIN usuario pu ON pu.id = t.para_tecnico_id
+      LEFT JOIN usuario tu ON tu.id = t.transferido_por_usuario_id
+      WHERE t.ordem_servico_id = ${ordemServicoId}::uuid
+      ORDER BY t.created_at DESC
+    `);
+
+    return rows.map((row) => ({
+      id: row.id,
+      deTecnicoId: row.deTecnicoId,
+      deTecnicoNome: row.deTecnicoNome,
+      paraTecnicoId: row.paraTecnicoId,
+      paraTecnicoNome: row.paraTecnicoNome,
+      transferidoPorUsuarioId: row.transferidoPorUsuarioId,
+      transferidoPorNome: row.transferidoPorNome,
+      motivo: row.motivo,
+      createdAt: row.createdAt,
+    }));
   }
 }

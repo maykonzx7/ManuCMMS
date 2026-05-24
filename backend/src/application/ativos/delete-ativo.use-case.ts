@@ -13,6 +13,10 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import {
+  AUDIT_LOG_PORT,
+  type IAuditLogPort,
+} from '../../domain/ports/audit-log.port';
 
 @Injectable()
 export class DeleteAtivoUseCase {
@@ -21,12 +25,27 @@ export class DeleteAtivoUseCase {
     private readonly ativos: IAtivoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    @Inject(AUDIT_LOG_PORT)
+    private readonly auditLog: IAuditLogPort,
   ) {}
 
-  async execute(idUnidade: string, idAtivo: string): Promise<void> {
+  async execute(
+    idUnidade: string,
+    idAtivo: string,
+    removidoPorUsuarioId: string,
+  ): Promise<void> {
     const unidade = await this.unidades.findById(idUnidade);
     if (!unidade?.empresaId) {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
+    }
+
+    const antes = await this.ativos.findByIdInUnidade(
+      unidade.empresaId,
+      idUnidade,
+      idAtivo,
+    );
+    if (!antes) {
+      throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
     }
 
     try {
@@ -38,6 +57,29 @@ export class DeleteAtivoUseCase {
       if (!removed) {
         throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
       }
+
+      await this.auditLog.append({
+        idUsuario: removidoPorUsuarioId,
+        entidadeAfetada: 'Ativo',
+        idRegistro: antes.id,
+        valorAnterior: {
+          id: antes.id,
+          idUnidade: antes.idUnidade,
+          nome: antes.nome,
+          status: antes.status,
+          limiteTemp: antes.limiteTemp,
+          tag: antes.tag,
+          fabricante: antes.fabricante,
+          modelo: antes.modelo,
+          numeroSerie: antes.numeroSerie,
+          observacoes: antes.observacoes,
+          custoHoraParada: antes.custoHoraParada,
+          custoManutencaoMensal: antes.custoManutencaoMensal,
+        },
+        valorNovo: {
+          acao: 'DELETE',
+        },
+      });
     } catch (e) {
       const isForeignKeyViolationViaExecuteRaw =
         e instanceof Prisma.PrismaClientKnownRequestError &&

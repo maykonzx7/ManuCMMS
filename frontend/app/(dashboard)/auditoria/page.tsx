@@ -42,6 +42,7 @@ import { apiRequest, resolveApiBaseUrl } from '@/lib/api'
 type ApiAuditLog = {
   idLog: string
   idUsuario?: string | null
+  usuarioNome?: string | null
   acao?: 'CREATE' | 'UPDATE' | 'DELETE' | 'SETTINGS_CHANGE' | 'LOGIN' | 'LOGOUT' | 'EXPORT'
   entidadeAfetada: string
   idRegistro: string
@@ -157,12 +158,22 @@ const entityLabels: Record<string, string> = {
   REPORT: 'Relatório',
 }
 
+function mapEntityFilterToApi(value: string): string | null {
+  if (value === 'ORDER') return 'OrdemServico'
+  if (value === 'ASSET') return 'Ativo'
+  if (value === 'USER') return 'Usuario'
+  if (value === 'UNIT') return 'Unidade'
+  if (value === 'COMPANY') return 'Empresa'
+  return null
+}
+
 export default function AuditoriaPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [actionFilter, setActionFilter] = useState('all')
   const [entityFilter, setEntityFilter] = useState('all')
   const [logs, setLogs] = useState<UiAuditLog[]>([])
   const [usersFilter, setUsersFilter] = useState<Array<{ id: string; nome: string }>>([])
+  const [usersMap, setUsersMap] = useState<Record<string, string>>({})
   const [userFilter, setUserFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -175,13 +186,12 @@ export default function AuditoriaPage() {
   const unit = useCurrentUnit()
 
   const exportCsv = async () => {
-    if (!isAuthenticated || !unit?.id) return
+    if (!isAuthenticated) return
     const to = new Date()
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const query = new URLSearchParams({
       from: from.toISOString(),
       to: to.toISOString(),
-      unidadeId: unit.id,
       limit: '2000',
     })
     const response = await fetch(`${resolveApiBaseUrl()}/auditoria/export?${query.toString()}`, {
@@ -203,21 +213,23 @@ export default function AuditoriaPage() {
   }
 
   useEffect(() => {
-    if (!isAuthenticated || !unit?.id) return
+    if (!isAuthenticated) return
     const to = new Date()
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const query = new URLSearchParams({
       from: from.toISOString(),
       to: to.toISOString(),
-      unidadeId: unit.id,
       page: String(page),
       limit: '100',
     })
     if (actionFilter !== 'all') query.set('acao', actionFilter)
-    if (entityFilter !== 'all') query.set('entidade', entityFilter)
+    if (entityFilter !== 'all') {
+      const apiEntity = mapEntityFilterToApi(entityFilter)
+      if (apiEntity) query.set('entidade', apiEntity)
+    }
     if (userFilter !== 'all') query.set('idUsuario', userFilter)
 
-    void Promise.all([
+    void Promise.allSettled([
       apiRequest<ApiAuditResponse>(
         `/auditoria?${query.toString()}`,
         {},
@@ -226,9 +238,22 @@ export default function AuditoriaPage() {
         `/auditoria/resumo?${query.toString()}`,
         {},
       ),
-      apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, {}),
+      unit?.id
+        ? apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, {})
+        : Promise.resolve([] as ApiUsuario[]),
     ])
-      .then(([auditRes, summaryRes, usersRes]) => {
+      .then((results) => {
+        const [auditResult, summaryResult, usersResult] = results
+        if (auditResult.status !== 'fulfilled') {
+          throw auditResult.reason
+        }
+        if (summaryResult.status !== 'fulfilled') {
+          throw summaryResult.reason
+        }
+
+        const auditRes = auditResult.value
+        const summaryRes = summaryResult.value
+        const usersRes = usersResult.status === 'fulfilled' ? usersResult.value : []
         const userMap = new Map<string, string>()
         const mappedUsers: Array<{ id: string; nome: string }> = []
         for (const user of usersRes) {
@@ -239,6 +264,7 @@ export default function AuditoriaPage() {
           }
         }
         setUsersFilter(mappedUsers)
+        setUsersMap(Object.fromEntries(mappedUsers.map((u) => [u.id, u.nome])))
         setSummary(summaryRes)
 
         setLogs(
@@ -247,7 +273,9 @@ export default function AuditoriaPage() {
             return {
               id: item.idLog,
               userId: item.idUsuario || 'sistema',
-              userName: item.idUsuario ? (userMap.get(item.idUsuario) ?? 'Usuário') : 'Sistema',
+              userName: item.idUsuario
+                ? (item.usuarioNome ?? userMap.get(item.idUsuario) ?? 'Usuário')
+                : 'Sistema',
               action,
               entityType:
                 item.entidadeAfetada === 'OrdemServico'
@@ -266,6 +294,7 @@ export default function AuditoriaPage() {
       .then(() => setLoadError(null))
       .catch((error) => {
         setLogs([])
+        setUsersMap({})
         setSummary(null)
         setTotalPages(1)
         setTotalLogs(0)
@@ -398,7 +427,6 @@ export default function AuditoriaPage() {
                 <SelectItem value="CREATE">Criação</SelectItem>
                 <SelectItem value="UPDATE">Atualização</SelectItem>
                 <SelectItem value="DELETE">Exclusão</SelectItem>
-                <SelectItem value="VIEW">Visualização</SelectItem>
                 <SelectItem value="LOGIN">Login</SelectItem>
                 <SelectItem value="LOGOUT">Logout</SelectItem>
                 <SelectItem value="EXPORT">Exportação</SelectItem>
@@ -570,6 +598,12 @@ export default function AuditoriaPage() {
           {selectedLog ? (
             <div className="space-y-4 text-sm">
               <p><strong>ID:</strong> {selectedLog.idLog}</p>
+              <p>
+                <strong>Usuário:</strong>{' '}
+                {selectedLog.idUsuario
+                  ? `${selectedLog.usuarioNome ?? usersMap[selectedLog.idUsuario] ?? 'Usuário'} (${selectedLog.idUsuario})`
+                  : 'Sistema'}
+              </p>
               <p><strong>Entidade:</strong> {selectedLog.entidadeAfetada}</p>
               <p><strong>Registro:</strong> {selectedLog.idRegistro}</p>
               <p><strong>Data:</strong> {new Date(selectedLog.dataHora).toLocaleString('pt-BR')}</p>

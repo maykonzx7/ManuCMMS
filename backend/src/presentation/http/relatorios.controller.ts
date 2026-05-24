@@ -18,6 +18,14 @@ type OrdemResumoRow = {
   tipo: string;
   status: string;
   descricao: string;
+  descricaoSolucao: string | null;
+  criadoPorNome: string | null;
+  iniciadoPorNome: string | null;
+  finalizadoPorNome: string | null;
+  tecnicoNome: string | null;
+  fotoProblema: string | null;
+  fotoSolucao: string | null;
+  fotoAnexo: string | null;
   dataAbertura: Date;
   dataFechamento: Date | null;
 };
@@ -62,17 +70,29 @@ export class RelatoriosController {
         os.tipo,
         os.status,
         os.descricao,
+        os.descricao_solucao AS "descricaoSolucao",
+        uc.nome AS "criadoPorNome",
+        ui.nome AS "iniciadoPorNome",
+        uf.nome AS "finalizadoPorNome",
+        ut.nome AS "tecnicoNome",
+        os.foto_problema AS "fotoProblema",
+        os.foto_solucao AS "fotoSolucao",
+        os.foto_anexo AS "fotoAnexo",
         os.data_abertura AS "dataAbertura",
         os.data_fechamento AS "dataFechamento"
       FROM ordem_servico os
       JOIN ativo a ON a.id = os.id_ativo
+      LEFT JOIN usuario uc ON uc.id = os.criado_por_usuario_id
+      LEFT JOIN usuario ui ON ui.id = os.iniciado_por_usuario_id
+      LEFT JOIN usuario uf ON uf.id = os.finalizado_por_usuario_id
+      LEFT JOIN usuario ut ON ut.id = os.id_tecnico
       WHERE a.id_unidade = ${unidade}::uuid
         AND os.data_abertura BETWEEN ${fromDate} AND ${toDate}
       ORDER BY os.data_abertura DESC
     `);
 
     if (formatoNormalizado === 'excel') {
-      const csv = this.buildCsv(rows);
+      const csv = this.buildCsv(rows, unidade, fromDate, toDate);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader(
         'Content-Disposition',
@@ -106,8 +126,24 @@ export class RelatoriosController {
     return { fromDate, toDate };
   }
 
-  private buildCsv(rows: OrdemResumoRow[]) {
-    const header = 'id,ativo,tipo,status,descricao,data_abertura,data_fechamento';
+  private buildCsv(
+    rows: OrdemResumoRow[],
+    unidadeId: string,
+    fromDate: Date,
+    toDate: Date,
+  ) {
+    const generatedAt = new Date().toISOString();
+    const meta = [
+      ['gerado_em', generatedAt],
+      ['unidade_id', unidadeId],
+      ['periodo_inicio', fromDate.toISOString()],
+      ['periodo_fim', toDate.toISOString()],
+      ['total_ordens', String(rows.length)],
+      [],
+    ]
+      .map((line) => line.map((v) => `"${v}"`).join(','))
+      .join('\n');
+    const header = 'id,ativo,tipo,status,descricao,descricao_solucao,tecnico,criado_por,iniciado_por,finalizado_por,data_abertura,data_fechamento,foto_problema,foto_solucao,foto_anexo';
     const data = rows.map((row) =>
       [
         row.id,
@@ -115,14 +151,22 @@ export class RelatoriosController {
         row.tipo,
         row.status,
         row.descricao.replaceAll('"', '""'),
+        (row.descricaoSolucao ?? '').replaceAll('"', '""'),
+        row.tecnicoNome ?? '',
+        row.criadoPorNome ?? '',
+        row.iniciadoPorNome ?? '',
+        row.finalizadoPorNome ?? '',
         row.dataAbertura.toISOString(),
         row.dataFechamento ? row.dataFechamento.toISOString() : '',
+        row.fotoProblema ?? '',
+        row.fotoSolucao ?? '',
+        row.fotoAnexo ?? '',
       ]
         .map((value) => `"${value}"`)
         .join(','),
     );
 
-    return [header, ...data].join('\n');
+    return [meta, header, ...data].join('\n');
   }
 
   private buildSimplePdf(
@@ -133,23 +177,44 @@ export class RelatoriosController {
   ) {
     const lines = [
       'Relatorio ManuCMMS',
+      `Gerado em: ${new Date().toISOString()}`,
       `Unidade: ${unidadeId}`,
       `Periodo: ${fromDate.toISOString()} a ${toDate.toISOString()}`,
       `Total de ordens: ${rows.length}`,
       '',
-      ...rows.slice(0, 40).map((row, index) => `${index + 1}. ${row.ativoNome} | ${row.tipo} | ${row.status}`),
+      ...rows.slice(0, 40).map((row, index) =>
+        `${index + 1}. ${row.ativoNome} | ${row.tipo} | ${row.status} | Tec: ${row.tecnicoNome ?? 'N/D'} | Abertura: ${row.dataAbertura.toISOString()}`
+      ),
     ];
+    const normalizedLines = lines.map((line) =>
+      line
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    );
+    const escapedLines = normalizedLines.map((line) =>
+      line.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)'),
+    );
 
-    const content = lines.join('\n').replace(/[()]/g, '');
+    const textOps = [
+      'BT',
+      '/F1 10 Tf',
+      '14 TL',
+      '40 800 Td',
+      ...escapedLines.map((line) => `(${line}) Tj T*`),
+      'ET',
+    ].join('\n');
 
-    const stream = `BT /F1 10 Tf 40 800 Td (${content.replaceAll('\\', '\\\\').replaceAll('\n', ') Tj T* (')}) Tj ET`;
+    const stream = textOps;
 
     const objects = [
       '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
       '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
       '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
       '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
-      `5 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj`,
+      `5 0 obj << /Length ${Buffer.byteLength(stream, 'utf-8')} >> stream\n${stream}\nendstream endobj`,
     ];
 
     let pdf = '%PDF-1.4\n';

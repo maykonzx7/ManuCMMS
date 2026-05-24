@@ -15,6 +15,8 @@ export type AtivoListaItem = {
   modelo?: string | null;
   numeroSerie?: string | null;
   observacoes?: string | null;
+  custoHoraParada: number;
+  custoManutencaoMensal: number;
   status: StatusAtivoCodigo;
   limiteTemp: number;
   createdAt: Date;

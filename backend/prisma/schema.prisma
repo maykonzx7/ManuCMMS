@@ -117,6 +117,8 @@ model Ativo {
   modelo        String?        @db.VarChar(120)
   numeroSerie   String?        @map("numero_serie") @db.VarChar(120)
   observacoes   String?        @db.VarChar(500)
+  custoHoraParada Float        @default(0) @map("custo_hora_parada")
+  custoManutencaoMensal Float  @default(0) @map("custo_manutencao_mensal")
   status        StatusAtivo    @default(OPERACIONAL)
   limiteTemp    Float          @default(48) @map("limite_temp")
   createdAt     DateTime       @default(now()) @map("created_at")
@@ -134,9 +136,15 @@ model OrdemServico {
   empresaId         String?            @map("empresa_id") @db.Uuid
   idAtivo           String             @map("id_ativo") @db.Uuid
   idTecnico         String?            @map("id_tecnico") @db.Uuid
+  criadoPorUsuarioId String?           @map("criado_por_usuario_id") @db.Uuid
+  iniciadoPorUsuarioId String?         @map("iniciado_por_usuario_id") @db.Uuid
+  finalizadoPorUsuarioId String?       @map("finalizado_por_usuario_id") @db.Uuid
   empresa           Empresa?           @relation(fields: [empresaId], references: [id])
   ativo             Ativo              @relation(fields: [idAtivo], references: [id])
   tecnico           Usuario?           @relation("OsTecnico", fields: [idTecnico], references: [id])
+  criadoPorUsuario  Usuario?           @relation("OsCriadaPor", fields: [criadoPorUsuarioId], references: [id])
+  iniciadoPorUsuario Usuario?          @relation("OsIniciadaPor", fields: [iniciadoPorUsuarioId], references: [id])
+  finalizadoPorUsuario Usuario?        @relation("OsFinalizadaPor", fields: [finalizadoPorUsuarioId], references: [id])
   tipo              TipoOrdemServico
   status            StatusOrdemServico @default(ABERTA)
   descricao         String             @db.Text
@@ -145,14 +153,19 @@ model OrdemServico {
   fotoProblema      String?            @map("foto_problema") @db.VarChar(2048)
   /// RN-13 (OS corretiva): evidência da correção.
   fotoSolucao       String?            @map("foto_solucao") @db.VarChar(2048)
+  descricaoSolucao  String?            @map("descricao_solucao") @db.VarChar(4000)
   observacaoCancelamento String?       @map("observacao_cancelamento") @db.VarChar(1000)
   assinaturaDigital String?            @map("assinatura_digital") @db.Text
   dataAbertura      DateTime           @default(now()) @map("data_abertura")
   dataFechamento    DateTime?          @map("data_fechamento")
+  transferencias    OrdemServicoTransferencia[]
 
   @@index([empresaId, status, dataAbertura])
   @@index([idAtivo])
   @@index([idTecnico])
+  @@index([criadoPorUsuarioId])
+  @@index([iniciadoPorUsuarioId])
+  @@index([finalizadoPorUsuarioId])
   @@map("ordem_servico")
 }
 
@@ -171,12 +184,37 @@ model Usuario {
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   ordensComoTecnico OrdemServico[]   @relation("OsTecnico")
+  ordensCriadas     OrdemServico[]   @relation("OsCriadaPor")
+  ordensIniciadas   OrdemServico[]   @relation("OsIniciadaPor")
+  ordensFinalizadas OrdemServico[]   @relation("OsFinalizadaPor")
+  transferenciasRealizadas OrdemServicoTransferencia[] @relation("OsTransferidaPor")
+  transferenciasDeTecnico OrdemServicoTransferencia[] @relation("OsTransferenciaDe")
+  transferenciasParaTecnico OrdemServicoTransferencia[] @relation("OsTransferenciaPara")
   usuariosEmpresa   UsuarioEmpresa[]
   convitesCriados   ConviteAcesso[]  @relation("ConviteCriadoPor")
   convitesAceitos   ConviteAcesso[]  @relation("ConviteAceitoPor")
   notificacoes      Notificacao[]
 
   @@map("usuario")
+}
+
+model OrdemServicoTransferencia {
+  id                   String   @id @default(uuid()) @db.Uuid
+  ordemServicoId       String   @map("ordem_servico_id") @db.Uuid
+  deTecnicoId          String?  @map("de_tecnico_id") @db.Uuid
+  paraTecnicoId        String   @map("para_tecnico_id") @db.Uuid
+  transferidoPorUsuarioId String @map("transferido_por_usuario_id") @db.Uuid
+  motivo               String   @db.VarChar(2000)
+  createdAt            DateTime @default(now()) @map("created_at")
+  ordemServico         OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  deTecnico            Usuario? @relation("OsTransferenciaDe", fields: [deTecnicoId], references: [id])
+  paraTecnico          Usuario  @relation("OsTransferenciaPara", fields: [paraTecnicoId], references: [id])
+  transferidoPorUsuario Usuario @relation("OsTransferidaPor", fields: [transferidoPorUsuarioId], references: [id])
+
+  @@index([ordemServicoId, createdAt])
+  @@index([paraTecnicoId])
+  @@index([transferidoPorUsuarioId])
+  @@map("ordem_servico_transferencia")
 }
 
 model Notificacao {

@@ -14,6 +14,10 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import {
+  AUDIT_LOG_PORT,
+  type IAuditLogPort,
+} from '../../domain/ports/audit-log.port';
 
 const NOME_MAX = 100;
 const TAG_MAX = 80;
@@ -23,6 +27,8 @@ const NUMERO_SERIE_MAX = 120;
 const OBSERVACOES_MAX = 500;
 const LIMITE_TEMP_MIN = 0;
 const LIMITE_TEMP_MAX = 200;
+const CUSTO_MIN = 0;
+const CUSTO_MAX = 1_000_000_000;
 const STATUS_VALIDOS: StatusAtivoPersistido[] = [
   'OPERACIONAL',
   'MANUTENCAO',
@@ -37,6 +43,8 @@ export class UpdateAtivoUseCase {
     private readonly ativos: IAtivoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    @Inject(AUDIT_LOG_PORT)
+    private readonly auditLog: IAuditLogPort,
   ) {}
 
   async execute(
@@ -51,7 +59,10 @@ export class UpdateAtivoUseCase {
       modelo?: string;
       numeroSerie?: string;
       observacoes?: string;
+      custoHoraParada?: number;
+      custoManutencaoMensal?: number;
     },
+    atualizadoPorUsuarioId: string,
   ): Promise<AtivoListaItem> {
     const unidade = await this.unidades.findById(idUnidade);
     if (!unidade?.empresaId) {
@@ -74,6 +85,30 @@ export class UpdateAtivoUseCase {
       ) {
         throw new BadRequestException(
           `limiteTemp deve ser um número entre ${LIMITE_TEMP_MIN} e ${LIMITE_TEMP_MAX}`,
+        );
+      }
+    }
+    if (input.custoHoraParada !== undefined) {
+      if (
+        typeof input.custoHoraParada !== 'number' ||
+        Number.isNaN(input.custoHoraParada) ||
+        input.custoHoraParada < CUSTO_MIN ||
+        input.custoHoraParada > CUSTO_MAX
+      ) {
+        throw new BadRequestException(
+          `custoHoraParada deve ser um número entre ${CUSTO_MIN} e ${CUSTO_MAX}`,
+        );
+      }
+    }
+    if (input.custoManutencaoMensal !== undefined) {
+      if (
+        typeof input.custoManutencaoMensal !== 'number' ||
+        Number.isNaN(input.custoManutencaoMensal) ||
+        input.custoManutencaoMensal < CUSTO_MIN ||
+        input.custoManutencaoMensal > CUSTO_MAX
+      ) {
+        throw new BadRequestException(
+          `custoManutencaoMensal deve ser um número entre ${CUSTO_MIN} e ${CUSTO_MAX}`,
         );
       }
     }
@@ -112,8 +147,19 @@ export class UpdateAtivoUseCase {
       input.modelo === undefined &&
       input.numeroSerie === undefined &&
       input.observacoes === undefined
+      && input.custoHoraParada === undefined
+      && input.custoManutencaoMensal === undefined
     ) {
       throw new BadRequestException('Informe ao menos um campo para atualização');
+    }
+
+    const antes = await this.ativos.findByIdInUnidade(
+      unidade.empresaId,
+      idUnidade,
+      idAtivo,
+    );
+    if (!antes) {
+      throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
     }
 
     const atualizado = await this.ativos.update({
@@ -128,11 +174,49 @@ export class UpdateAtivoUseCase {
       modelo,
       numeroSerie,
       observacoes,
+      custoHoraParada: input.custoHoraParada,
+      custoManutencaoMensal: input.custoManutencaoMensal,
     });
 
     if (!atualizado) {
       throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
     }
+
+    await this.auditLog.append({
+      idUsuario: atualizadoPorUsuarioId,
+      entidadeAfetada: 'Ativo',
+      idRegistro: atualizado.id,
+      valorAnterior: {
+        id: antes.id,
+        idUnidade: antes.idUnidade,
+        nome: antes.nome,
+        status: antes.status,
+        limiteTemp: antes.limiteTemp,
+        tag: antes.tag,
+        fabricante: antes.fabricante,
+        modelo: antes.modelo,
+        numeroSerie: antes.numeroSerie,
+        observacoes: antes.observacoes,
+        custoHoraParada: antes.custoHoraParada,
+        custoManutencaoMensal: antes.custoManutencaoMensal,
+      },
+      valorNovo: {
+        acao: 'UPDATE',
+        id: atualizado.id,
+        idUnidade: atualizado.idUnidade,
+        nome: atualizado.nome,
+        status: atualizado.status,
+        limiteTemp: atualizado.limiteTemp,
+        tag: atualizado.tag,
+        fabricante: atualizado.fabricante,
+        modelo: atualizado.modelo,
+        numeroSerie: atualizado.numeroSerie,
+        observacoes: atualizado.observacoes,
+        custoHoraParada: atualizado.custoHoraParada,
+        custoManutencaoMensal: atualizado.custoManutencaoMensal,
+      },
+    });
+
     return atualizado;
   }
 

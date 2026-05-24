@@ -20,6 +20,7 @@ import {
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import type { ApiAtivo } from '@/lib/backend-mappers'
+import { usePermissions } from '@/hooks/use-permissions'
 
 type BackendStatus = 'OPERACIONAL' | 'MANUTENCAO' | 'FALHA' | 'INATIVO'
 
@@ -42,6 +43,7 @@ export default function EditAssetPage() {
   const params = useParams()
   const router = useRouter()
   const { accessToken } = useAuth()
+  const { canManageAssets } = usePermissions()
   const unit = useCurrentUnit()
 
   const [isLoading, setIsLoading] = useState(false)
@@ -56,6 +58,14 @@ export default function EditAssetPage() {
   const [modelo, setModelo] = useState('')
   const [numeroSerie, setNumeroSerie] = useState('')
   const [observacoes, setObservacoes] = useState('')
+  const [custoHoraParada, setCustoHoraParada] = useState('0')
+  const [custoManutencaoMensal, setCustoManutencaoMensal] = useState('0')
+
+  useEffect(() => {
+    if (canManageAssets) return
+    toast.error('Seu perfil não pode editar ativos.')
+    router.replace('/ativos')
+  }, [canManageAssets, router])
 
   const load = async () => {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
@@ -70,6 +80,8 @@ export default function EditAssetPage() {
       setModelo(res.modelo || '')
       setNumeroSerie(res.numeroSerie || '')
       setObservacoes(res.observacoes || '')
+      setCustoHoraParada(String(res.custoHoraParada ?? 0))
+      setCustoManutencaoMensal(String(res.custoManutencaoMensal ?? 0))
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar ativo')
@@ -91,6 +103,7 @@ export default function EditAssetPage() {
 
     setIsSaving(true)
     try {
+      if (!canManageAssets) throw new Error('Sem permissão para editar ativo')
       await apiRequest(`/unidades/${unit.id}/ativos/${params.id}`, {
         method: 'PATCH',
         accessToken,
@@ -103,6 +116,8 @@ export default function EditAssetPage() {
           modelo: modelo.trim(),
           numeroSerie: numeroSerie.trim(),
           observacoes: observacoes.trim(),
+          custoHoraParada: Number(custoHoraParada || 0),
+          custoManutencaoMensal: Number(custoManutencaoMensal || 0),
         },
       })
       toast.success('Ativo atualizado com sucesso')
@@ -171,6 +186,28 @@ export default function EditAssetPage() {
           <div className="space-y-2 sm:col-span-2">
             <Label>Observações</Label>
             <Textarea rows={4} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} disabled={isLoading || isSaving} />
+          </div>
+          <div className="space-y-2">
+            <Label>Custo de parada por hora (R$)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={custoHoraParada}
+              onChange={(e) => setCustoHoraParada(e.target.value)}
+              disabled={isLoading || isSaving}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Custo mensal base (R$)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={custoManutencaoMensal}
+              onChange={(e) => setCustoManutencaoMensal(e.target.value)}
+              disabled={isLoading || isSaving}
+            />
           </div>
         </CardContent>
       </Card>

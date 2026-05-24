@@ -20,6 +20,8 @@ import {
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 
 const URL_MAX = 2048;
+const DESCRICAO_SOLUCAO_MAX = 4000;
+const ASSINATURA_MAX = 1_000_000;
 
 function normalizarUrl(v: unknown): string | null {
   if (v == null || typeof v !== 'string') {
@@ -48,7 +50,10 @@ export class FecharOrdemServicoUseCase {
       fotoAnexo?: string | null;
       fotoProblema?: string | null;
       fotoSolucao?: string | null;
+      descricaoSolucao?: string | null;
+      assinaturaDigital?: string | null;
     },
+    finalizadoPorUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -69,9 +74,17 @@ export class FecharOrdemServicoUseCase {
       );
     }
 
+    const osDetalhe = await this.ordens.findByIdInUnidade(
+      idOrdemServico,
+      unidadeOk.empresaId,
+      idUnidade,
+    );
+
     const fotoAnexo = normalizarUrl(body.fotoAnexo);
-    const fotoProblema = normalizarUrl(body.fotoProblema);
+    const fotoProblema = normalizarUrl(body.fotoProblema) ?? osDetalhe?.fotoProblema ?? null;
     const fotoSolucao = normalizarUrl(body.fotoSolucao);
+    const descricaoSolucao = normalizarUrl(body.descricaoSolucao);
+    const assinaturaDigital = normalizarUrl(body.assinaturaDigital);
 
     for (const [nome, url] of [
       ['fotoAnexo', fotoAnexo],
@@ -85,10 +98,32 @@ export class FecharOrdemServicoUseCase {
       }
     }
 
+    if (descricaoSolucao != null && descricaoSolucao.length > DESCRICAO_SOLUCAO_MAX) {
+      throw new BadRequestException(
+        `descricaoSolucao deve ter até ${DESCRICAO_SOLUCAO_MAX} caracteres`,
+      );
+    }
+    if (assinaturaDigital != null && assinaturaDigital.length > ASSINATURA_MAX) {
+      throw new BadRequestException(
+        `assinaturaDigital deve ter até ${ASSINATURA_MAX} caracteres`,
+      );
+    }
+
+    if (descricaoSolucao == null) {
+      throw new BadRequestException(
+        'Para concluir OS é obrigatória a descricaoSolucao.',
+      );
+    }
+
     if (os.tipo === 'CORRETIVA') {
-      if (fotoProblema == null || fotoSolucao == null) {
+      if (fotoProblema == null) {
         throw new BadRequestException(
-          'OS corretiva exige fotoProblema e fotoSolucao (RN-13)',
+          'OS corretiva exige fotoProblema (RN-13)',
+        );
+      }
+      if (fotoSolucao == null) {
+        throw new BadRequestException(
+          'OS corretiva exige fotoSolucao para conclusão (RN-13)',
         );
       }
     } else if (fotoAnexo == null) {
@@ -104,6 +139,9 @@ export class FecharOrdemServicoUseCase {
       fotoAnexo: fotoAnexo ?? null,
       fotoProblema: os.tipo === 'CORRETIVA' ? fotoProblema : null,
       fotoSolucao: os.tipo === 'CORRETIVA' ? fotoSolucao : null,
+      descricaoSolucao: os.tipo === 'CORRETIVA' ? (descricaoSolucao ?? null) : null,
+      assinaturaDigital: assinaturaDigital ?? null,
+      finalizadoPorUsuarioId,
     });
     await this.notifyOrderClosed({
       ordem: concluida,

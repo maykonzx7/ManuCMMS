@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   Home,
   ClipboardList,
@@ -16,7 +17,6 @@ import {
   Plug,
   Cpu,
   Settings,
-  Wrench,
   ChevronRight,
 } from 'lucide-react'
 import {
@@ -34,8 +34,6 @@ import {
 } from '@/components/ui/sidebar'
 import { usePermissions } from '@/hooks/use-permissions'
 import { SIDEBAR_NAVIGATION } from '@/lib/constants'
-import { ROUTES } from '@/lib/routes'
-import { useAuth } from '@/lib/auth'
 import { UnitSwitcher } from './unit-switcher'
 import { UserNav } from './user-nav'
 
@@ -58,7 +56,6 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 export function AppSidebar() {
   const pathname = usePathname()
   const { hasPermission } = usePermissions()
-  const { isPlatformOperator } = useAuth()
 
   return (
     <Sidebar collapsible="icon">
@@ -67,10 +64,16 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/workspace">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Wrench className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-transparent">
+                  <Image
+                    src="/manucmms-icon-oficial.png"
+                    alt="Logo ManuCMMS"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 object-contain"
+                  />
                 </div>
-                <div className="flex flex-col gap-0.5 leading-none">
+                <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
                   <span className="font-semibold">ManuCMMS</span>
                   <span className="text-xs text-muted-foreground">Gestão de Manutenção</span>
                 </div>
@@ -78,7 +81,9 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <UnitSwitcher />
+        <div className="group-data-[collapsible=icon]:hidden">
+          <UnitSwitcher />
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
@@ -120,27 +125,6 @@ export function AppSidebar() {
           )
         })}
 
-        {isPlatformOperator ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === ROUTES.platform || pathname.startsWith(`${ROUTES.platform}/`)}
-                    tooltip="Painel Administrativo"
-                  >
-                    <Link href={ROUTES.platform}>
-                      <Shield className="size-4" />
-                      <span>Painel Administrativo</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
       </SidebarContent>
 
       <SidebarFooter>

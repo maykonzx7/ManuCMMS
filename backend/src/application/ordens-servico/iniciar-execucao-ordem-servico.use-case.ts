@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,
@@ -21,6 +21,8 @@ export class IniciarExecucaoOrdemServicoUseCase {
   async execute(
     idUnidade: string,
     idOrdemServico: string,
+    iniciadoPorUsuarioId: string,
+    body?: { fotoProblema?: string | null },
   ): Promise<OrdemServicoListaItem> {
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -29,10 +31,27 @@ export class IniciarExecucaoOrdemServicoUseCase {
     if (!unidadeOk.empresaId) {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
+    const ordem = await this.ordens.findByIdInUnidade(
+      idOrdemServico,
+      unidadeOk.empresaId,
+      idUnidade,
+    );
+    if (!ordem) {
+      throw new NotFoundException('Ordem de serviço não encontrada');
+    }
+    const fotoProblema = body?.fotoProblema?.trim() || null;
+    if (ordem.tipo === 'CORRETIVA' && !fotoProblema) {
+      throw new BadRequestException(
+        'Ao iniciar OS corretiva, anexe a foto do problema (RN-13).',
+      );
+    }
+
     return this.ordens.iniciarExecucao(
       idOrdemServico,
       unidadeOk.empresaId,
       idUnidade,
+      iniciadoPorUsuarioId,
+      fotoProblema,
     );
   }
 }

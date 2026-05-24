@@ -25,6 +25,7 @@ import { FecharOrdemServicoUseCase } from '../../application/ordens-servico/fech
 import { GetOrdemServicoByIdUseCase } from '../../application/ordens-servico/get-ordem-servico-by-id.use-case';
 import { IniciarExecucaoOrdemServicoUseCase } from '../../application/ordens-servico/iniciar-execucao-ordem-servico.use-case';
 import { ListOrdensServicoByUnidadeUseCase } from '../../application/ordens-servico/list-ordens-servico-by-unidade.use-case';
+import { EscalarOrdemServicoUseCase } from '../../application/ordens-servico/escalar-ordem-servico.use-case';
 import { UpdateOrdemServicoUseCase } from '../../application/ordens-servico/update-ordem-servico.use-case';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 
@@ -39,21 +40,38 @@ type FecharOrdemServicoBody = {
   fotoAnexo?: string | null;
   fotoProblema?: string | null;
   fotoSolucao?: string | null;
+  descricaoSolucao?: string | null;
+  assinaturaImagemDataUrl?: string | null;
+  assinaturaNome?: string | null;
+};
+
+type IniciarOrdemServicoBody = {
+  fotoProblema?: string | null;
 };
 
 type UpdateOrdemServicoBody = {
   descricao?: string;
   idTecnico?: string | null;
+  motivoTransferencia?: string;
 };
 
 type CancelarOrdemServicoBody = {
   observacaoCancelamento?: string | null;
 };
 
+type EscalarOrdemServicoBody = {
+  motivo: string;
+  statusAtivoSugerido?: 'MANUTENCAO' | 'FALHA' | null;
+};
+
 type FecharOrdemServicoFiles = {
   fotoAnexo?: Express.Multer.File[];
   fotoProblema?: Express.Multer.File[];
   fotoSolucao?: Express.Multer.File[];
+};
+
+type IniciarOrdemServicoFiles = {
+  fotoProblema?: Express.Multer.File[];
 };
 
 const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
@@ -69,6 +87,17 @@ function fileToPublicUrl(req: Request, file: Express.Multer.File): string {
   const baseUrl = process.env.PUBLIC_BASE_URL?.trim();
   const origin = baseUrl && baseUrl.length > 0 ? baseUrl : `${req.protocol}://${req.get('host')}`;
   return `${origin}/${UPLOADS_DIR}/ordens-servico/${file.filename}`;
+}
+
+function resolveRequestIp(req: Request): string | null {
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.trim().length > 0) {
+    return xff.split(',')[0]!.trim();
+  }
+  if (Array.isArray(xff) && xff[0]) {
+    return xff[0];
+  }
+  return req.ip ?? null;
 }
 
 /**
@@ -87,6 +116,7 @@ export class OrdensServicoController {
     private readonly fecharOrdem: FecharOrdemServicoUseCase,
     private readonly iniciarExecucao: IniciarExecucaoOrdemServicoUseCase,
     private readonly cancelarOrdem: CancelarOrdemServicoUseCase,
+    private readonly escalarOrdem: EscalarOrdemServicoUseCase,
   ) {}
 
   @Get()
@@ -109,7 +139,7 @@ export class OrdensServicoController {
     this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.createOrdem.execute(unidadeId, body);
+    return this.createOrdem.execute(unidadeId, body, req.usuarioLocal!.id);
   }
 
   @Get(':ordemServicoId')
@@ -135,20 +165,56 @@ export class OrdensServicoController {
     this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.updateOrdem.execute(unidadeId, ordemServicoId, body);
+    return this.updateOrdem.execute(
+      unidadeId,
+      ordemServicoId,
+      body,
+      req.usuarioLocal!.id,
+    );
   }
 
   @Patch(':ordemServicoId/iniciar')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [{ name: 'fotoProblema', maxCount: 1 }],
+      {
+        storage: diskStorage({
+          destination: (_req, _file, cb) => cb(null, fotoUploadDir),
+          filename: (_req, file, cb) =>
+            cb(null, `${randomUUID()}${extname(file.originalname || '')}`),
+        }),
+        limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+        fileFilter: (_req, file, cb) => {
+          if (!isImagemMimeType(file.mimetype)) {
+            cb(new BadRequestException('Apenas arquivos de imagem são permitidos'), false);
+            return;
+          }
+          cb(null, true);
+        },
+      },
+    ),
+  )
   async iniciar(
     @Param('unidadeId') unidadeId: string,
     @Param('ordemServicoId') ordemServicoId: string,
+    @Body() body: IniciarOrdemServicoBody = {},
+    @UploadedFiles() files: IniciarOrdemServicoFiles = {},
     @Req() req: Request,
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.executar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
     this.assertTecnicoCanAccessOrdem(req, ordem);
-    return this.iniciarExecucao.execute(unidadeId, ordemServicoId);
+    return this.iniciarExecucao.execute(
+      unidadeId,
+      ordemServicoId,
+      req.usuarioLocal!.id,
+      {
+        fotoProblema: files.fotoProblema?.[0]
+          ? fileToPublicUrl(req, files.fotoProblema[0])
+          : body.fotoProblema,
+      },
+    );
   }
 
   @Patch(':ordemServicoId/cancelar')
@@ -161,7 +227,31 @@ export class OrdensServicoController {
     this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.cancelar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.cancelarOrdem.execute(unidadeId, ordemServicoId, body);
+    return this.cancelarOrdem.execute(
+      unidadeId,
+      ordemServicoId,
+      body,
+      req.usuarioLocal!.id,
+    );
+  }
+
+  @Patch(':ordemServicoId/escalar')
+  async escalar(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+    @Body() body: EscalarOrdemServicoBody,
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.executar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    return this.escalarOrdem.execute(
+      unidadeId,
+      ordemServicoId,
+      body,
+      req.usuarioLocal!.id,
+    );
   }
 
   @Patch(':ordemServicoId/fechar')
@@ -200,6 +290,20 @@ export class OrdensServicoController {
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
     this.assertTecnicoCanAccessOrdem(req, ordem);
+    const assinaturaPayload =
+      body.assinaturaImagemDataUrl?.trim()
+        ? JSON.stringify({
+            tipo: 'canvas',
+            dataUrl: body.assinaturaImagemDataUrl.trim(),
+            nomeAssinante: body.assinaturaNome?.trim() || req.usuarioLocal?.nome || null,
+            usuarioId: req.usuarioLocal?.id ?? null,
+            usuarioNome: req.usuarioLocal?.nome ?? null,
+            ip: resolveRequestIp(req),
+            userAgent: req.get('user-agent') ?? null,
+            dataHora: new Date().toISOString(),
+          })
+        : null;
+
     return this.fecharOrdem.execute(unidadeId, ordemServicoId, {
       fotoAnexo: files.fotoAnexo?.[0]
         ? fileToPublicUrl(req, files.fotoAnexo[0])
@@ -210,7 +314,9 @@ export class OrdensServicoController {
       fotoSolucao: files.fotoSolucao?.[0]
         ? fileToPublicUrl(req, files.fotoSolucao[0])
         : body.fotoSolucao,
-    });
+      descricaoSolucao: body.descricaoSolucao,
+      assinaturaDigital: assinaturaPayload,
+    }, req.usuarioLocal!.id);
   }
 
   private isTecnico(req: Request): boolean {

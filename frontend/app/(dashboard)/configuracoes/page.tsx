@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   Settings, 
   Building2, 
@@ -36,17 +37,27 @@ import { Separator } from '@/components/ui/separator'
 import { useCurrentCompany } from '@/lib/auth'
 import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { usePermissions } from '@/hooks/use-permissions'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const company = useCurrentCompany()
   const { accessToken } = useAuth()
+  const { hasPermission } = usePermissions()
+  const canManageSettings = hasPermission('configuracoes')
   const [isLoading, setIsLoading] = useState(false)
   const [empresaNome, setEmpresaNome] = useState(company?.nome || '')
   const [empresaSlug, setEmpresaSlug] = useState(company?.slug || '')
   const [empresaStatus, setEmpresaStatus] = useState<'ATIVA' | 'INATIVA' | 'SUSPENSA'>('ATIVA')
 
   useEffect(() => {
-    if (!accessToken || !company?.id) return
+    if (canManageSettings) return
+    toast.error('Seu perfil não tem acesso às configurações da empresa.')
+    router.replace('/dashboard')
+  }, [canManageSettings, router])
+
+  useEffect(() => {
+    if (!canManageSettings || !accessToken || !company?.id) return
     void apiRequest<{ empresa: { nomeEmpresa: string; slug: string; status: 'ATIVA' | 'INATIVA' | 'SUSPENSA' } }>(
       `/empresas/${company.id}/gestao/painel`,
       { accessToken },
@@ -60,9 +71,13 @@ export default function SettingsPage() {
         setEmpresaNome(company.nome)
         setEmpresaSlug(company.slug)
       })
-  }, [accessToken, company?.id, company?.nome, company?.slug])
+  }, [canManageSettings, accessToken, company?.id, company?.nome, company?.slug])
 
   const handleSave = async () => {
+    if (!canManageSettings) {
+      toast.error('Seu perfil não pode alterar configurações.')
+      return
+    }
     setIsLoading(true)
     try {
       if (!accessToken || !company?.id) throw new Error('Sessão inválida')
@@ -350,7 +365,7 @@ export default function SettingsPage() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading}>
+        <Button onClick={handleSave} disabled={isLoading || !canManageSettings}>
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -359,7 +374,7 @@ export default function SettingsPage() {
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Salvar configurações
+              {canManageSettings ? 'Salvar configurações' : 'Sem permissão'}
             </>
           )}
         </Button>

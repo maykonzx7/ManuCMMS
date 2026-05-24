@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Body,
   Controller,
   Delete,
@@ -26,6 +27,8 @@ type CreateAtivoBody = {
   modelo?: string;
   numeroSerie?: string;
   observacoes?: string;
+  custoHoraParada?: number;
+  custoManutencaoMensal?: number;
 };
 
 type UpdateAtivoBody = {
@@ -37,6 +40,8 @@ type UpdateAtivoBody = {
   modelo?: string;
   numeroSerie?: string;
   observacoes?: string;
+  custoHoraParada?: number;
+  custoManutencaoMensal?: number;
 };
 
 /**
@@ -68,9 +73,10 @@ export class AtivosController {
     @Body() body: CreateAtivoBody,
     @Req() req: Request,
   ) {
+    this.assertTecnicoCannotMutateAssets(req);
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.createAtivo.execute(unidadeId, body);
+    return this.createAtivo.execute(unidadeId, body, req.usuarioLocal!.id);
   }
 
   @Get(':ativoId')
@@ -91,9 +97,10 @@ export class AtivosController {
     @Body() body: UpdateAtivoBody,
     @Req() req: Request,
   ) {
+    this.assertTecnicoCannotMutateAssets(req);
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.updateAtivo.execute(unidadeId, ativoId, body);
+    return this.updateAtivo.execute(unidadeId, ativoId, body, req.usuarioLocal!.id);
   }
 
   @Delete(':ativoId')
@@ -103,8 +110,16 @@ export class AtivosController {
     @Param('ativoId') ativoId: string,
     @Req() req: Request,
   ) {
+    this.assertTecnicoCannotMutateAssets(req);
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    await this.deleteAtivo.execute(unidadeId, ativoId);
+    await this.deleteAtivo.execute(unidadeId, ativoId, req.usuarioLocal!.id);
+  }
+
+  private assertTecnicoCannotMutateAssets(req: Request): void {
+    if (req.usuarioLocal?.perfil?.toUpperCase() !== 'TECNICO') return;
+    throw new ForbiddenException(
+      'Perfil TECNICO nao pode criar, editar ou excluir ativos.',
+    );
   }
 }

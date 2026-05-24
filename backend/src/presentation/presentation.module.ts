@@ -22,6 +22,7 @@ import { FecharOrdemServicoUseCase } from '../application/ordens-servico/fechar-
 import { GetOrdemServicoByIdUseCase } from '../application/ordens-servico/get-ordem-servico-by-id.use-case';
 import { IniciarExecucaoOrdemServicoUseCase } from '../application/ordens-servico/iniciar-execucao-ordem-servico.use-case';
 import { ListOrdensServicoByUnidadeUseCase } from '../application/ordens-servico/list-ordens-servico-by-unidade.use-case';
+import { EscalarOrdemServicoUseCase } from '../application/ordens-servico/escalar-ordem-servico.use-case';
 import { UpdateOrdemServicoUseCase } from '../application/ordens-servico/update-ordem-servico.use-case';
 import { GetUnidadeByIdUseCase } from '../application/unidades/get-unidade-by-id.use-case';
 import { ListUnidadesUseCase } from '../application/unidades/list-unidades.use-case';
@@ -93,6 +94,7 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     UpdateOrdemServicoUseCase,
     FecharOrdemServicoUseCase,
     IniciarExecucaoOrdemServicoUseCase,
+    EscalarOrdemServicoUseCase,
     CancelarOrdemServicoUseCase,
     PostgresHealthIndicator,
     MongoHealthIndicator,

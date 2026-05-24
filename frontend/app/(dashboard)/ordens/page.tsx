@@ -56,13 +56,33 @@ import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+
+type ApiUsuario = {
+  id?: string
+  idUsuario?: string
+  nome: string
+  perfil?: string
+}
 
 export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [orders, setOrders] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
   const [ordersError, setOrdersError] = useState<string | null>(null)
-  const { canCreateOrder, canManageOrderStatus } = usePermissions()
+  const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferOrderId, setTransferOrderId] = useState('')
+  const [transferTecnicoId, setTransferTecnicoId] = useState('')
+  const [transferMotivo, setTransferMotivo] = useState('')
+  const { canCreateOrder, canManageOrderStatus, canEditOrder } = usePermissions()
   const { accessToken } = useAuth()
   const currentUnit = useCurrentUnit()
 
@@ -82,13 +102,47 @@ export default function OrdersPage() {
     void loadOrders()
   }, [accessToken, currentUnit?.id])
 
+  useEffect(() => {
+    if (!accessToken || !currentUnit?.id || !canEditOrder) return
+    void apiRequest<ApiUsuario[]>(`/unidades/${currentUnit.id}/usuarios`, { accessToken })
+      .then((res) => {
+        setTecnicos(
+          res
+            .map((u) => ({
+              id: u.id ?? u.idUsuario ?? '',
+              nome: u.nome,
+              perfil: (u.perfil ?? '').toUpperCase(),
+            }))
+            .filter((u) => u.id && u.perfil === 'TECNICO')
+            .map((u) => ({ id: u.id, nome: u.nome })),
+        )
+      })
+      .catch(() => setTecnicos([]))
+  }, [accessToken, currentUnit?.id, canEditOrder])
+
   const onIniciar = async (orderId: string) => {
     if (!accessToken || !currentUnit?.id) return
+    const selectedOrder = orders.find((order) => order.id === orderId)
     try {
-      await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/iniciar`, {
-        method: 'PATCH',
-        accessToken,
-      })
+      if (selectedOrder?.tipo === 'CORRETIVA') {
+        const fotoProblema = await requestInterventionPhotoFile('Selecione a foto do problema')
+        if (!fotoProblema) {
+          toast.error('Para iniciar OS corretiva, envie a foto do problema.')
+          return
+        }
+        const formData = new FormData()
+        formData.append('fotoProblema', fotoProblema)
+        await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/iniciar`, {
+          method: 'PATCH',
+          accessToken,
+          body: formData,
+        })
+      } else {
+        await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/iniciar`, {
+          method: 'PATCH',
+          accessToken,
+        })
+      }
       toast.success('Ordem iniciada com sucesso')
       await loadOrders()
     } catch (e) {
@@ -98,14 +152,32 @@ export default function OrdersPage() {
 
   const onConcluir = async (orderId: string) => {
     if (!accessToken || !currentUnit?.id) return
-    const fotoAnexo = await requestInterventionPhotoFile()
-    if (!fotoAnexo) {
-      toast.error('É obrigatório anexar a foto da intervenção para concluir a OS')
-      return
-    }
+    const selectedOrder = orders.find((order) => order.id === orderId)
+    const isCorretiva = selectedOrder?.tipo === 'CORRETIVA'
     try {
       const formData = new FormData()
-      formData.append('fotoAnexo', fotoAnexo)
+      const descricaoSolucao = window.prompt('Descreva a solução aplicada para concluir a OS:')
+      const descricaoSolucaoNormalizada = descricaoSolucao?.trim()
+      if (!descricaoSolucaoNormalizada) {
+        toast.error('Descrição da solução é obrigatória para concluir a OS.')
+        return
+      }
+      formData.append('descricaoSolucao', descricaoSolucaoNormalizada)
+      if (isCorretiva) {
+        const fotoSolucao = await requestInterventionPhotoFile('Selecione a foto da solução')
+        if (!fotoSolucao) {
+          toast.error('OS corretiva exige foto da solução para concluir.')
+          return
+        }
+        formData.append('fotoSolucao', fotoSolucao)
+      } else {
+        const fotoAnexo = await requestInterventionPhotoFile('Selecione a foto da intervenção')
+        if (!fotoAnexo) {
+          toast.error('É obrigatório anexar a foto da intervenção para concluir a OS')
+          return
+        }
+        formData.append('fotoAnexo', fotoAnexo)
+      }
       await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/fechar`, {
         method: 'PATCH',
         accessToken,
@@ -118,11 +190,14 @@ export default function OrdersPage() {
     }
   }
 
-  const requestInterventionPhotoFile = () =>
+  const requestInterventionPhotoFile = (title?: string) =>
     new Promise<File | null>((resolve) => {
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = 'image/*'
+      if (title) {
+        input.setAttribute('aria-label', title)
+      }
       input.onchange = () => {
         const file = input.files?.[0] ?? null
         resolve(file)
@@ -143,6 +218,47 @@ export default function OrdersPage() {
       await loadOrders()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao cancelar ordem')
+    }
+  }
+
+  const openTransfer = (orderId: string, currentTecnicoId?: string) => {
+    if (!canEditOrder) {
+      toast.error('Transferência disponível apenas para Supervisor, Gestor ou Admin.')
+      return
+    }
+    setTransferOrderId(orderId)
+    setTransferTecnicoId(currentTecnicoId ?? '')
+    setTransferMotivo('')
+    setTransferOpen(true)
+  }
+
+  const onTransferir = async () => {
+    if (!accessToken || !currentUnit?.id || !transferOrderId) return
+    if (!transferTecnicoId) {
+      toast.error('Selecione o técnico de destino.')
+      return
+    }
+    if (transferMotivo.trim().length < 10) {
+      toast.error('Informe um motivo com no mínimo 10 caracteres.')
+      return
+    }
+    try {
+      await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${transferOrderId}`, {
+        method: 'PATCH',
+        accessToken,
+        body: {
+          idTecnico: transferTecnicoId,
+          motivoTransferencia: transferMotivo.trim(),
+        },
+      })
+      toast.success('OS transferida com sucesso.')
+      setTransferOpen(false)
+      setTransferOrderId('')
+      setTransferTecnicoId('')
+      setTransferMotivo('')
+      await loadOrders()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao transferir OS')
     }
   }
 
@@ -354,6 +470,10 @@ export default function OrdersPage() {
                             Concluir
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => openTransfer(order.id, order.responsavelId)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Transferir
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {canManageOrderStatus && order.status !== 'CONCLUIDA' && order.status !== 'CANCELADA' && (
                           <DropdownMenuItem className="text-destructive" onClick={() => void onCancelar(order.id)}>
@@ -376,6 +496,48 @@ export default function OrdersPage() {
           Falha ao carregar OS da base: {ordersError}
         </p>
       ) : null}
+
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transferir Ordem de Serviço</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Técnico de destino</Label>
+              <Select value={transferTecnicoId} onValueChange={setTransferTecnicoId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o técnico" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tecnicos.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo da transferência</Label>
+              <Textarea
+                rows={4}
+                value={transferMotivo}
+                onChange={(e) => setTransferMotivo(e.target.value)}
+                placeholder="Explique por que a OS está sendo transferida..."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTransferOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => void onTransferir()}>
+                Confirmar transferência
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

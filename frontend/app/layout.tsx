@@ -12,21 +12,9 @@ export const metadata: Metadata = {
   keywords: ['CMMS', 'manutenção', 'industrial', 'gestão', 'ativos', 'ordens de serviço'],
   authors: [{ name: 'ManuCMMS' }],
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/manucmms-icon-oficial.png',
+    shortcut: '/manucmms-icon-oficial.png',
+    apple: '/manucmms-icon-oficial.png',
   },
 }
 

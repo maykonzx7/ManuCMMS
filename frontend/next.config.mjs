@@ -11,8 +11,6 @@ const nextConfig = {
       { source: '/acesso', destination: '/workspace/acesso', permanent: false },
       { source: '/acesso/:companySlug', destination: '/workspace/acesso/:companySlug', permanent: false },
       { source: '/convite', destination: '/workspace/convite', permanent: false },
-      { source: '/platform', destination: '/workspace/platform', permanent: false },
-      { source: '/plataforma', destination: '/workspace/platform', permanent: false },
       { source: '/ordens', destination: '/workspace/ordens', permanent: false },
       { source: '/ordens/nova', destination: '/workspace/ordens/nova', permanent: false },
       { source: '/ativos', destination: '/workspace/ativos', permanent: false },

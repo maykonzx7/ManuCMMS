@@ -1,0 +1,4 @@
+ALTER TABLE "ativo"
+  ADD COLUMN "custo_hora_parada" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  ADD COLUMN "custo_manutencao_mensal" DOUBLE PRECISION NOT NULL DEFAULT 0;
+

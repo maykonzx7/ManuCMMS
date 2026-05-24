@@ -132,7 +132,7 @@ export default function NotificacoesPage() {
       </div>
 
       <Tabs defaultValue="todas" className="space-y-4">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="todas">
             Todas
             <Badge variant="secondary" className="ml-2">
@@ -184,7 +184,7 @@ export default function NotificacoesPage() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1 space-y-1">
-                        <div className="flex items-start justify-between">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                           <p className={cn(
                             "text-sm",
                             !notification.read && "font-semibold"
@@ -208,7 +208,7 @@ export default function NotificacoesPage() {
                             />
                           </div>
                         ) : null}
-                        <div className="flex items-center gap-2 pt-2">
+                        <div className="flex flex-wrap items-center gap-2 pt-2">
                           {notification.linkPath ? (
                             <Button variant="ghost" size="sm" asChild>
                               <Link href={notification.linkPath}>
@@ -274,7 +274,7 @@ export default function NotificacoesPage() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1 space-y-1">
-                        <div className="flex items-start justify-between">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                           <p className="text-sm font-semibold">
                             {notification.title}
                           </p>
@@ -305,7 +305,7 @@ export default function NotificacoesPage() {
                             </Button>
                           </div>
                         ) : null}
-                        <div className="flex items-center gap-2 pt-2">
+                        <div className="flex flex-wrap items-center gap-2 pt-2">
                           <Button
                             variant="ghost"
                             size="sm"

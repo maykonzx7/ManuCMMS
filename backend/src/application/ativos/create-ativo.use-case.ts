@@ -15,6 +15,10 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import {
+  AUDIT_LOG_PORT,
+  type IAuditLogPort,
+} from '../../domain/ports/audit-log.port';
 
 const NOME_MAX = 100;
 const TAG_MAX = 80;
@@ -24,6 +28,8 @@ const NUMERO_SERIE_MAX = 120;
 const OBSERVACOES_MAX = 500;
 const LIMITE_TEMP_MIN = 0;
 const LIMITE_TEMP_MAX = 200;
+const CUSTO_MIN = 0;
+const CUSTO_MAX = 1_000_000_000;
 
 @Injectable()
 export class CreateAtivoUseCase {
@@ -32,6 +38,8 @@ export class CreateAtivoUseCase {
     private readonly ativos: IAtivoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    @Inject(AUDIT_LOG_PORT)
+    private readonly auditLog: IAuditLogPort,
   ) {}
 
   async execute(
@@ -44,7 +52,10 @@ export class CreateAtivoUseCase {
       modelo?: string;
       numeroSerie?: string;
       observacoes?: string;
+      custoHoraParada?: number;
+      custoManutencaoMensal?: number;
     },
+    criadoPorUsuarioId: string,
   ): Promise<AtivoListaItem> {
     const nome = input.nome?.trim() ?? '';
     if (nome.length === 0 || nome.length > NOME_MAX) {
@@ -63,6 +74,32 @@ export class CreateAtivoUseCase {
       ) {
         throw new BadRequestException(
           `limiteTemp deve ser um número entre ${LIMITE_TEMP_MIN} e ${LIMITE_TEMP_MAX}`,
+        );
+      }
+    }
+    const custoHoraParada = input.custoHoraParada;
+    if (custoHoraParada !== undefined) {
+      if (
+        typeof custoHoraParada !== 'number' ||
+        Number.isNaN(custoHoraParada) ||
+        custoHoraParada < CUSTO_MIN ||
+        custoHoraParada > CUSTO_MAX
+      ) {
+        throw new BadRequestException(
+          `custoHoraParada deve ser um número entre ${CUSTO_MIN} e ${CUSTO_MAX}`,
+        );
+      }
+    }
+    const custoManutencaoMensal = input.custoManutencaoMensal;
+    if (custoManutencaoMensal !== undefined) {
+      if (
+        typeof custoManutencaoMensal !== 'number' ||
+        Number.isNaN(custoManutencaoMensal) ||
+        custoManutencaoMensal < CUSTO_MIN ||
+        custoManutencaoMensal > CUSTO_MAX
+      ) {
+        throw new BadRequestException(
+          `custoManutencaoMensal deve ser um número entre ${CUSTO_MIN} e ${CUSTO_MAX}`,
         );
       }
     }
@@ -117,9 +154,35 @@ export class CreateAtivoUseCase {
     if (modelo !== undefined) payload.modelo = modelo;
     if (numeroSerie !== undefined) payload.numeroSerie = numeroSerie;
     if (observacoes !== undefined) payload.observacoes = observacoes;
+    if (custoHoraParada !== undefined) payload.custoHoraParada = custoHoraParada;
+    if (custoManutencaoMensal !== undefined) {
+      payload.custoManutencaoMensal = custoManutencaoMensal;
+    }
 
     try {
-      return await this.ativos.create(payload);
+      const ativo = await this.ativos.create(payload);
+      await this.auditLog.append({
+        idUsuario: criadoPorUsuarioId,
+        entidadeAfetada: 'Ativo',
+        idRegistro: ativo.id,
+        valorAnterior: {},
+        valorNovo: {
+          acao: 'CREATE',
+          id: ativo.id,
+          idUnidade: ativo.idUnidade,
+          nome: ativo.nome,
+          status: ativo.status,
+          limiteTemp: ativo.limiteTemp,
+          tag: ativo.tag,
+          fabricante: ativo.fabricante,
+          modelo: ativo.modelo,
+          numeroSerie: ativo.numeroSerie,
+          observacoes: ativo.observacoes,
+          custoHoraParada: ativo.custoHoraParada,
+          custoManutencaoMensal: ativo.custoManutencaoMensal,
+        },
+      });
+      return ativo;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&

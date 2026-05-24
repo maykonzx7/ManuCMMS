@@ -148,12 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const nextSession = toSessionData(me, unidades)
     setSessionData(nextSession)
     setApiCompanySlug(nextSession?.empresa.slug)
-    try {
-      await apiRequest('/platform/painel', { accessToken: token, headers })
-      setIsPlatformOperator(true)
-    } catch {
-      setIsPlatformOperator(false)
-    }
+    setIsPlatformOperator(false)
 
     // Evita reprocessar hash OAuth antigo em refreshes seguintes.
     if (

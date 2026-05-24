@@ -41,7 +41,12 @@ export class UpdateOrdemServicoUseCase {
   async execute(
     idUnidade: string,
     idOrdemServico: string,
-    body: { descricao?: string; idTecnico?: string | null },
+    body: {
+      descricao?: string;
+      idTecnico?: string | null;
+      motivoTransferencia?: string;
+    },
+    executorUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
     const unidade = await this.unidades.findById(idUnidade);
     if (!unidade?.empresaId) {
@@ -95,20 +100,29 @@ export class UpdateOrdemServicoUseCase {
       );
     }
 
+    const mudouTecnico =
+      idTecnico !== undefined && (atual.idTecnico ?? null) !== (idTecnico ?? null);
+    const motivoTransferencia = body.motivoTransferencia?.trim();
+    if (mudouTecnico && (!motivoTransferencia || motivoTransferencia.length < 10)) {
+      throw new BadRequestException(
+        'Transferência de OS exige motivo com no mínimo 10 caracteres.',
+      );
+    }
+
     const atualizado = await this.ordens.updateDados({
       idOrdemServico,
       empresaId: unidade.empresaId,
       idUnidade,
       descricao,
       idTecnico,
+      transferidoPorUsuarioId: mudouTecnico ? executorUsuarioId : undefined,
+      motivoTransferencia: mudouTecnico ? motivoTransferencia : undefined,
     });
 
     if (!atualizado) {
       throw new NotFoundException('Ordem de serviço não encontrada');
     }
 
-    const mudouTecnico =
-      idTecnico !== undefined && (atual.idTecnico ?? null) !== (atualizado.idTecnico ?? null);
     if (mudouTecnico && atualizado.idTecnico) {
       const tecnicoDestino = tecnicoSelecionado
         ?? (await this.usuarios.findByIdInUnidade(atualizado.idTecnico, idUnidade));

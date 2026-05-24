@@ -2,12 +2,14 @@ import { Controller, Get, Inject, NotFoundException, Param, Query, Req, Res } fr
 import type { Request } from 'express';
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
 import { USUARIO_READ_PORT, type IUsuarioReadPort } from '../../domain/ports/usuario-read.port';
+import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 
 @Controller('auditoria')
 export class AuditoriaController {
@@ -15,6 +17,7 @@ export class AuditoriaController {
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     @Inject(AUDIT_LOG_PORT) private readonly auditLog: IAuditLogPort,
     @Inject(USUARIO_READ_PORT) private readonly usuarioRead: IUsuarioReadPort,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('resumo')
@@ -113,8 +116,25 @@ export class AuditoriaController {
       limit: Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 500) : 100,
     });
 
+    const userIds = Array.from(
+      new Set(result.items.map((item) => item.idUsuario).filter((id): id is string => Boolean(id))),
+    );
+    const userNames = new Map<string, string>();
+    if (userIds.length > 0) {
+      const idParams = userIds.map((id) => Prisma.sql`${id}::uuid`);
+      const rows = await this.prisma.$queryRaw<Array<{ id: string; nome: string }>>(Prisma.sql`
+        SELECT id, nome
+        FROM usuario
+        WHERE id IN (${Prisma.join(idParams)})
+      `);
+      for (const row of rows) userNames.set(row.id, row.nome);
+    }
+
     return {
-      logs: result.items,
+      logs: result.items.map((item) => ({
+        ...item,
+        usuarioNome: item.idUsuario ? (userNames.get(item.idUsuario) ?? null) : null,
+      })),
       total: result.total,
       page: result.page,
       limit: result.limit,
@@ -211,6 +231,16 @@ export class AuditoriaController {
     if (!item) {
       throw new NotFoundException('Log de auditoria não encontrado.');
     }
-    return item;
+    let usuarioNome: string | null = null;
+    if (item.idUsuario) {
+      const rows = await this.prisma.$queryRaw<Array<{ nome: string }>>(Prisma.sql`
+        SELECT nome
+        FROM usuario
+        WHERE id = ${item.idUsuario}::uuid
+        LIMIT 1
+      `);
+      usuarioNome = rows[0]?.nome ?? null;
+    }
+    return { ...item, usuarioNome };
   }
 }

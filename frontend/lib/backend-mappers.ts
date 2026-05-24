@@ -12,6 +12,8 @@ export type ApiAtivo = {
   modelo?: string | null
   numeroSerie?: string | null
   observacoes?: string | null
+  custoHoraParada?: number
+  custoManutencaoMensal?: number
 }
 
 export type ApiOrdem = {
@@ -24,8 +26,30 @@ export type ApiOrdem = {
   status: string
   tipo: string
   descricao: string
+  fotoAnexo?: string | null
+  fotoProblema?: string | null
+  fotoSolucao?: string | null
+  descricaoSolucao?: string | null
+  assinaturaDigital?: string | null
   dataAbertura: string
   dataFechamento?: string | null
+  idCriadoPorUsuario?: string | null
+  criadoPorNome?: string | null
+  idIniciadoPorUsuario?: string | null
+  iniciadoPorNome?: string | null
+  idFinalizadoPorUsuario?: string | null
+  finalizadoPorNome?: string | null
+  transferencias?: Array<{
+    id: string
+    deTecnicoId?: string | null
+    deTecnicoNome?: string | null
+    paraTecnicoId: string
+    paraTecnicoNome?: string | null
+    transferidoPorUsuarioId: string
+    transferidoPorNome?: string | null
+    motivo: string
+    createdAt: string
+  }>
 }
 
 export type ApiUsuario = {
@@ -84,6 +108,7 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
     numero: id.slice(0, 8).toUpperCase(),
     titulo: input.descricao,
     descricao: input.descricao,
+    solucao: input.descricaoSolucao ?? undefined,
     tipo: (input.tipo?.toUpperCase() ?? 'CORRETIVA') as ServiceOrder['tipo'],
     prioridade: 'MEDIA',
     status: status as ServiceOrder['status'],
@@ -91,8 +116,32 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
     dataFechamento: input.dataFechamento ?? undefined,
     ativoId,
     unidadeId,
-    solicitanteId: '',
+    solicitanteId: input.idCriadoPorUsuario ?? '',
+    solicitante: input.idCriadoPorUsuario
+      ? {
+          id: input.idCriadoPorUsuario,
+          nome: input.criadoPorNome ?? 'Usuário',
+          email: '',
+          perfil: 'TECNICO',
+          ativo: true,
+          empresaId: '',
+          createdAt: input.dataAbertura,
+          updatedAt: input.dataAbertura,
+        }
+      : undefined,
     responsavelId: input.idTecnico ?? undefined,
+    responsavel: input.idTecnico
+      ? {
+          id: input.idTecnico,
+          nome: input.finalizadoPorNome ?? input.iniciadoPorNome ?? 'Técnico',
+          email: '',
+          perfil: 'TECNICO',
+          ativo: true,
+          empresaId: '',
+          createdAt: input.dataAbertura,
+          updatedAt: input.dataAbertura,
+        }
+      : undefined,
     createdAt: input.dataAbertura,
     updatedAt: input.dataFechamento ?? input.dataAbertura,
     ativo: input.ativoNome
@@ -106,6 +155,44 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
           updatedAt: input.dataAbertura,
         }
       : undefined,
+    historico:
+      input.transferencias?.map((t) => ({
+        id: t.id,
+        acao: 'TRANSFERENCIA',
+        descricao: `Transferida de ${t.deTecnicoNome ?? 'não atribuído'} para ${t.paraTecnicoNome ?? 'técnico'} por ${t.transferidoPorNome ?? 'usuário'}. Motivo: ${t.motivo}`,
+        ordemServicoId: id,
+        usuarioId: t.transferidoPorUsuarioId,
+        createdAt: t.createdAt,
+      })) ?? [],
+    fotos: [
+      input.fotoProblema
+        ? {
+            id: `${id}-foto-problema`,
+            url: input.fotoProblema,
+            descricao: 'Foto do problema',
+            ordemServicoId: id,
+            createdAt: input.dataAbertura,
+          }
+        : null,
+      input.fotoSolucao
+        ? {
+            id: `${id}-foto-solucao`,
+            url: input.fotoSolucao,
+            descricao: 'Foto da solução',
+            ordemServicoId: id,
+            createdAt: input.dataFechamento ?? input.dataAbertura,
+          }
+        : null,
+      input.fotoAnexo
+        ? {
+            id: `${id}-foto-anexo`,
+            url: input.fotoAnexo,
+            descricao: 'Foto da intervenção',
+            ordemServicoId: id,
+            createdAt: input.dataFechamento ?? input.dataAbertura,
+          }
+        : null,
+    ].filter(Boolean) as ServiceOrder['fotos'],
   }
 }
 

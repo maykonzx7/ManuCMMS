@@ -17,9 +17,30 @@ export type OrdemServicoListaItem = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
+  descricaoSolucao: string | null;
+  assinaturaDigital: string | null;
   observacaoCancelamento: string | null;
   dataAbertura: Date;
   dataFechamento: Date | null;
+  idCriadoPorUsuario: string | null;
+  criadoPorNome: string | null;
+  idIniciadoPorUsuario: string | null;
+  iniciadoPorNome: string | null;
+  idFinalizadoPorUsuario: string | null;
+  finalizadoPorNome: string | null;
+  transferencias: OrdemServicoTransferenciaItem[];
+};
+
+export type OrdemServicoTransferenciaItem = {
+  id: string;
+  deTecnicoId: string | null;
+  deTecnicoNome: string | null;
+  paraTecnicoId: string;
+  paraTecnicoNome: string | null;
+  transferidoPorUsuarioId: string;
+  transferidoPorNome: string | null;
+  motivo: string;
+  createdAt: Date;
 };
 
 /** Dados mínimos para aplicar regras de fechamento (RN-02, RN-13). */
