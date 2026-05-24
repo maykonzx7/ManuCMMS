@@ -4,4 +4,5 @@ export type UnidadeListaItem = {
   nome: string;
   localizacao: string;
   empresaId?: string | null;
+  empresaSlug?: string | null;
 };

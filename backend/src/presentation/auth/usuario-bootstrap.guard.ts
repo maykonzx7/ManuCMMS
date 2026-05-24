@@ -42,7 +42,10 @@ export class UsuarioBootstrapGuard implements CanActivate {
     }
 
     try {
-      req.usuarioLocal = await this.ensureUsuario.execute(user);
+      const preferredEmpresaSlug = this.resolvePreferredEmpresaSlug(req);
+      req.usuarioLocal = await this.ensureUsuario.execute(user, {
+        preferredEmpresaSlug,
+      });
     } catch (error) {
       if (allowPendingUser && error instanceof ForbiddenException) {
         req.usuarioLocal = undefined;
@@ -51,5 +54,12 @@ export class UsuarioBootstrapGuard implements CanActivate {
       }
     }
     return true;
+  }
+
+  private resolvePreferredEmpresaSlug(req: Request): string | null {
+    const raw = req.headers['x-company-slug'];
+    const slug = Array.isArray(raw) ? raw[0] : raw;
+    const normalized = (slug ?? '').trim().toLowerCase();
+    return normalized.length > 0 ? normalized : null;
   }
 }

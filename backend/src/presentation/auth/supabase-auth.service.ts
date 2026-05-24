@@ -9,6 +9,8 @@ type SupabaseJwtPayload = {
   role?: string;
   email_confirmed_at?: string | null;
   confirmed_at?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
   aud?: string | string[];
   iss?: string;
 };
@@ -19,6 +21,8 @@ type SupabaseUserResponse = {
   role?: string | null;
   email_confirmed_at?: string | null;
   confirmed_at?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
 };
 
 function isPlaceholder(value: string | undefined) {
@@ -31,6 +35,20 @@ function isPlaceholder(value: string | undefined) {
     normalized.includes('sua_chave') ||
     normalized.includes('placeholder')
   );
+}
+
+function parseJwtAlgorithm(accessToken: string): string | null {
+  const [headerPart] = accessToken.split('.');
+  if (!headerPart) return null;
+  try {
+    const normalized = headerPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const decoded = Buffer.from(padded, 'base64').toString('utf8');
+    const header = JSON.parse(decoded) as { alg?: string };
+    return typeof header.alg === 'string' ? header.alg : null;
+  } catch {
+    return null;
+  }
 }
 
 @Injectable()
@@ -48,13 +66,31 @@ export class SupabaseAuthService {
 
     const secretRaw = this.config.get<string>('SUPABASE_JWT_SECRET')?.trim();
     const secret = !isPlaceholder(secretRaw) ? secretRaw : null;
-
-    if (secret && expectedIssuer) {
-      return this.validateWithJwtSecret(accessToken, secret, expectedIssuer);
-    }
-
     const anonKeyRaw = this.config.get<string>('SUPABASE_ANON_KEY')?.trim();
     const anonKey = !isPlaceholder(anonKeyRaw) ? anonKeyRaw : null;
+    const tokenAlg = parseJwtAlgorithm(accessToken)?.toUpperCase();
+
+    if (tokenAlg && tokenAlg !== 'HS256' && anonKey && supabaseUrl) {
+      return this.validateWithSupabaseAuth(accessToken, supabaseUrl, anonKey);
+    }
+
+    if (secret && expectedIssuer) {
+      try {
+        return this.validateWithJwtSecret(accessToken, secret, expectedIssuer);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        const canFallback = anonKey && supabaseUrl;
+        // Newer Supabase projects can issue asymmetric tokens (non-HS256).
+        // In that case, fallback to online introspection with /auth/v1/user.
+        if (canFallback && message.toLowerCase().includes('invalid algorithm')) {
+          this.logger.warn(
+            'Token com algoritmo diferente de HS256; aplicando fallback de validacao no Supabase Auth.',
+          );
+          return this.validateWithSupabaseAuth(accessToken, supabaseUrl, anonKey);
+        }
+        throw error;
+      }
+    }
 
     if (anonKey && supabaseUrl) {
       return this.validateWithSupabaseAuth(accessToken, supabaseUrl, anonKey);
@@ -101,6 +137,8 @@ export class SupabaseAuthService {
       role: payload.role ?? null,
       emailConfirmedAt:
         payload.email_confirmed_at ?? payload.confirmed_at ?? null,
+      appMetadata: payload.app_metadata ?? null,
+      userMetadata: payload.user_metadata ?? null,
     };
   }
 
@@ -146,6 +184,8 @@ export class SupabaseAuthService {
       email: body.email ?? null,
       role: body.role ?? null,
       emailConfirmedAt: body.email_confirmed_at ?? body.confirmed_at ?? null,
+      appMetadata: body.app_metadata ?? null,
+      userMetadata: body.user_metadata ?? null,
     };
   }
 }

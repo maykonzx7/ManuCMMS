@@ -51,6 +51,7 @@ enum StatusAtivo {
   OPERACIONAL
   MANUTENCAO
   FALHA
+  INATIVO
 }
 
 /// DEM 3.x — tipos de intervenção.
@@ -111,6 +112,11 @@ model Ativo {
   empresa       Empresa?       @relation(fields: [empresaId], references: [id])
   unidade       UnidadeFabril  @relation(fields: [idUnidade], references: [id])
   nome          String         @db.VarChar(100)
+  tag           String?        @db.VarChar(80)
+  fabricante    String?        @db.VarChar(120)
+  modelo        String?        @db.VarChar(120)
+  numeroSerie   String?        @map("numero_serie") @db.VarChar(120)
+  observacoes   String?        @db.VarChar(500)
   status        StatusAtivo    @default(OPERACIONAL)
   limiteTemp    Float          @default(48) @map("limite_temp")
   createdAt     DateTime       @default(now()) @map("created_at")
@@ -139,6 +145,7 @@ model OrdemServico {
   fotoProblema      String?            @map("foto_problema") @db.VarChar(2048)
   /// RN-13 (OS corretiva): evidência da correção.
   fotoSolucao       String?            @map("foto_solucao") @db.VarChar(2048)
+  observacaoCancelamento String?       @map("observacao_cancelamento") @db.VarChar(1000)
   assinaturaDigital String?            @map("assinatura_digital") @db.Text
   dataAbertura      DateTime           @default(now()) @map("data_abertura")
   dataFechamento    DateTime?          @map("data_fechamento")
@@ -157,6 +164,7 @@ model Usuario {
   idUnidade         String           @map("id_unidade") @db.Uuid
   unidade           UnidadeFabril    @relation(fields: [idUnidade], references: [id])
   nome              String           @db.VarChar(150)
+  credencial        String?          @unique @db.VarChar(60)
   email             String           @unique @db.VarChar(100)
   perfil            PerfilUsuario
   status            StatusUsuario    @default(ATIVO)
@@ -166,8 +174,31 @@ model Usuario {
   usuariosEmpresa   UsuarioEmpresa[]
   convitesCriados   ConviteAcesso[]  @relation("ConviteCriadoPor")
   convitesAceitos   ConviteAcesso[]  @relation("ConviteAceitoPor")
+  notificacoes      Notificacao[]
 
   @@map("usuario")
+}
+
+model Notificacao {
+  id             String    @id @default(uuid()) @db.Uuid
+  usuarioId      String    @map("usuario_id") @db.Uuid
+  empresaId      String?   @map("empresa_id") @db.Uuid
+  idUnidade      String?   @map("id_unidade") @db.Uuid
+  ordemServicoId String?   @map("ordem_servico_id") @db.Uuid
+  tipo           String    @db.VarChar(24)
+  titulo         String    @db.VarChar(180)
+  mensagem       String    @db.VarChar(1000)
+  fotoUrl        String?   @map("foto_url") @db.VarChar(2048)
+  linkPath       String?   @map("link_path") @db.VarChar(300)
+  lidaEm         DateTime? @map("lida_em")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  usuario        Usuario   @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId, createdAt])
+  @@index([usuarioId, lidaEm])
+  @@index([ordemServicoId])
+  @@map("notificacao")
 }
 
 model UsuarioEmpresa {

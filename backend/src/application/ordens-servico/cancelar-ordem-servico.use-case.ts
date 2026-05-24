@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,
@@ -21,6 +26,7 @@ export class CancelarOrdemServicoUseCase {
   async execute(
     idUnidade: string,
     idOrdemServico: string,
+    input: { observacaoCancelamento?: string | null },
   ): Promise<OrdemServicoListaItem> {
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -29,6 +35,38 @@ export class CancelarOrdemServicoUseCase {
     if (!unidadeOk.empresaId) {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
-    return this.ordens.cancelar(idOrdemServico, unidadeOk.empresaId, idUnidade);
+
+    const atual = await this.ordens.findByIdInUnidade(
+      idOrdemServico,
+      unidadeOk.empresaId,
+      idUnidade,
+    );
+    if (!atual) {
+      throw new NotFoundException('Ordem de serviço não encontrada');
+    }
+    if (atual.status !== 'ABERTA') {
+      throw new BadRequestException(
+        'Cancelamento permitido somente para OS ABERTA.',
+      );
+    }
+
+    const observacaoCancelamento = input.observacaoCancelamento?.trim() ?? '';
+    if (observacaoCancelamento.length < 20) {
+      throw new BadRequestException(
+        'Informe uma observação de cancelamento com no mínimo 20 caracteres.',
+      );
+    }
+    if (observacaoCancelamento.length > 1000) {
+      throw new BadRequestException(
+        'Observação de cancelamento deve ter no máximo 1000 caracteres.',
+      );
+    }
+
+    return this.ordens.cancelar({
+      idOrdemServico,
+      empresaId: unidadeOk.empresaId,
+      idUnidade,
+      observacaoCancelamento,
+    });
   }
 }

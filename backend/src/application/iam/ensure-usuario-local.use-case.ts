@@ -29,9 +29,13 @@ export class EnsureUsuarioLocalUseCase {
     email: string | null;
     role: string | null;
     emailConfirmedAt: string | null;
-  },
+  }, options?: { preferredEmpresaSlug?: string | null },
   ): Promise<UsuarioLocalContext> {
-    const existentePorSub = await this.usuarios.findByAuthSub(jwt.userId);
+    const preferredEmpresaSlug = options?.preferredEmpresaSlug ?? null;
+    const existentePorSub = await this.usuarios.findByAuthSub(
+      jwt.userId,
+      preferredEmpresaSlug,
+    );
     if (existentePorSub) {
       await this.usuarios.ensureAccessContext({
         idUsuario: existentePorSub.id,
@@ -41,11 +45,18 @@ export class EnsureUsuarioLocalUseCase {
         perfil: existentePorSub.perfil as PerfilUsuarioCodigo,
       });
 
-      const atualizado = await this.usuarios.findByAuthSub(jwt.userId);
+      const atualizado = await this.usuarios.findByAuthSub(
+        jwt.userId,
+        preferredEmpresaSlug,
+      );
       if (atualizado) {
+        this.assertPreferredEmpresaScope(atualizado, preferredEmpresaSlug);
+        this.assertAccessIsActive(atualizado);
         return atualizado;
       }
 
+      this.assertPreferredEmpresaScope(existentePorSub, preferredEmpresaSlug);
+      this.assertAccessIsActive(existentePorSub);
       return existentePorSub;
     }
 
@@ -61,7 +72,15 @@ export class EnsureUsuarioLocalUseCase {
 
     const emailJwt = jwt.email?.trim().toLowerCase();
     if (allowAuthSubLinkByEmail && emailJwt) {
-      const existentePorEmail = await this.usuarios.findByEmail(emailJwt);
+      if (!jwt.emailConfirmedAt) {
+        throw new ForbiddenException(
+          'Nao foi possivel vincular login sem email confirmado no provedor de autenticacao.',
+        );
+      }
+      const existentePorEmail = await this.usuarios.findByEmail(
+        emailJwt,
+        preferredEmpresaSlug,
+      );
       if (existentePorEmail) {
         await this.usuarios.updateAuthSub(existentePorEmail.id, jwt.userId);
 
@@ -73,11 +92,18 @@ export class EnsureUsuarioLocalUseCase {
           perfil: existentePorEmail.perfil as PerfilUsuarioCodigo,
         });
 
-        const atualizado = await this.usuarios.findByAuthSub(jwt.userId);
+        const atualizado = await this.usuarios.findByAuthSub(
+          jwt.userId,
+          preferredEmpresaSlug,
+        );
         if (atualizado) {
+          this.assertPreferredEmpresaScope(atualizado, preferredEmpresaSlug);
+          this.assertAccessIsActive(atualizado);
           return atualizado;
         }
 
+        this.assertPreferredEmpresaScope(existentePorEmail, preferredEmpresaSlug);
+        this.assertAccessIsActive(existentePorEmail);
         return existentePorEmail;
       }
     }
@@ -85,5 +111,34 @@ export class EnsureUsuarioLocalUseCase {
     throw new ForbiddenException(
       'Usuario sem vinculo local. Solicite convite de acesso da empresa.',
     );
+  }
+
+  private assertPreferredEmpresaScope(
+    usuarioLocal: UsuarioLocalContext,
+    preferredEmpresaSlug: string | null,
+  ): void {
+    const expected = preferredEmpresaSlug?.trim().toLowerCase() ?? '';
+    if (!expected) return;
+    const current = usuarioLocal.empresa?.slug?.trim().toLowerCase() ?? '';
+    if (current === expected) return;
+    throw new ForbiddenException(
+      'Seu usuario nao possui acesso ao portal desta empresa.',
+    );
+  }
+
+  private assertAccessIsActive(usuarioLocal: UsuarioLocalContext): void {
+    const usuarioStatus = usuarioLocal.status?.trim().toUpperCase() ?? 'ATIVO';
+    if (usuarioStatus !== 'ATIVO') {
+      throw new ForbiddenException(
+        'Seu usuário está inativo ou bloqueado. Contate o administrador da empresa.',
+      );
+    }
+
+    const empresaStatus = usuarioLocal.empresa?.status?.trim().toUpperCase() ?? 'ATIVA';
+    if (empresaStatus !== 'ATIVA') {
+      throw new ForbiddenException(
+        'A conta da empresa está inativa ou suspensa. Contate o administrador responsável.',
+      );
+    }
   }
 }

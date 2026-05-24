@@ -4,7 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
-import { signTestJwt } from './helpers/sign-test-jwt';
+import { bootstrapAuthUser } from './helpers/bootstrap-auth-user';
 
 describe('UsuariosController (e2e)', () => {
   let app: INestApplication<App>;
@@ -35,14 +35,11 @@ describe('UsuariosController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'GET /unidades/:id/usuarios retorna apenas usuarios da unidade autenticada',
     async () => {
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-        email: 'teste-usuarios@manucmms.local',
-      });
+      const auth = await bootstrapAuthUser(prisma);
 
       const meResponse = await request(app.getHttpServer())
         .get('/me')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
 
       const unidadeId = (meResponse.body as { usuario: { idUnidade: string } })
@@ -60,6 +57,7 @@ describe('UsuariosController (e2e)', () => {
 
       const outraUnidade = await prisma.unidadeFabril.create({
         data: {
+          empresaId: auth.empresaId,
           nome: `Filial usuarios ${Date.now()}`,
           localizacao: 'Caruaru - PE (e2e)',
         },
@@ -77,7 +75,7 @@ describe('UsuariosController (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .get(`/unidades/${unidadeId}/usuarios`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
 
       const body = res.body as Array<{
@@ -102,20 +100,24 @@ describe('UsuariosController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'GET /unidades/:id/usuarios fora da unidade autenticada retorna 403',
     async () => {
+      const auth = await bootstrapAuthUser(prisma);
+      const outraEmpresa = await prisma.empresa.create({
+        data: {
+          nomeEmpresa: `Empresa Bloqueada ${Date.now()}`,
+          slug: `empresa-bloqueada-${Date.now()}`,
+        },
+      });
       const outraUnidade = await prisma.unidadeFabril.create({
         data: {
+          empresaId: outraEmpresa.id,
           nome: `Filial bloqueada usuarios ${Date.now()}`,
           localizacao: 'Garanhuns - PE (e2e)',
         },
       });
 
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
-
       await request(app.getHttpServer())
         .get(`/unidades/${outraUnidade.id}/usuarios`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(403);
     },
   );
@@ -123,13 +125,11 @@ describe('UsuariosController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'GET /unidades/:id/usuarios/:usuarioId retorna detalhe do usuario da unidade',
     async () => {
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
+      const auth = await bootstrapAuthUser(prisma);
 
       const meResponse = await request(app.getHttpServer())
         .get('/me')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
       const unidadeId = (meResponse.body as { usuario: { idUnidade: string } })
         .usuario.idUnidade;
@@ -146,7 +146,7 @@ describe('UsuariosController (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .get(`/unidades/${unidadeId}/usuarios/${usuario.id}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
       expect((res.body as { id: string }).id).toBe(usuario.id);
     },

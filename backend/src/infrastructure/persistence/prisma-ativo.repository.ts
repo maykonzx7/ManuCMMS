@@ -13,6 +13,11 @@ type AtivoRow = {
   id: string;
   idUnidade: string;
   nome: string;
+  tag: string | null;
+  fabricante: string | null;
+  modelo: string | null;
+  numeroSerie: string | null;
+  observacoes: string | null;
   status: string;
   limiteTemp: number;
   createdAt: Date;
@@ -32,6 +37,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         id,
         id_unidade AS "idUnidade",
         nome,
+        tag,
+        fabricante,
+        modelo,
+        numero_serie AS "numeroSerie",
+        observacoes,
         status,
         limite_temp AS "limiteTemp",
         created_at AS "createdAt",
@@ -54,6 +64,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         empresa_id,
         id_unidade,
         nome,
+        tag,
+        fabricante,
+        modelo,
+        numero_serie,
+        observacoes,
         status,
         limite_temp,
         created_at,
@@ -64,6 +79,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         ${input.empresaId}::uuid,
         ${input.idUnidade}::uuid,
         ${input.nome},
+        ${input.tag ?? null},
+        ${input.fabricante ?? null},
+        ${input.modelo ?? null},
+        ${input.numeroSerie ?? null},
+        ${input.observacoes ?? null},
         'OPERACIONAL',
         ${input.limiteTemp ?? 48},
         NOW(),
@@ -85,6 +105,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         id,
         id_unidade AS "idUnidade",
         nome,
+        tag,
+        fabricante,
+        modelo,
+        numero_serie AS "numeroSerie",
+        observacoes,
         status,
         limite_temp AS "limiteTemp",
         created_at AS "createdAt",
@@ -106,8 +131,23 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     if (input.limiteTemp !== undefined) {
       fields.push(Prisma.sql`limite_temp = ${input.limiteTemp}`);
     }
+    if (input.tag !== undefined) {
+      fields.push(Prisma.sql`tag = ${input.tag}`);
+    }
+    if (input.fabricante !== undefined) {
+      fields.push(Prisma.sql`fabricante = ${input.fabricante}`);
+    }
+    if (input.modelo !== undefined) {
+      fields.push(Prisma.sql`modelo = ${input.modelo}`);
+    }
+    if (input.numeroSerie !== undefined) {
+      fields.push(Prisma.sql`numero_serie = ${input.numeroSerie}`);
+    }
+    if (input.observacoes !== undefined) {
+      fields.push(Prisma.sql`observacoes = ${input.observacoes}`);
+    }
     if (input.status !== undefined) {
-      fields.push(Prisma.sql`status = ${input.status}`);
+      fields.push(Prisma.sql`status = ${input.status}::"StatusAtivo"`);
     }
     if (fields.length === 0) {
       return this.findByIdInUnidade(input.empresaId, input.idUnidade, input.idAtivo);
@@ -182,6 +222,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         id,
         id_unidade AS "idUnidade",
         nome,
+        tag,
+        fabricante,
+        modelo,
+        numero_serie AS "numeroSerie",
+        observacoes,
         status,
         limite_temp AS "limiteTemp",
         created_at AS "createdAt",
@@ -199,6 +244,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
       id: r.id,
       idUnidade: r.idUnidade,
       nome: r.nome,
+      tag: r.tag,
+      fabricante: r.fabricante,
+      modelo: r.modelo,
+      numeroSerie: r.numeroSerie,
+      observacoes: r.observacoes,
       status: r.status as AtivoListaItem['status'],
       limiteTemp: r.limiteTemp,
       createdAt: r.createdAt,

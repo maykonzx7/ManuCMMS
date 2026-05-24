@@ -21,12 +21,22 @@ import { UpdateAtivoUseCase } from '../../application/ativos/update-ativo.use-ca
 type CreateAtivoBody = {
   nome: string;
   limiteTemp?: number;
+  tag?: string;
+  fabricante?: string;
+  modelo?: string;
+  numeroSerie?: string;
+  observacoes?: string;
 };
 
 type UpdateAtivoBody = {
   nome?: string;
   limiteTemp?: number;
   status?: string;
+  tag?: string;
+  fabricante?: string;
+  modelo?: string;
+  numeroSerie?: string;
+  observacoes?: string;
 };
 
 /**

@@ -9,6 +9,11 @@ export type CreateAtivoInput = {
   idUnidade: string;
   nome: string;
   limiteTemp?: number;
+  tag?: string;
+  fabricante?: string;
+  modelo?: string;
+  numeroSerie?: string;
+  observacoes?: string;
 };
 
 export type UpdateAtivoInput = {
@@ -18,6 +23,11 @@ export type UpdateAtivoInput = {
   nome?: string;
   limiteTemp?: number;
   status?: StatusAtivoPersistido;
+  tag?: string;
+  fabricante?: string;
+  modelo?: string;
+  numeroSerie?: string;
+  observacoes?: string;
 };
 
 export interface IAtivoRepositoryPort {

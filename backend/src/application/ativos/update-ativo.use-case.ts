@@ -16,9 +16,19 @@ import {
 } from '../../domain/ports/unidade-read.port';
 
 const NOME_MAX = 100;
-const LIMITE_TEMP_MIN = 0.1;
-const LIMITE_TEMP_MAX = 500;
-const STATUS_VALIDOS: StatusAtivoPersistido[] = ['OPERACIONAL', 'MANUTENCAO', 'FALHA'];
+const TAG_MAX = 80;
+const FABRICANTE_MAX = 120;
+const MODELO_MAX = 120;
+const NUMERO_SERIE_MAX = 120;
+const OBSERVACOES_MAX = 500;
+const LIMITE_TEMP_MIN = 0;
+const LIMITE_TEMP_MAX = 200;
+const STATUS_VALIDOS: StatusAtivoPersistido[] = [
+  'OPERACIONAL',
+  'MANUTENCAO',
+  'FALHA',
+  'INATIVO',
+];
 
 @Injectable()
 export class UpdateAtivoUseCase {
@@ -32,7 +42,16 @@ export class UpdateAtivoUseCase {
   async execute(
     idUnidade: string,
     idAtivo: string,
-    input: { nome?: string; limiteTemp?: number; status?: string },
+    input: {
+      nome?: string;
+      limiteTemp?: number;
+      status?: string;
+      tag?: string;
+      fabricante?: string;
+      modelo?: string;
+      numeroSerie?: string;
+      observacoes?: string;
+    },
   ): Promise<AtivoListaItem> {
     const unidade = await this.unidades.findById(idUnidade);
     if (!unidade?.empresaId) {
@@ -66,10 +85,33 @@ export class UpdateAtivoUseCase {
       );
     }
 
+    const tag = this.normalizeOptionalField(input.tag, TAG_MAX, 'tag');
+    const fabricante = this.normalizeOptionalField(
+      input.fabricante,
+      FABRICANTE_MAX,
+      'fabricante',
+    );
+    const modelo = this.normalizeOptionalField(input.modelo, MODELO_MAX, 'modelo');
+    const numeroSerie = this.normalizeOptionalField(
+      input.numeroSerie,
+      NUMERO_SERIE_MAX,
+      'numeroSerie',
+    );
+    const observacoes = this.normalizeOptionalField(
+      input.observacoes,
+      OBSERVACOES_MAX,
+      'observacoes',
+    );
+
     if (
       nomeNormalizado === undefined &&
       input.limiteTemp === undefined &&
-      input.status === undefined
+      input.status === undefined &&
+      input.tag === undefined &&
+      input.fabricante === undefined &&
+      input.modelo === undefined &&
+      input.numeroSerie === undefined &&
+      input.observacoes === undefined
     ) {
       throw new BadRequestException('Informe ao menos um campo para atualização');
     }
@@ -81,11 +123,32 @@ export class UpdateAtivoUseCase {
       nome: nomeNormalizado,
       limiteTemp: input.limiteTemp,
       status,
+      tag,
+      fabricante,
+      modelo,
+      numeroSerie,
+      observacoes,
     });
 
     if (!atualizado) {
       throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
     }
     return atualizado;
+  }
+
+  private normalizeOptionalField(
+    value: string | undefined,
+    maxLength: number,
+    field: string,
+  ): string | undefined {
+    if (value === undefined) return undefined;
+    const normalized = value.trim();
+    if (normalized.length === 0) return '';
+    if (normalized.length > maxLength) {
+      throw new BadRequestException(
+        `${field} deve ter até ${maxLength} caracteres`,
+      );
+    }
+    return normalized;
   }
 }

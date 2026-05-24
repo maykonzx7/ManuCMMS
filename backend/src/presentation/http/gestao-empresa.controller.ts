@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { Prisma, StatusUsuario } from '@prisma/client';
+import { Prisma, StatusEmpresa, StatusUsuario } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
@@ -34,8 +34,8 @@ export class GestaoEmpresaController {
     this.ensureEmpresaScope(req, empresaId);
 
     const [empresaRows, usuarios, cargos, permissoes] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ id: string; nomeEmpresa: string; slug: string }>>(Prisma.sql`
-        SELECT id, nome_empresa AS "nomeEmpresa", slug
+      this.prisma.$queryRaw<Array<{ id: string; nomeEmpresa: string; slug: string; status: string }>>(Prisma.sql`
+        SELECT id, nome_empresa AS "nomeEmpresa", slug, status::text AS status
         FROM empresa
         WHERE id = ${empresaId}::uuid
         LIMIT 1
@@ -44,19 +44,26 @@ export class GestaoEmpresaController {
         Array<{
           id: string;
           nome: string;
+          usuarioAcesso: string | null;
           email: string;
           perfil: string;
           status: string;
+          idUnidade: string;
+          unidadeNome: string;
         }>
       >(Prisma.sql`
         SELECT DISTINCT
           u.id,
           u.nome,
+          u.credencial AS "usuarioAcesso",
           u.email,
           u.perfil::text AS perfil,
-          u.status::text AS status
+          u.status::text AS status,
+          u.id_unidade AS "idUnidade",
+          uf.nome AS "unidadeNome"
         FROM usuario u
         JOIN usuario_empresa ue ON ue.usuario_id = u.id
+        JOIN unidade_fabril uf ON uf.id = u.id_unidade
         WHERE ue.empresa_id = ${empresaId}::uuid
         ORDER BY u.nome ASC, u.email ASC
       `),
@@ -150,6 +157,35 @@ export class GestaoEmpresaController {
     };
   }
 
+  @Patch('status')
+  async atualizarStatusEmpresa(
+    @Param('empresaId') empresaId: string,
+    @Body() body: { status: string },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const nextStatus = (body.status ?? '').trim().toUpperCase() as StatusEmpresa;
+    if (!['ATIVA', 'INATIVA', 'SUSPENSA'].includes(nextStatus)) {
+      throw new BadRequestException('status inválido. Use: ATIVA, INATIVA ou SUSPENSA.');
+    }
+
+    const updated = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE empresa
+      SET
+        status = ${nextStatus}::"StatusEmpresa",
+        updated_at = NOW()
+      WHERE id = ${empresaId}::uuid
+    `);
+
+    if (!updated) {
+      throw new BadRequestException('Empresa não encontrada.');
+    }
+
+    return { ok: true, status: nextStatus };
+  }
+
   @Patch('usuarios/:usuarioId/status')
   async atualizarStatusUsuario(
     @Param('empresaId') empresaId: string,
@@ -214,6 +250,185 @@ export class GestaoEmpresaController {
     }
 
     return { ok: true, perfil };
+  }
+
+  @Patch('usuarios/:usuarioId/email')
+  async atualizarEmailUsuario(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { email: string },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const email = (body.email ?? '').trim().toLowerCase();
+    if (!email || email.length > 100 || !email.includes('@')) {
+      throw new BadRequestException('email inválido.');
+    }
+
+    const usuarioRows = await this.prisma.$queryRaw<
+      Array<{ authSub: string | null }>
+    >(Prisma.sql`
+      SELECT u.auth_sub AS "authSub"
+      FROM usuario u
+      JOIN usuario_empresa ue ON ue.usuario_id = u.id
+      WHERE u.id = ${usuarioId}::uuid
+        AND ue.empresa_id = ${empresaId}::uuid
+      LIMIT 1
+    `);
+    const authSub = usuarioRows[0]?.authSub ?? null;
+    if (!usuarioRows[0]) {
+      throw new BadRequestException('Usuário não encontrado na empresa.');
+    }
+
+    const supabaseUrl = this.config.get<string>('SUPABASE_URL')?.trim();
+    const serviceRole = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY')?.trim();
+    if (authSub && supabaseUrl && serviceRole) {
+      const response = await fetch(
+        `${supabaseUrl.replace(/\/$/, '')}/auth/v1/admin/users/${authSub}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: serviceRole,
+            Authorization: `Bearer ${serviceRole}`,
+          },
+          body: JSON.stringify({ email }),
+        },
+      );
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { msg?: string; error_description?: string }
+          | null;
+        throw new BadRequestException(
+          payload?.error_description ||
+            payload?.msg ||
+            'Falha ao atualizar email no provedor de autenticação.',
+        );
+      }
+    }
+
+    try {
+      const updated = await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE usuario u
+        SET
+          email = ${email},
+          updated_at = NOW()
+        FROM usuario_empresa ue
+        WHERE ue.usuario_id = u.id
+          AND ue.empresa_id = ${empresaId}::uuid
+          AND u.id = ${usuarioId}::uuid
+      `);
+
+      if (!updated) {
+        throw new BadRequestException('Usuário não encontrado na empresa.');
+      }
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2002' ||
+          (error.code === 'P2010' &&
+            (error.meta as { code?: string } | undefined)?.code === '23505'))
+      ) {
+        throw new BadRequestException('Email já está em uso por outro usuário.');
+      }
+      throw error;
+    }
+
+    return { ok: true, email };
+  }
+
+  @Patch('usuarios/:usuarioId/nome')
+  async atualizarNomeUsuario(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { nome: string },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const nome = (body.nome ?? '').trim();
+    if (!nome || nome.length < 3 || nome.length > 150) {
+      throw new BadRequestException('nome inválido. Use entre 3 e 150 caracteres.');
+    }
+
+    const updated = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE usuario u
+      SET
+        nome = ${nome},
+        updated_at = NOW()
+      FROM usuario_empresa ue
+      WHERE ue.usuario_id = u.id
+        AND ue.empresa_id = ${empresaId}::uuid
+        AND u.id = ${usuarioId}::uuid
+    `);
+
+    if (!updated) {
+      throw new BadRequestException('Usuário não encontrado na empresa.');
+    }
+
+    return { ok: true, nome };
+  }
+
+  @Patch('usuarios/:usuarioId/usuario-acesso')
+  async atualizarUsuarioAcessoUsuario(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { usuarioAcesso?: string; credencial?: string },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const usuarioAcesso = (body.usuarioAcesso ?? body.credencial ?? '').trim().toLowerCase();
+    if (!usuarioAcesso || usuarioAcesso.length < 3 || usuarioAcesso.length > 60) {
+      throw new BadRequestException('usuarioAcesso inválido. Use entre 3 e 60 caracteres.');
+    }
+    if (!/^[a-z0-9._-]+$/.test(usuarioAcesso)) {
+      throw new BadRequestException('usuarioAcesso inválido. Use apenas letras minúsculas, números, ponto, underline ou hífen.');
+    }
+
+    try {
+      const updated = await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE usuario u
+        SET
+          credencial = ${usuarioAcesso},
+          updated_at = NOW()
+        FROM usuario_empresa ue
+        WHERE ue.usuario_id = u.id
+          AND ue.empresa_id = ${empresaId}::uuid
+          AND u.id = ${usuarioId}::uuid
+      `);
+
+      if (!updated) {
+        throw new BadRequestException('Usuário não encontrado na empresa.');
+      }
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2002' ||
+          (error.code === 'P2010' &&
+            (error.meta as { code?: string } | undefined)?.code === '23505'))
+      ) {
+        throw new BadRequestException('Usuário de acesso já está em uso por outro usuário.');
+      }
+      throw error;
+    }
+
+    return { ok: true, usuarioAcesso };
+  }
+
+  // Compatibilidade com clientes antigos; manter temporariamente.
+  @Patch('usuarios/:usuarioId/credencial')
+  async atualizarCredencialUsuarioLegacy(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { credencial: string },
+    @Req() req: Request,
+  ) {
+    return this.atualizarUsuarioAcessoUsuario(empresaId, usuarioId, { usuarioAcesso: body.credencial }, req);
   }
 
   @Patch('cargos/:cargoId/permissoes')
@@ -451,6 +666,70 @@ export class GestaoEmpresaController {
       email,
       resetLink: payload?.action_link ?? null,
     };
+  }
+
+  @Patch('usuarios/:usuarioId/senha')
+  async definirSenhaUsuario(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { senha: string },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const senha = (body.senha ?? '').trim();
+    if (senha.length < 8 || senha.length > 72) {
+      throw new BadRequestException('senha inválida. Use entre 8 e 72 caracteres.');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<{ authSub: string | null }>>(Prisma.sql`
+      SELECT u.auth_sub AS "authSub"
+      FROM usuario u
+      JOIN usuario_empresa ue ON ue.usuario_id = u.id
+      WHERE u.id = ${usuarioId}::uuid
+        AND ue.empresa_id = ${empresaId}::uuid
+      LIMIT 1
+    `);
+
+    const authSub = rows[0]?.authSub ?? null;
+    if (!authSub) {
+      throw new BadRequestException('Usuário não encontrado na empresa ou sem vínculo de autenticação.');
+    }
+
+    const supabaseUrl = this.config.get<string>('SUPABASE_URL')?.trim();
+    const serviceRole = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY')?.trim();
+    if (!supabaseUrl || !serviceRole) {
+      throw new InternalServerErrorException(
+        'SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias para atualização de senha administrativa.',
+      );
+    }
+
+    const response = await fetch(
+      `${supabaseUrl.replace(/\/$/, '')}/auth/v1/admin/users/${authSub}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: serviceRole,
+          Authorization: `Bearer ${serviceRole}`,
+        },
+        body: JSON.stringify({ password: senha }),
+      },
+    );
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { msg?: string; error_description?: string }
+        | null;
+      throw new BadRequestException(
+        payload?.error_description ||
+          payload?.msg ||
+          'Não foi possível atualizar a senha no provedor de autenticação.',
+      );
+    }
+
+    return { ok: true };
   }
 
   private ensureEmpresaScope(req: Request, empresaId: string) {

@@ -13,6 +13,6 @@ import { UsuarioBootstrapGuard } from './usuario-bootstrap.guard';
     EnsureUsuarioLocalUseCase,
     UsuarioBootstrapGuard,
   ],
-  exports: [JwtAuthGuard, UsuarioBootstrapGuard],
+  exports: [SupabaseAuthService, JwtAuthGuard, UsuarioBootstrapGuard],
 })
 export class AuthModule {}

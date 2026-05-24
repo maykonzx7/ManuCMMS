@@ -4,7 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
-import { signTestJwt } from './helpers/sign-test-jwt';
+import { bootstrapAuthUser } from './helpers/bootstrap-auth-user';
 
 describe('AtivosController (e2e)', () => {
   let app: INestApplication<App>;
@@ -33,14 +33,20 @@ describe('AtivosController (e2e)', () => {
   const runComDb = process.env.CI === 'true' || process.env.RUN_DB_E2E === '1';
 
   (runComDb ? it : it.skip)(
-    'GET /unidades/:id/ativos com JWT retorna lista (seed com ativo dev)',
+    'GET /unidades/:id/ativos com JWT retorna lista no contexto autenticado',
     async () => {
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
+      const auth = await bootstrapAuthUser(prisma);
+      await prisma.ativo.create({
+        data: {
+          empresaId: auth.empresaId,
+          idUnidade: auth.unidadeId,
+          nome: `Ativo base ${Date.now()}`,
+        },
       });
+
       const unidadesRes = await request(app.getHttpServer())
         .get('/unidades')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
       const lista = unidadesRes.body as Array<{ id: string }>;
       expect(lista.length).toBeGreaterThanOrEqual(1);
@@ -48,7 +54,7 @@ describe('AtivosController (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .get(`/unidades/${unidadeId}/ativos`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
 
       const body = res.body as Array<{
@@ -62,27 +68,31 @@ describe('AtivosController (e2e)', () => {
       const first = body[0];
       expect(typeof first.nome).toBe('string');
       expect(['OPERACIONAL', 'MANUTENCAO', 'FALHA']).toContain(first.status);
-      expect(first.limiteTemp).toBe(48);
+      expect(typeof first.limiteTemp).toBe('number');
     },
   );
 
   (runComDb ? it : it.skip)(
     'GET /unidades/:id/ativos fora da unidade autenticada retorna 403',
     async () => {
+      const auth = await bootstrapAuthUser(prisma);
+      const outraEmpresa = await prisma.empresa.create({
+        data: {
+          nomeEmpresa: `Empresa Ativos Bloqueada ${Date.now()}`,
+          slug: `empresa-ativos-bloqueada-${Date.now()}`,
+        },
+      });
       const outraUnidade = await prisma.unidadeFabril.create({
         data: {
+          empresaId: outraEmpresa.id,
           nome: `Filial ativos ${Date.now()}`,
           localizacao: 'Olinda - PE (e2e)',
         },
       });
 
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
-
       await request(app.getHttpServer())
         .get(`/unidades/${outraUnidade.id}/ativos`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(403);
     },
   );
@@ -90,31 +100,29 @@ describe('AtivosController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'CRUD de ativo: detail + update + delete',
     async () => {
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
+      const auth = await bootstrapAuthUser(prisma);
 
       const unidadesRes = await request(app.getHttpServer())
         .get('/unidades')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
       const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
 
       const created = await request(app.getHttpServer())
         .post(`/unidades/${unidadeId}/ativos`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .send({ nome: `Ativo CRUD ${Date.now()}` })
         .expect(201);
       const ativoId = (created.body as { id: string }).id;
 
       await request(app.getHttpServer())
         .get(`/unidades/${unidadeId}/ativos/${ativoId}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
 
       const updated = await request(app.getHttpServer())
         .patch(`/unidades/${unidadeId}/ativos/${ativoId}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .send({ nome: 'Ativo atualizado', limiteTemp: 55, status: 'FALHA' })
         .expect(200);
       expect((updated.body as { nome: string }).nome).toBe('Ativo atualizado');
@@ -122,12 +130,12 @@ describe('AtivosController (e2e)', () => {
 
       await request(app.getHttpServer())
         .delete(`/unidades/${unidadeId}/ativos/${ativoId}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(204);
 
       await request(app.getHttpServer())
         .get(`/unidades/${unidadeId}/ativos/${ativoId}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(404);
     },
   );
@@ -135,26 +143,24 @@ describe('AtivosController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'DELETE ativo com OS vinculada retorna erro de negócio',
     async () => {
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
+      const auth = await bootstrapAuthUser(prisma);
 
       const unidadesRes = await request(app.getHttpServer())
         .get('/unidades')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
       const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
 
       const created = await request(app.getHttpServer())
         .post(`/unidades/${unidadeId}/ativos`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .send({ nome: `Ativo bloqueado ${Date.now()}` })
         .expect(201);
       const ativoId = (created.body as { id: string }).id;
 
       await request(app.getHttpServer())
         .post(`/unidades/${unidadeId}/ordens-servico`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .send({
           idAtivo: ativoId,
           tipo: 'PREVENTIVA',
@@ -164,7 +170,7 @@ describe('AtivosController (e2e)', () => {
 
       await request(app.getHttpServer())
         .delete(`/unidades/${unidadeId}/ativos/${ativoId}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(409);
     },
   );

@@ -39,12 +39,18 @@ export class DeleteAtivoUseCase {
         throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
       }
     } catch (e) {
-      if (
+      const isForeignKeyViolationViaExecuteRaw =
         e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2003'
+        e.code === 'P2010' &&
+        typeof e.meta?.code === 'string' &&
+        e.meta.code === '23503';
+      if (
+        (e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2003') ||
+        isForeignKeyViolationViaExecuteRaw
       ) {
         throw new ConflictException(
-          'Ativo possui ordens de serviço relacionadas e não pode ser removido',
+          'Ativo possui ordens de serviço relacionadas e não pode ser removido; inative o cadastro em vez de excluir.',
         );
       }
       throw e;

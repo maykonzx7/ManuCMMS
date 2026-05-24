@@ -1,9 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
-  Headers,
-  InternalServerErrorException,
   Param,
   Post,
   Req,
@@ -14,9 +11,9 @@ import { AcceptConviteAcessoUseCase } from '../../application/onboarding/accept-
 import { CreateConviteAcessoUseCase } from '../../application/onboarding/create-convite-acesso.use-case';
 import { CreateEmpresaWithInviteUseCase } from '../../application/onboarding/create-empresa-with-invite.use-case';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import type { AuthUserContext } from '../auth/auth-user.types';
 import { AllowPendingUser } from '../auth/allow-pending-user.decorator';
-import { Public } from '../auth/public.decorator';
 import { RequestRateLimitService } from './request-rate-limit.service';
 
 type RequestWithUser = Request & { user: AuthUserContext };
@@ -29,6 +26,7 @@ export class OnboardingController {
     private readonly createConviteAcesso: CreateConviteAcessoUseCase,
     private readonly acceptConviteAcesso: AcceptConviteAcessoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+    private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
     private readonly rateLimit: RequestRateLimitService,
   ) {}
 
@@ -36,11 +34,10 @@ export class OnboardingController {
    * Onboarding inicial da plataforma.
    * Futuramente deve ser restrito ao Administrador da Plataforma.
    */
-  @Public()
+  @AllowPendingUser()
   @Post('empresas')
   async createEmpresa(
-    @Headers('x-platform-admin-key') platformAdminKey: string | undefined,
-    @Req() req: Request,
+    @Req() req: RequestWithUser,
     @Body()
     body: {
       nomeEmpresa: string;
@@ -59,15 +56,7 @@ export class OnboardingController {
       message: 'Muitas tentativas de criar empresa. Aguarde e tente novamente.',
     });
 
-    const requiredPlatformKey = this.config.get<string>('PLATFORM_ADMIN_KEY')?.trim() ?? '';
-    if (!requiredPlatformKey) {
-      throw new InternalServerErrorException(
-        'PLATFORM_ADMIN_KEY nao configurada para onboarding da plataforma.',
-      );
-    }
-    if ((platformAdminKey ?? '').trim() !== requiredPlatformKey) {
-      throw new ForbiddenException('Acesso restrito ao administrador da plataforma.');
-    }
+    this.authorizePlatformOperator.execute(req.user);
 
     return this.createEmpresaWithInvite.execute(body);
   }

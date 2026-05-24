@@ -46,6 +46,10 @@ type UpdateOrdemServicoBody = {
   idTecnico?: string | null;
 };
 
+type CancelarOrdemServicoBody = {
+  observacaoCancelamento?: string | null;
+};
+
 type FecharOrdemServicoFiles = {
   fotoAnexo?: Express.Multer.File[];
   fotoProblema?: Express.Multer.File[];
@@ -151,12 +155,13 @@ export class OrdensServicoController {
   async cancelar(
     @Param('unidadeId') unidadeId: string,
     @Param('ordemServicoId') ordemServicoId: string,
+    @Body() body: CancelarOrdemServicoBody,
     @Req() req: Request,
   ) {
     this.assertTecnicoCannotCreateOrEdit(req);
     this.authorizePermission.execute(req.usuarioLocal, 'os.cancelar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.cancelarOrdem.execute(unidadeId, ordemServicoId);
+    return this.cancelarOrdem.execute(unidadeId, ordemServicoId, body);
   }
 
   @Patch(':ordemServicoId/fechar')
@@ -187,8 +192,8 @@ export class OrdensServicoController {
   async fechar(
     @Param('unidadeId') unidadeId: string,
     @Param('ordemServicoId') ordemServicoId: string,
-    @Body() body: FecharOrdemServicoBody,
-    @UploadedFiles() files: FecharOrdemServicoFiles,
+    @Body() body: FecharOrdemServicoBody = {},
+    @UploadedFiles() files: FecharOrdemServicoFiles = {},
     @Req() req: Request,
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.fechar');
@@ -196,7 +201,9 @@ export class OrdensServicoController {
     const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
     this.assertTecnicoCanAccessOrdem(req, ordem);
     return this.fecharOrdem.execute(unidadeId, ordemServicoId, {
-      fotoAnexo: files.fotoAnexo?.[0] ? fileToPublicUrl(req, files.fotoAnexo[0]) : body.fotoAnexo,
+      fotoAnexo: files.fotoAnexo?.[0]
+        ? fileToPublicUrl(req, files.fotoAnexo[0])
+        : body.fotoAnexo,
       fotoProblema: files.fotoProblema?.[0]
         ? fileToPublicUrl(req, files.fotoProblema[0])
         : body.fotoProblema,

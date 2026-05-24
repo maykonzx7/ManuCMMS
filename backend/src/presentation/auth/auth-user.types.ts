@@ -4,4 +4,6 @@ export type AuthUserContext = {
   email: string | null;
   role: string | null;
   emailConfirmedAt: string | null;
+  appMetadata: Record<string, unknown> | null;
+  userMetadata: Record<string, unknown> | null;
 };

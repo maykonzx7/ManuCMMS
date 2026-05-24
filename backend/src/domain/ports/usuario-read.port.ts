@@ -35,8 +35,14 @@ export interface IUsuarioReadPort {
     idUsuario: string,
     idUnidade: string,
   ): Promise<UsuarioLocalContext | null>;
-  findByAuthSub(authSub: string): Promise<UsuarioLocalContext | null>;
-  findByEmail(email: string): Promise<UsuarioLocalContext | null>;
+  findByAuthSub(
+    authSub: string,
+    preferredEmpresaSlug?: string | null,
+  ): Promise<UsuarioLocalContext | null>;
+  findByEmail(
+    email: string,
+    preferredEmpresaSlug?: string | null,
+  ): Promise<UsuarioLocalContext | null>;
   updateAuthSub(idUsuario: string, authSub: string): Promise<void>;
   ensureAccessContext(input: EnsureUsuarioEmpresaAccessInput): Promise<void>;
   createBootstrap(

@@ -16,6 +16,12 @@ function parseCsvEnv(name: string): string[] {
 
 function resolveDefaultCorsOrigins(): string[] {
   return [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'http://localhost:3002',
+    'http://127.0.0.1:3002',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:4173',
@@ -28,6 +34,24 @@ function buildCorsOriginChecker() {
   const suffixes = parseCsvEnv('CORS_ALLOWED_ORIGIN_SUFFIXES');
   const allowedExactOrigins =
     exactOrigins.length > 0 ? exactOrigins : resolveDefaultCorsOrigins();
+  const nodeEnv = (process.env.NODE_ENV ?? 'development').trim().toLowerCase();
+  const isProduction = nodeEnv === 'production';
+
+  function isLocalDevOrigin(origin: string): boolean {
+    try {
+      const { protocol, hostname } = new URL(origin);
+      if (protocol !== 'http:' && protocol !== 'https:') return false;
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        return true;
+      }
+      if (hostname.startsWith('192.168.')) return true;
+      if (hostname.startsWith('10.')) return true;
+      if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  }
 
   return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Requests from curl, server-to-server clients and health checks may not send Origin.
@@ -37,6 +61,11 @@ function buildCorsOriginChecker() {
     }
 
     if (allowedExactOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    if (!isProduction && isLocalDevOrigin(origin)) {
       callback(null, true);
       return;
     }

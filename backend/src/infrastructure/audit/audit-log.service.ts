@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   AuditLogConsulta,
   AuditLogItem,
+  AuditLogListResult,
   AuditLogEntrada,
   IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
@@ -26,6 +27,31 @@ export class AuditLogService
   private client: MongoClient | null = null;
 
   constructor(private readonly config: ConfigService) {}
+
+  private deriveAction(doc: {
+    valor_anterior?: Record<string, unknown>;
+    valor_novo?: Record<string, unknown>;
+  }): AuditLogItem['acao'] {
+    const before = doc.valor_anterior ?? {};
+    const after = doc.valor_novo ?? {};
+    const explicitAction = String(after.acao ?? '').trim().toUpperCase();
+    if (
+      explicitAction === 'CREATE' ||
+      explicitAction === 'UPDATE' ||
+      explicitAction === 'DELETE' ||
+      explicitAction === 'SETTINGS_CHANGE' ||
+      explicitAction === 'LOGIN' ||
+      explicitAction === 'LOGOUT' ||
+      explicitAction === 'EXPORT'
+    ) {
+      return explicitAction as AuditLogItem['acao'];
+    }
+    if (Object.keys(before).length === 0) return 'CREATE';
+    const statusAfter = String(after.status ?? '');
+    if (statusAfter === 'CANCELADA') return 'DELETE';
+    if (statusAfter === 'CONCLUIDA') return 'SETTINGS_CHANGE';
+    return 'UPDATE';
+  }
 
   async onModuleInit() {
     const uri = this.config.get<string>('MONGODB_URI')?.trim();
@@ -75,9 +101,9 @@ export class AuditLogService
     }
   }
 
-  async list(filtro: AuditLogConsulta = {}): Promise<AuditLogItem[]> {
+  async list(filtro: AuditLogConsulta = {}): Promise<AuditLogListResult> {
     if (!this.client) {
-      return [];
+      return { items: [], total: 0, page: 1, limit: 100 };
     }
 
     const query: Record<string, unknown> = {};
@@ -100,6 +126,9 @@ export class AuditLogService
     if (filtro.entidade?.trim()) {
       query.entidade_afetada = filtro.entidade.trim();
     }
+    if (filtro.idUsuario?.trim()) {
+      query.id_usuario = filtro.idUsuario.trim();
+    }
 
     if (filtro.unidadeId?.trim()) {
       const unidadeId = filtro.unidadeId.trim();
@@ -110,19 +139,20 @@ export class AuditLogService
       ];
     }
 
+    const page = Math.max(1, Number(filtro.page ?? 1));
     const limit = Math.min(Math.max(filtro.limit ?? 100, 1), 500);
+    const skip = (page - 1) * limit;
 
-    const docs = await this.client
-      .db()
-      .collection('log_auditoria')
+    const collection = this.client.db().collection('log_auditoria');
+    const docs = await collection
       .find(query)
       .sort({ data_hora: -1 })
-      .limit(limit)
       .toArray();
 
-    return docs.map((doc) => ({
+    const mapped = docs.map((doc) => ({
       idLog: String(doc.id_log ?? ''),
       idUsuario: (doc.id_usuario as string | null | undefined) ?? null,
+      acao: this.deriveAction(doc as never),
       entidadeAfetada: String(doc.entidade_afetada ?? ''),
       idRegistro: String(doc.id_registro ?? ''),
       valorAnterior:
@@ -133,5 +163,43 @@ export class AuditLogService
           ? doc.data_hora.toISOString()
           : new Date().toISOString(),
     }));
+
+    const actionFilter = filtro.acao?.trim().toUpperCase();
+    const filtered =
+      actionFilter &&
+      ['CREATE', 'UPDATE', 'DELETE', 'SETTINGS_CHANGE', 'LOGIN', 'LOGOUT', 'EXPORT'].includes(actionFilter)
+        ? mapped.filter((item) => item.acao === actionFilter)
+        : mapped;
+    const total = filtered.length;
+    const items = filtered.slice(skip, skip + limit);
+
+    return { items, total, page, limit };
+  }
+
+  async getById(idLog: string): Promise<AuditLogItem | null> {
+    if (!this.client) {
+      return null;
+    }
+    const doc = await this.client
+      .db()
+      .collection('log_auditoria')
+      .findOne({ id_log: idLog });
+
+    if (!doc) return null;
+
+    return {
+      idLog: String(doc.id_log ?? ''),
+      idUsuario: (doc.id_usuario as string | null | undefined) ?? null,
+      acao: this.deriveAction(doc as never),
+      entidadeAfetada: String(doc.entidade_afetada ?? ''),
+      idRegistro: String(doc.id_registro ?? ''),
+      valorAnterior:
+        (doc.valor_anterior as Record<string, unknown> | undefined) ?? {},
+      valorNovo: (doc.valor_novo as Record<string, unknown> | undefined) ?? {},
+      dataHora:
+        doc.data_hora instanceof Date
+          ? doc.data_hora.toISOString()
+          : new Date().toISOString(),
+    };
   }
 }

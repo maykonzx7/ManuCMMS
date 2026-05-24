@@ -60,8 +60,11 @@ export interface IOrdemServicoRepositoryPort {
     idUnidade: string,
   ): Promise<OrdemServicoListaItem>;
   cancelar(
-    idOrdemServico: string,
-    empresaId: string,
-    idUnidade: string,
+    input: {
+      idOrdemServico: string;
+      empresaId: string;
+      idUnidade: string;
+      observacaoCancelamento: string;
+    },
   ): Promise<OrdemServicoListaItem>;
 }

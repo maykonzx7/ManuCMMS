@@ -11,11 +11,13 @@ export class PrismaUnidadeRepository implements IUnidadeReadPort {
   async listAll(): Promise<UnidadeListaItem[]> {
     return this.prisma.$queryRaw<UnidadeListaItem[]>(Prisma.sql`
       SELECT
-        id,
-        nome,
-        localizacao,
-        empresa_id AS "empresaId"
-      FROM unidade_fabril
+        uf.id,
+        uf.nome,
+        uf.localizacao,
+        uf.empresa_id AS "empresaId",
+        e.slug AS "empresaSlug"
+      FROM unidade_fabril uf
+      JOIN empresa e ON e.id = uf.empresa_id
       ORDER BY nome ASC
     `);
   }
@@ -23,12 +25,14 @@ export class PrismaUnidadeRepository implements IUnidadeReadPort {
   async listByEmpresa(empresaId: string): Promise<UnidadeListaItem[]> {
     return this.prisma.$queryRaw<UnidadeListaItem[]>(Prisma.sql`
       SELECT
-        id,
-        nome,
-        localizacao,
-        empresa_id AS "empresaId"
-      FROM unidade_fabril
-      WHERE empresa_id = ${empresaId}::uuid
+        uf.id,
+        uf.nome,
+        uf.localizacao,
+        uf.empresa_id AS "empresaId",
+        e.slug AS "empresaSlug"
+      FROM unidade_fabril uf
+      JOIN empresa e ON e.id = uf.empresa_id
+      WHERE uf.empresa_id = ${empresaId}::uuid
       ORDER BY nome ASC
     `);
   }
@@ -40,25 +44,29 @@ export class PrismaUnidadeRepository implements IUnidadeReadPort {
 
     return this.prisma.$queryRaw<UnidadeListaItem[]>(Prisma.sql`
       SELECT
-        id,
-        nome,
-        localizacao,
-        empresa_id AS "empresaId"
-      FROM unidade_fabril
-      WHERE id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-      ORDER BY nome ASC
+        uf.id,
+        uf.nome,
+        uf.localizacao,
+        uf.empresa_id AS "empresaId",
+        e.slug AS "empresaSlug"
+      FROM unidade_fabril uf
+      JOIN empresa e ON e.id = uf.empresa_id
+      WHERE uf.id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+      ORDER BY uf.nome ASC
     `);
   }
 
   async findById(id: string): Promise<UnidadeListaItem | null> {
     const rows = await this.prisma.$queryRaw<UnidadeListaItem[]>(Prisma.sql`
       SELECT
-        id,
-        nome,
-        localizacao,
-        empresa_id AS "empresaId"
-      FROM unidade_fabril
-      WHERE id = ${id}::uuid
+        uf.id,
+        uf.nome,
+        uf.localizacao,
+        uf.empresa_id AS "empresaId",
+        e.slug AS "empresaSlug"
+      FROM unidade_fabril uf
+      JOIN empresa e ON e.id = uf.empresa_id
+      WHERE uf.id = ${id}::uuid
       LIMIT 1
     `);
     return rows[0] ?? null;

@@ -25,6 +25,7 @@ type OrdemServicoRow = {
   fotoAnexo: string | null;
   fotoProblema: string | null;
   fotoSolucao: string | null;
+  observacaoCancelamento: string | null;
   dataAbertura: Date;
   dataFechamento: Date | null;
 };
@@ -38,6 +39,7 @@ function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
     descricao:
       o.descricao.length > 500 ? `${o.descricao.slice(0, 500)}…` : o.descricao,
     idTecnico: o.idTecnico,
+    observacaoCancelamento: o.observacaoCancelamento,
     dataAbertura: o.dataAbertura.toISOString(),
     dataFechamento: o.dataFechamento?.toISOString() ?? null,
   };
@@ -82,7 +84,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           ${input.empresaId}::uuid,
           ${input.idAtivo}::uuid,
           ${input.idTecnico ?? null}::uuid,
-          ${input.tipo},
+          ${input.tipo}::"TipoOrdemServico",
           'ABERTA',
           ${input.descricao},
           NOW()
@@ -279,15 +281,16 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     return item;
   }
 
-  async cancelar(
-    idOrdemServico: string,
-    empresaId: string,
-    idUnidade: string,
-  ): Promise<OrdemServicoListaItem> {
+  async cancelar(input: {
+    idOrdemServico: string;
+    empresaId: string;
+    idUnidade: string;
+    observacaoCancelamento: string;
+  }): Promise<OrdemServicoListaItem> {
     const atual = await this.findStatusTransitionCandidate(
-      idOrdemServico,
-      empresaId,
-      idUnidade,
+      input.idOrdemServico,
+      input.empresaId,
+      input.idUnidade,
       ['ABERTA', 'EM_EXECUCAO'],
     );
     if (!atual) {
@@ -296,22 +299,26 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       );
     }
 
-    const antes = osParaAuditoria(await this.findById(idOrdemServico, empresaId));
+    const antes = osParaAuditoria(
+      await this.findById(input.idOrdemServico, input.empresaId),
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`
         UPDATE ordem_servico
-        SET status = 'CANCELADA'
-        WHERE id = ${idOrdemServico}::uuid
-          AND empresa_id = ${empresaId}::uuid
+        SET
+          status = 'CANCELADA',
+          observacao_cancelamento = ${input.observacaoCancelamento}
+        WHERE id = ${input.idOrdemServico}::uuid
+          AND empresa_id = ${input.empresaId}::uuid
       `);
 
       const abertas = await tx.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
         SELECT COUNT(*)::bigint AS total
         FROM ordem_servico
-        WHERE empresa_id = ${empresaId}::uuid
+        WHERE empresa_id = ${input.empresaId}::uuid
           AND id_ativo = ${atual.idAtivo}::uuid
-          AND id <> ${idOrdemServico}::uuid
+          AND id <> ${input.idOrdemServico}::uuid
           AND status IN ('ABERTA', 'EM_EXECUCAO')
       `);
 
@@ -322,13 +329,13 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
             status = 'OPERACIONAL',
             updated_at = NOW()
           WHERE id = ${atual.idAtivo}::uuid
-            AND empresa_id = ${empresaId}::uuid
-            AND id_unidade = ${idUnidade}::uuid
+            AND empresa_id = ${input.empresaId}::uuid
+            AND id_unidade = ${input.idUnidade}::uuid
         `);
       }
     });
 
-    const item = await this.findById(idOrdemServico, empresaId);
+    const item = await this.findById(input.idOrdemServico, input.empresaId);
     await this.auditLog.append({
       idUsuario: null,
       entidadeAfetada: 'OrdemServico',
@@ -346,6 +353,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     idUnidade: string,
     statuses: string[],
   ) {
+    const statusParams = statuses.map(
+      (status) => Prisma.sql`${status}::"StatusOrdemServico"`,
+    );
     const rows = await this.prisma.$queryRaw<Array<{ idAtivo: string }>>(Prisma.sql`
       SELECT os.id_ativo AS "idAtivo"
       FROM ordem_servico os
@@ -353,7 +363,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       WHERE os.id = ${idOrdemServico}::uuid
         AND os.empresa_id = ${empresaId}::uuid
         AND a.id_unidade = ${idUnidade}::uuid
-        AND os.status IN (${Prisma.join(statuses)})
+        AND os.status IN (${Prisma.join(statusParams)})
       LIMIT 1
     `);
 
@@ -385,6 +395,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         os.foto_anexo AS "fotoAnexo",
         os.foto_problema AS "fotoProblema",
         os.foto_solucao AS "fotoSolucao",
+        os.observacao_cancelamento AS "observacaoCancelamento",
         os.data_abertura AS "dataAbertura",
         os.data_fechamento AS "dataFechamento"
       FROM ordem_servico os
@@ -406,6 +417,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       fotoAnexo: r.fotoAnexo,
       fotoProblema: r.fotoProblema,
       fotoSolucao: r.fotoSolucao,
+      observacaoCancelamento: r.observacaoCancelamento,
       dataAbertura: r.dataAbertura,
       dataFechamento: r.dataFechamento,
     };

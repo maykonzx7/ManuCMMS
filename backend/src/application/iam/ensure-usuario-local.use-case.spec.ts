@@ -69,7 +69,7 @@ describe('EnsureUsuarioLocalUseCase', () => {
       emailConfirmedAt: '2026-05-10T10:00:00.000Z',
     });
 
-    expect(usuarios.findByEmail).toHaveBeenCalledWith('teste@empresa.com');
+    expect(usuarios.findByEmail).toHaveBeenCalledWith('teste@empresa.com', null);
     expect(usuarios.updateAuthSub).toHaveBeenCalledWith(local.id, 'novo-sub');
     expect(result.authSub).toBe('novo-sub');
   });
@@ -99,6 +99,30 @@ describe('EnsureUsuarioLocalUseCase', () => {
         emailConfirmedAt: '2026-05-10T10:00:00.000Z',
       }),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(usuarios.findByEmail).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia auto-vinculo por email sem confirmacao de email no auth provider', async () => {
+    const config = {
+      get: jest.fn().mockReturnValue('true'),
+    } as any;
+    const usuarios = {
+      findByAuthSub: jest.fn().mockResolvedValue(null),
+      findByEmail: jest.fn(),
+      updateAuthSub: jest.fn(),
+      ensureAccessContext: jest.fn(),
+    } as any;
+
+    const useCase = new EnsureUsuarioLocalUseCase(config, usuarios);
+
+    await expect(
+      useCase.execute({
+        userId: 'novo-sub',
+        email: 'teste@empresa.com',
+        role: 'authenticated',
+        emailConfirmedAt: null,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(usuarios.findByEmail).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
-import { signTestJwt } from './helpers/sign-test-jwt';
+import { bootstrapAuthUser } from './helpers/bootstrap-auth-user';
 
 describe('UnidadesController (e2e)', () => {
   let app: INestApplication<App>;
@@ -33,19 +33,18 @@ describe('UnidadesController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'GET /unidades com JWT retorna apenas a unidade do contexto autenticado',
     async () => {
+      const auth = await bootstrapAuthUser(prisma);
       await prisma.unidadeFabril.create({
         data: {
+          empresaId: auth.empresaId,
           nome: `Filial bloqueada ${Date.now()}`,
           localizacao: 'Recife - PE (e2e)',
         },
       });
 
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
       const res = await request(app.getHttpServer())
         .get('/unidades')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
 
       const body = res.body as Array<{
@@ -55,6 +54,7 @@ describe('UnidadesController (e2e)', () => {
       }>;
       expect(Array.isArray(body)).toBe(true);
       expect(body).toHaveLength(1);
+      expect(body[0].id).toBe(auth.unidadeId);
       expect(body[0]).toHaveProperty('id');
       expect(body[0]).toHaveProperty('nome');
       expect(body[0]).toHaveProperty('localizacao');
@@ -64,19 +64,17 @@ describe('UnidadesController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'GET /unidades/:id retorna detalhe da unidade autorizada',
     async () => {
-      const token = signTestJwt({
-        sub: '00000000-0000-4000-8000-000000000003',
-      });
+      const auth = await bootstrapAuthUser(prisma);
 
       const listaRes = await request(app.getHttpServer())
         .get('/unidades')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
       const unidadeId = (listaRes.body as Array<{ id: string }>)[0].id;
 
       const detailRes = await request(app.getHttpServer())
         .get(`/unidades/${unidadeId}`)
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${auth.token}`)
         .expect(200);
 
       expect((detailRes.body as { id: string }).id).toBe(unidadeId);

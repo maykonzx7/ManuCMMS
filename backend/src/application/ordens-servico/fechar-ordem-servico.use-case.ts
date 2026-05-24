@@ -13,6 +13,11 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import {
+  USUARIO_READ_PORT,
+  type IUsuarioReadPort,
+} from '../../domain/ports/usuario-read.port';
+import { NotificacaoService } from '../notificacoes/notificacao.service';
 
 const URL_MAX = 2048;
 
@@ -31,6 +36,9 @@ export class FecharOrdemServicoUseCase {
     private readonly ordens: IOrdemServicoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    @Inject(USUARIO_READ_PORT)
+    private readonly usuarios: IUsuarioReadPort,
+    private readonly notificacoes: NotificacaoService,
   ) {}
 
   async execute(
@@ -89,7 +97,7 @@ export class FecharOrdemServicoUseCase {
       );
     }
 
-    return this.ordens.fecharComEvidencias({
+    const concluida = await this.ordens.fecharComEvidencias({
       idOrdemServico,
       empresaId: unidadeOk.empresaId,
       idUnidade,
@@ -97,5 +105,41 @@ export class FecharOrdemServicoUseCase {
       fotoProblema: os.tipo === 'CORRETIVA' ? fotoProblema : null,
       fotoSolucao: os.tipo === 'CORRETIVA' ? fotoSolucao : null,
     });
+    await this.notifyOrderClosed({
+      ordem: concluida,
+      empresaId: unidadeOk.empresaId,
+      idUnidade,
+      unidadeNome: unidadeOk.nome,
+    });
+    return concluida;
+  }
+
+  private async notifyOrderClosed(input: {
+    ordem: OrdemServicoListaItem;
+    empresaId: string;
+    idUnidade: string;
+    unidadeNome: string;
+  }): Promise<void> {
+    const { ordem, empresaId, idUnidade, unidadeNome } = input;
+    const usuarios = await this.usuarios.listByUnidade(idUnidade);
+    const recipients = usuarios.filter(
+      (u) => u.perfil === 'ADMIN' || u.id === ordem.idTecnico,
+    );
+    const fotoNotificacao = ordem.fotoSolucao ?? ordem.fotoAnexo ?? ordem.fotoProblema;
+    const msg = `OS ${ordem.id.slice(0, 8).toUpperCase()} concluida na unidade ${unidadeNome}. Ativo: ${ordem.ativoNome}. Evidencias foram anexadas.`;
+
+    for (const user of recipients) {
+      await this.notificacoes.create({
+        usuarioId: user.id,
+        empresaId,
+        idUnidade,
+        ordemServicoId: ordem.id,
+        tipo: 'success',
+        titulo: 'OS concluida com evidencia',
+        mensagem: msg,
+        fotoUrl: fotoNotificacao,
+        linkPath: `/workspace/ordens/${ordem.id}`,
+      });
+    }
   }
 }
