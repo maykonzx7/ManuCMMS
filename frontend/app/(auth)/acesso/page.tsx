@@ -9,7 +9,7 @@ import { LoginForm } from '@/components/auth'
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, loginWithGoogle, isLoading, isAuthenticated } = useAuth()
+  const { login, loginWithGoogle, requestPasswordReset, isLoading, isAuthenticated } = useAuth()
   const redirectPath = searchParams.get('redirect') || '/workspace'
 
   useEffect(() => {
@@ -54,7 +54,11 @@ function LoginPageContent() {
         </p>
       </div>
       
-      <LoginForm onSubmit={handleLogin} isLoading={isLoading} />
+      <LoginForm
+        onSubmit={handleLogin}
+        onForgotPassword={requestPasswordReset}
+        isLoading={isLoading}
+      />
       
       <div className="relative">
         <div className="absolute inset-0 flex items-center">

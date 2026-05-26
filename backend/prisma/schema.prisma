@@ -75,6 +75,13 @@ enum StatusSlaOrdemServico {
   CONCLUIDA
 }
 
+enum PrioridadeOrdemServico {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
 model Empresa {
   id              String           @id @default(uuid()) @db.Uuid
   nomeEmpresa     String           @map("nome_empresa") @db.VarChar(150)
@@ -90,6 +97,8 @@ model Empresa {
   contatoEmail    String?          @map("contato_email") @db.VarChar(100)
   contatoTelefone String?          @map("contato_telefone") @db.VarChar(20)
   status          StatusEmpresa    @default(ATIVA)
+  webhookUrl      String?          @map("webhook_url") @db.VarChar(500)
+  apiKeyIntegracao String?         @unique @map("api_key_integracao") @db.VarChar(64)
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   unidades        UnidadeFabril[]
@@ -98,6 +107,8 @@ model Empresa {
   convites        ConviteAcesso[]
   ativos          Ativo[]
   ordensServico   OrdemServico[]
+  pecas           Peca[]
+  integracaoEventos IntegracaoEvento[]
 
   @@map("empresa")
 }
@@ -125,6 +136,7 @@ model UnidadeFabril {
   usuarios      Usuario[]
   usuariosCargo UsuarioCargo[]
   ativos        Ativo[]
+  pecas         Peca[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -173,6 +185,7 @@ model OrdemServico {
   iniciadoPorUsuario Usuario?          @relation("OsIniciadaPor", fields: [iniciadoPorUsuarioId], references: [id])
   finalizadoPorUsuario Usuario?        @relation("OsFinalizadaPor", fields: [finalizadoPorUsuarioId], references: [id])
   tipo              TipoOrdemServico
+  prioridade        PrioridadeOrdemServico @default(MEDIA)
   status            StatusOrdemServico @default(ABERTA)
   descricao         String             @db.Text
   fotoAnexo         String?            @map("foto_anexo") @db.VarChar(2048)
@@ -190,6 +203,7 @@ model OrdemServico {
   dataAbertura      DateTime           @default(now()) @map("data_abertura")
   dataFechamento    DateTime?          @map("data_fechamento")
   transferencias    OrdemServicoTransferencia[]
+  pecasConsumidas   OrdemServicoPeca[]
 
   @@index([empresaId, status, dataAbertura])
   @@index([idAtivo])
@@ -246,6 +260,39 @@ model OrdemServicoTransferencia {
   @@index([paraTecnicoId])
   @@index([transferidoPorUsuarioId])
   @@map("ordem_servico_transferencia")
+}
+
+model Peca {
+  id                String             @id @default(uuid()) @db.Uuid
+  empresaId         String             @map("empresa_id") @db.Uuid
+  idUnidade         String             @map("id_unidade") @db.Uuid
+  empresa           Empresa            @relation(fields: [empresaId], references: [id])
+  unidade           UnidadeFabril      @relation(fields: [idUnidade], references: [id])
+  codigo            String             @db.VarChar(80)
+  nome              String             @db.VarChar(150)
+  quantidadeEstoque Int                @default(0) @map("quantidade_estoque")
+  quantidadeMinima  Int                @default(0) @map("quantidade_minima")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  consumos          OrdemServicoPeca[]
+
+  @@unique([empresaId, idUnidade, codigo])
+  @@index([empresaId, idUnidade])
+  @@map("peca")
+}
+
+model OrdemServicoPeca {
+  id             String       @id @default(uuid()) @db.Uuid
+  ordemServicoId String       @map("ordem_servico_id") @db.Uuid
+  pecaId         String       @map("peca_id") @db.Uuid
+  quantidade     Int
+  createdAt      DateTime     @default(now()) @map("created_at")
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  peca           Peca         @relation(fields: [pecaId], references: [id])
+
+  @@unique([ordemServicoId, pecaId])
+  @@index([pecaId])
+  @@map("ordem_servico_peca")
 }
 
 model Notificacao {
@@ -366,4 +413,22 @@ model ConviteAcesso {
   @@index([empresaId, status])
   @@index([emailDestino])
   @@map("convite_acesso")
+}
+
+model IntegracaoEvento {
+  id          String    @id @default(uuid()) @db.Uuid
+  empresaId   String    @map("empresa_id") @db.Uuid
+  idUnidade   String?   @map("id_unidade") @db.Uuid
+  empresa     Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  tipo        String    @db.VarChar(80)
+  payload     Json
+  status      String    @default("PENDENTE") @db.VarChar(20)
+  tentativas  Int       @default(0)
+  ultimoErro  String?   @map("ultimo_erro") @db.VarChar(500)
+  entregueEm  DateTime? @map("entregue_em")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([empresaId, createdAt(sort: Desc)])
+  @@map("integracao_evento")
 }

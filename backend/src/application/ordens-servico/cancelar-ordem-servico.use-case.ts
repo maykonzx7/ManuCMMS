@@ -13,6 +13,8 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 
 @Injectable()
 export class CancelarOrdemServicoUseCase {
@@ -21,6 +23,7 @@ export class CancelarOrdemServicoUseCase {
     private readonly ordens: IOrdemServicoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    private readonly notificacoes: NotificacaoService,
   ) {}
 
   async execute(
@@ -63,12 +66,14 @@ export class CancelarOrdemServicoUseCase {
       );
     }
 
-    return this.ordens.cancelar({
+    const cancelada = await this.ordens.cancelar({
       idOrdemServico,
       empresaId: unidadeOk.empresaId,
       idUnidade,
       observacaoCancelamento,
       canceladoPorUsuarioId,
     });
+    publishOrdemServicoStatus(this.notificacoes, idUnidade, cancelada);
+    return cancelada;
   }
 }

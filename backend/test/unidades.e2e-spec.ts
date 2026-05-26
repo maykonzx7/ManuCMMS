@@ -33,7 +33,7 @@ describe('UnidadesController (e2e)', () => {
   (runComDb ? it : it.skip)(
     'GET /unidades com JWT retorna apenas a unidade do contexto autenticado',
     async () => {
-      const auth = await bootstrapAuthUser(prisma);
+      const auth = await bootstrapAuthUser(prisma, { perfil: 'TECNICO' });
       await prisma.unidadeFabril.create({
         data: {
           empresaId: auth.empresaId,

@@ -18,6 +18,8 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
+import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 
 const URL_MAX = 2048;
 const DESCRICAO_PROBLEMA_MAX = 4000;
@@ -42,6 +44,7 @@ export class FecharOrdemServicoUseCase {
     @Inject(USUARIO_READ_PORT)
     private readonly usuarios: IUsuarioReadPort,
     private readonly notificacoes: NotificacaoService,
+    private readonly integracaoWebhook: IntegracaoWebhookService,
   ) {}
 
   async execute(
@@ -54,6 +57,7 @@ export class FecharOrdemServicoUseCase {
       fotoSolucao?: string | null;
       descricaoSolucao?: string | null;
       assinaturaDigital?: string | null;
+      pecasConsumidas?: Array<{ pecaId: string; quantidade: number }>;
     },
     finalizadoPorUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
@@ -123,6 +127,25 @@ export class FecharOrdemServicoUseCase {
       );
     }
 
+    if (assinaturaDigital == null) {
+      throw new BadRequestException(
+        'Assinatura digital do técnico é obrigatória para concluir OS (RN-02)',
+      );
+    }
+
+    if (body.pecasConsumidas?.length) {
+      for (const item of body.pecasConsumidas) {
+        if (!item.pecaId?.trim()) {
+          throw new BadRequestException('pecaId é obrigatório em pecasConsumidas');
+        }
+        if (!Number.isInteger(item.quantidade) || item.quantidade <= 0) {
+          throw new BadRequestException(
+            'quantidade em pecasConsumidas deve ser inteiro positivo',
+          );
+        }
+      }
+    }
+
     if (os.tipo === 'CORRETIVA') {
       if (fotoProblema == null) {
         throw new BadRequestException(
@@ -156,6 +179,7 @@ export class FecharOrdemServicoUseCase {
       descricaoSolucao: os.tipo === 'CORRETIVA' ? (descricaoSolucao ?? null) : null,
       assinaturaDigital: assinaturaDigital ?? null,
       finalizadoPorUsuarioId,
+      pecasConsumidas: body.pecasConsumidas,
     });
     await this.notifyOrderClosed({
       ordem: concluida,
@@ -163,6 +187,12 @@ export class FecharOrdemServicoUseCase {
       idUnidade,
       unidadeNome: unidadeOk.nome,
     });
+    await this.integracaoWebhook.enqueueOrdemServicoConcluida({
+      empresaId: unidadeOk.empresaId,
+      idUnidade,
+      ordem: concluida,
+    });
+    publishOrdemServicoStatus(this.notificacoes, idUnidade, concluida);
     return concluida;
   }
 

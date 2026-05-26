@@ -8,6 +8,8 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 
 @Injectable()
 export class IniciarExecucaoOrdemServicoUseCase {
@@ -16,6 +18,7 @@ export class IniciarExecucaoOrdemServicoUseCase {
     private readonly ordens: IOrdemServicoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    private readonly notificacoes: NotificacaoService,
   ) {}
 
   async execute(
@@ -52,7 +55,7 @@ export class IniciarExecucaoOrdemServicoUseCase {
       );
     }
 
-    return this.ordens.iniciarExecucao(
+    const iniciada = await this.ordens.iniciarExecucao(
       idOrdemServico,
       unidadeOk.empresaId,
       idUnidade,
@@ -60,5 +63,7 @@ export class IniciarExecucaoOrdemServicoUseCase {
       fotoProblema,
       descricaoProblema,
     );
+    publishOrdemServicoStatus(this.notificacoes, idUnidade, iniciada);
+    return iniciada;
   }
 }

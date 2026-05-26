@@ -108,6 +108,7 @@ export default function NewOrderPage() {
           idAtivo: data.ativoId,
           idTecnico: data.responsavelId || undefined,
           tipo: data.tipo,
+          prioridade: data.prioridade,
           descricao: data.descricao || data.titulo,
         },
       })

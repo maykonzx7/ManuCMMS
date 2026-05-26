@@ -711,6 +711,13 @@ const CLOSE_ORDENS: DefaultPermission = {
   modulo: 'ordem_servico',
 };
 
+const DASHBOARD_EXECUTIVO: DefaultPermission = {
+  codigo: 'dashboard.executivo',
+  nome: 'Dashboard executivo',
+  descricao: 'Visualizar KPIs executivos da unidade.',
+  modulo: 'dashboard',
+};
+
 const MANAGE_EMPRESA: DefaultPermission = {
   codigo: 'empresa.gerenciar',
   nome: 'Gerenciar empresa',
@@ -741,6 +748,7 @@ const defaultPermissionsByPerfil: Record<PerfilUsuarioCodigo, DefaultPermission[
     EXECUTE_ORDENS,
     CANCEL_ORDENS,
     CLOSE_ORDENS,
+    DASHBOARD_EXECUTIVO,
   ],
   AUDITOR: [READ_UNIDADES, READ_USERS, READ_ATIVOS, READ_ORDENS],
   ADMIN: [
@@ -755,5 +763,6 @@ const defaultPermissionsByPerfil: Record<PerfilUsuarioCodigo, DefaultPermission[
     EXECUTE_ORDENS,
     CANCEL_ORDENS,
     CLOSE_ORDENS,
+    DASHBOARD_EXECUTIVO,
   ],
 };

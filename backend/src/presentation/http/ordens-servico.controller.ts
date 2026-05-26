@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFiles,
   UseInterceptors,
@@ -28,11 +29,13 @@ import { ListOrdensServicoByUnidadeUseCase } from '../../application/ordens-serv
 import { EscalarOrdemServicoUseCase } from '../../application/ordens-servico/escalar-ordem-servico.use-case';
 import { UpdateOrdemServicoUseCase } from '../../application/ordens-servico/update-ordem-servico.use-case';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
+import type { ListOrdensServicoFilters } from '../../domain/ports/ordem-servico.repository.port';
 
 type CreateOrdemServicoBody = {
   idAtivo: string;
   tipo: string;
   descricao: string;
+  prioridade?: string;
   idTecnico?: string | null;
 };
 
@@ -44,6 +47,7 @@ type FecharOrdemServicoBody = {
   descricaoSolucao?: string | null;
   assinaturaImagemDataUrl?: string | null;
   assinaturaNome?: string | null;
+  pecasConsumidas?: string | null;
 };
 
 type IniciarOrdemServicoBody = {
@@ -122,13 +126,32 @@ export class OrdensServicoController {
   ) {}
 
   @Get()
-  async list(@Param('unidadeId') unidadeId: string, @Req() req: Request) {
+  async list(
+    @Req() req: Request,
+    @Param('unidadeId') unidadeId: string,
+    @Query('status') status?: string,
+    @Query('tipo') tipo?: string,
+    @Query('prioridade') prioridade?: string,
+    @Query('idTecnico') idTecnico?: string,
+    @Query('idAtivo') idAtivo?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     this.authorizePermission.execute(
       req.usuarioLocal,
       'os.visualizar_unidade',
     );
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    const ordens = await this.listOrdens.execute(unidadeId);
+    const filters = parseListFilters({
+      status,
+      tipo,
+      prioridade,
+      idTecnico,
+      idAtivo,
+      from,
+      to,
+    });
+    const ordens = await this.listOrdens.execute(unidadeId, filters);
     return this.filterOrdensByTecnicoScope(req, ordens);
   }
 
@@ -172,6 +195,7 @@ export class OrdensServicoController {
       ordemServicoId,
       body,
       req.usuarioLocal!.id,
+      req.usuarioLocal!.perfil,
     );
   }
 
@@ -320,6 +344,7 @@ export class OrdensServicoController {
         : body.fotoSolucao,
       descricaoSolucao: body.descricaoSolucao,
       assinaturaDigital: assinaturaPayload,
+      pecasConsumidas: parsePecasConsumidas(body.pecasConsumidas),
     }, req.usuarioLocal!.id);
   }
 
@@ -361,4 +386,81 @@ export class OrdensServicoController {
       'Acesso negado: tecnico so pode operar ordens de servico atribuidas a ele.',
     );
   }
+}
+
+function parseListFilters(input: {
+  status?: string;
+  tipo?: string;
+  prioridade?: string;
+  idTecnico?: string;
+  idAtivo?: string;
+  from?: string;
+  to?: string;
+}): ListOrdensServicoFilters | undefined {
+  const filters: ListOrdensServicoFilters = {};
+
+  if (input.status?.trim()) {
+    filters.status = input.status.trim().toUpperCase() as ListOrdensServicoFilters['status'];
+  }
+  if (input.tipo?.trim()) {
+    filters.tipo = input.tipo.trim().toUpperCase() as ListOrdensServicoFilters['tipo'];
+  }
+  if (input.prioridade?.trim()) {
+    filters.prioridade = input.prioridade.trim().toUpperCase() as ListOrdensServicoFilters['prioridade'];
+  }
+  if (input.idTecnico?.trim()) {
+    filters.idTecnico = input.idTecnico.trim();
+  }
+  if (input.idAtivo?.trim()) {
+    filters.idAtivo = input.idAtivo.trim();
+  }
+  if (input.from?.trim()) {
+    const fromDate = new Date(input.from);
+    if (Number.isNaN(fromDate.getTime())) {
+      throw new BadRequestException('from inválido');
+    }
+    filters.from = fromDate;
+  }
+  if (input.to?.trim()) {
+    const toDate = new Date(input.to);
+    if (Number.isNaN(toDate.getTime())) {
+      throw new BadRequestException('to inválido');
+    }
+    filters.to = toDate;
+  }
+
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
+function parsePecasConsumidas(
+  raw?: string | null,
+): Array<{ pecaId: string; quantidade: number }> | undefined {
+  if (!raw?.trim()) {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new BadRequestException('pecasConsumidas deve ser JSON válido');
+  }
+  if (!Array.isArray(parsed)) {
+    throw new BadRequestException('pecasConsumidas deve ser um array JSON');
+  }
+  return parsed.map((item) => {
+    if (
+      typeof item !== 'object' ||
+      item == null ||
+      typeof (item as { pecaId?: unknown }).pecaId !== 'string' ||
+      typeof (item as { quantidade?: unknown }).quantidade !== 'number'
+    ) {
+      throw new BadRequestException(
+        'Cada item de pecasConsumidas exige pecaId (string) e quantidade (number)',
+      );
+    }
+    return {
+      pecaId: (item as { pecaId: string }).pecaId,
+      quantidade: (item as { quantidade: number }).quantidade,
+    };
+  });
 }

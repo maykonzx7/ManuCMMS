@@ -1,12 +1,15 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Plug, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Link as LinkIcon } from 'lucide-react'
+import { Plug, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Link as LinkIcon, KeyRound, Webhook, Copy } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useAuth } from '@/lib/auth'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { toast } from 'sonner'
 
 type IntegrationStatus = {
   ok: boolean
@@ -25,6 +28,21 @@ type IntegracoesStatusResponse = {
   }
 }
 
+type IntegracaoEmpresaResponse = {
+  webhookUrl: string | null
+  apiKeyIntegracao: string | null
+  circuitBreakerAberto: boolean
+  eventosRecentes: Array<{
+    id: string
+    tipo: string
+    status: string
+    tentativas: number
+    ultimoErro: string | null
+    entregueEm: string | null
+    createdAt: string
+  }>
+}
+
 const labels: Record<keyof IntegracoesStatusResponse['integrations'], string> = {
   rabbitmq: 'RabbitMQ',
   mongodb: 'MongoDB (Auditoria)',
@@ -35,8 +53,12 @@ const labels: Record<keyof IntegracoesStatusResponse['integrations'], string> = 
 
 export default function IntegracoesPage() {
   const { accessToken } = useAuth()
+  const company = useCurrentCompany()
   const [data, setData] = useState<IntegracoesStatusResponse | null>(null)
+  const [integracao, setIntegracao] = useState<IntegracaoEmpresaResponse | null>(null)
+  const [webhookUrl, setWebhookUrl] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [savingWebhook, setSavingWebhook] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = async () => {
@@ -54,9 +76,24 @@ export default function IntegracoesPage() {
     }
   }
 
+  const loadIntegracao = async () => {
+    if (!accessToken || !company?.id) return
+    try {
+      const response = await apiRequest<IntegracaoEmpresaResponse>(
+        `/empresas/${company.id}/gestao/integracao`,
+        { accessToken },
+      )
+      setIntegracao(response)
+      setWebhookUrl(response.webhookUrl ?? '')
+    } catch {
+      setIntegracao(null)
+    }
+  }
+
   useEffect(() => {
     void load()
-  }, [accessToken])
+    void loadIntegracao()
+  }, [accessToken, company?.id])
 
   const items = useMemo(() => {
     if (!data) return []
@@ -69,18 +106,161 @@ export default function IntegracoesPage() {
 
   const okCount = items.filter((item) => item.ok).length
 
+  const saveWebhook = async () => {
+    if (!accessToken || !company?.id) return
+    setSavingWebhook(true)
+    try {
+      const response = await apiRequest<IntegracaoEmpresaResponse>(
+        `/empresas/${company.id}/gestao/integracao`,
+        {
+          method: 'PATCH',
+          accessToken,
+          body: { webhookUrl: webhookUrl.trim() || null },
+        },
+      )
+      setIntegracao(response)
+      setWebhookUrl(response.webhookUrl ?? '')
+      toast.success('Webhook atualizado.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao salvar webhook')
+    } finally {
+      setSavingWebhook(false)
+    }
+  }
+
+  const regenerateApiKey = async () => {
+    if (!accessToken || !company?.id) return
+    try {
+      const response = await apiRequest<IntegracaoEmpresaResponse>(
+        `/empresas/${company.id}/gestao/integracao/regenerar-api-key`,
+        { method: 'POST', accessToken },
+      )
+      setIntegracao(response)
+      toast.success('Nova API key gerada.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao regenerar API key')
+    }
+  }
+
+  const testWebhook = async () => {
+    if (!accessToken || !company?.id) return
+    try {
+      const response = await apiRequest<{ ok: boolean; message: string }>(
+        `/empresas/${company.id}/gestao/integracao/testar-webhook`,
+        { method: 'POST', accessToken },
+      )
+      if (response.ok) {
+        toast.success(response.message)
+      } else {
+        toast.error(response.message)
+      }
+      await loadIntegracao()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao testar webhook')
+    }
+  }
+
+  const copyApiKey = async () => {
+    const key = integracao?.apiKeyIntegracao
+    if (!key) return
+    await navigator.clipboard.writeText(key)
+    toast.success('API key copiada.')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Integrações</h1>
-          <p className="text-muted-foreground">Status real dos serviços integrados ao backend</p>
+          <p className="text-muted-foreground">Status dos serviços e configuração de interoperabilidade</p>
         </div>
         <Button variant="outline" onClick={() => void load()} disabled={isLoading || !accessToken}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Atualizar
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Webhook className="h-5 w-5" />
+            Webhook outbound
+          </CardTitle>
+          <CardDescription>
+            Eventos assíncronos após fechamento de OS. Header de autenticação via API key (fase posterior).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="webhook-url">URL do webhook</Label>
+            <Input
+              id="webhook-url"
+              placeholder="https://seu-sistema.com/webhooks/manucmms"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void saveWebhook()} disabled={savingWebhook || !company?.id}>
+              Salvar webhook
+            </Button>
+            <Button variant="outline" onClick={() => void testWebhook()} disabled={!company?.id}>
+              Testar webhook
+            </Button>
+            {integracao?.circuitBreakerAberto ? (
+              <Badge variant="outline" className="border-amber-500 text-amber-600">
+                Circuit breaker aberto
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-emerald-500 text-emerald-600">
+                Circuit breaker fechado
+              </Badge>
+            )}
+          </div>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              <Label>API key de parceiro</Label>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input readOnly value={integracao?.apiKeyIntegracao ?? 'Gere uma chave para habilitar a API'} />
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => void copyApiKey()} disabled={!integracao?.apiKeyIntegracao}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar
+                </Button>
+                <Button variant="outline" onClick={() => void regenerateApiKey()} disabled={!company?.id}>
+                  Regenerar
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Use o header <code>x-api-key</code> em <code>GET /api/v1/integracao/unidades/:id/ordens-servico</code>
+            </p>
+          </div>
+
+          {integracao?.eventosRecentes?.length ? (
+            <div className="space-y-2">
+              <Label>Eventos recentes</Label>
+              <div className="space-y-2">
+                {integracao.eventosRecentes.map((evento) => (
+                  <div key={evento.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium">{evento.tipo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(evento.createdAt).toLocaleString('pt-BR')}
+                        {evento.ultimoErro ? ` — ${evento.ultimoErro}` : ''}
+                      </p>
+                    </div>
+                    <Badge variant="outline">{evento.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

@@ -16,6 +16,7 @@ import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { resolveFrontendBaseUrl } from '../../application/shared/frontend-link.shared';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
+import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
 
 const PERFIS = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'] as const;
 
@@ -27,6 +28,7 @@ export class GestaoEmpresaController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+    private readonly integracaoWebhook: IntegracaoWebhookService,
   ) {}
 
   @Get('painel')
@@ -802,6 +804,52 @@ export class GestaoEmpresaController {
     }
 
     return { ok: true };
+  }
+
+  @Get('integracao')
+  async getIntegracao(@Param('empresaId') empresaId: string, @Req() req: Request) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+    return this.integracaoWebhook.getResumo(empresaId);
+  }
+
+  @Patch('integracao')
+  async patchIntegracao(
+    @Param('empresaId') empresaId: string,
+    @Req() req: Request,
+    @Body() body: { webhookUrl?: string | null },
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const webhookUrl =
+      body.webhookUrl === undefined
+        ? undefined
+        : body.webhookUrl === null || body.webhookUrl.trim() === ''
+          ? null
+          : body.webhookUrl.trim();
+
+    if (webhookUrl !== undefined) {
+      await this.integracaoWebhook.updateWebhookUrl(empresaId, webhookUrl);
+    }
+
+    return this.integracaoWebhook.getResumo(empresaId);
+  }
+
+  @Post('integracao/regenerar-api-key')
+  async regenerarApiKey(@Param('empresaId') empresaId: string, @Req() req: Request) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+    const apiKeyIntegracao = await this.integracaoWebhook.regenerateApiKey(empresaId);
+    const resumo = await this.integracaoWebhook.getResumo(empresaId);
+    return { ...resumo, apiKeyIntegracao };
+  }
+
+  @Post('integracao/testar-webhook')
+  async testarWebhook(@Param('empresaId') empresaId: string, @Req() req: Request) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+    return this.integracaoWebhook.testWebhook(empresaId);
   }
 
   private ensureEmpresaScope(req: Request, empresaId: string) {

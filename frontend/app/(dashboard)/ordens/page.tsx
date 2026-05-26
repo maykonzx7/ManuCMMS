@@ -52,9 +52,10 @@ import {
 import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
-import { useAuth, useCurrentUnit } from '@/lib/auth'
+import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
+import { useRealtimeConnection } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -84,6 +85,7 @@ export default function OrdersPage() {
   const [transferMotivo, setTransferMotivo] = useState('')
   const { canCreateOrder, canManageOrderStatus, canEditOrder } = usePermissions()
   const { accessToken } = useAuth()
+  const company = useCurrentCompany()
   const currentUnit = useCurrentUnit()
 
   const loadOrders = async () => {
@@ -105,6 +107,19 @@ export default function OrdersPage() {
   useEffect(() => {
     void loadOrders()
   }, [accessToken, currentUnit?.id])
+
+  useRealtimeConnection(accessToken, company?.slug, {
+    onOrdemStatus: (payload) => {
+      if (payload.idUnidade !== currentUnit?.id) return
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === payload.id
+            ? { ...order, status: payload.status as OrderStatus }
+            : order,
+        ),
+      )
+    },
+  })
 
   useEffect(() => {
     if (!accessToken || !currentUnit?.id || !canEditOrder) return

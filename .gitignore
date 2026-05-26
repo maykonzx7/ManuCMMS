@@ -1,5 +1,10 @@
 # Dependências e build
 node_modules/
+**/node_modules/
+backend/node_modules/
+frontend/node_modules/
+backend/dist/
+frontend/.next/
 dist/
 build/
 coverage/
@@ -29,6 +34,13 @@ Thumbs.db
 tmp/
 temp/
 .cache/
+
+# Uploads locais (fotos de OS em dev)
+backend/uploads/
+
+# Dumps de backup NF-10 (gerados localmente; manter só metadados)
+docs/evidencias/NF-10-backup/*.dump
+docs/evidencias/NF-10-backup/*.gz
 
 # Skills / IA / automação local
 .agents/

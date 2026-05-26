@@ -57,6 +57,14 @@ type ApiUsuario = {
   perfil?: string
 }
 
+type ApiPeca = {
+  id: string
+  codigo: string
+  nome: string
+  quantidadeEstoque: number
+  quantidadeMinima: number
+}
+
 export default function OrderDetailPage() {
   const params = useParams()
   const { canManageOrderStatus, canEditOrder } = usePermissions()
@@ -72,6 +80,8 @@ export default function OrderDetailPage() {
   const [assinaturaNome, setAssinaturaNome] = useState('')
   const [descricaoSolucao, setDescricaoSolucao] = useState('')
   const [fotoSolucaoFile, setFotoSolucaoFile] = useState<File | null>(null)
+  const [pecasCatalog, setPecasCatalog] = useState<ApiPeca[]>([])
+  const [pecasConsumo, setPecasConsumo] = useState<Record<string, number>>({})
   const assinaturaCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const drawingRef = useRef(false)
 
@@ -91,6 +101,13 @@ export default function OrderDetailPage() {
   useEffect(() => {
     void loadOrder()
   }, [accessToken, params.id, unit?.id])
+
+  useEffect(() => {
+    if (!closeOpen || !accessToken || !unit?.id) return
+    void apiRequest<ApiPeca[]>(`/unidades/${unit.id}/pecas`, { accessToken })
+      .then((res) => setPecasCatalog(res))
+      .catch(() => setPecasCatalog([]))
+  }, [closeOpen, accessToken, unit?.id])
 
   useEffect(() => {
     if (!accessToken || !unit?.id || !canEditOrder) return
@@ -758,6 +775,32 @@ export default function OrderDetailPage() {
                 placeholder="Descreva o que foi feito..."
               />
             </div>
+            {pecasCatalog.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Peças consumidas (opcional)</Label>
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+                  {pecasCatalog.map((peca) => (
+                    <div key={peca.id} className="flex items-center justify-between gap-3 text-sm">
+                      <div>
+                        <p className="font-medium">{peca.codigo} — {peca.nome}</p>
+                        <p className="text-xs text-muted-foreground">Estoque: {peca.quantidadeEstoque}</p>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={peca.quantidadeEstoque}
+                        className="w-20 rounded-md border px-2 py-1"
+                        value={pecasConsumo[peca.id] ?? 0}
+                        onChange={(e) => {
+                          const qty = Math.max(0, Number(e.target.value) || 0)
+                          setPecasConsumo((prev) => ({ ...prev, [peca.id]: qty }))
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Assinatura (canvas)</Label>
               <canvas
@@ -832,6 +875,12 @@ export default function OrderDetailPage() {
                   }
                   formData.append('assinaturaImagemDataUrl', assinatura)
                   formData.append('assinaturaNome', assinaturaNome.trim())
+                  const consumo = Object.entries(pecasConsumo)
+                    .filter(([, qty]) => qty > 0)
+                    .map(([pecaId, quantidade]) => ({ pecaId, quantidade }))
+                  if (consumo.length > 0) {
+                    formData.append('pecasConsumidas', JSON.stringify(consumo))
+                  }
                   if (!accessToken || !unit?.id || typeof params.id !== 'string') return
                   await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/fechar`, {
                     method: 'PATCH',
@@ -841,6 +890,7 @@ export default function OrderDetailPage() {
                   toast.success('Ordem concluída com assinatura.')
                   await loadOrder()
                   setCloseOpen(false)
+                  setPecasConsumo({})
                   clearSignature()
                 }}
               >

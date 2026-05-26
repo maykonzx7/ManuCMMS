@@ -6,6 +6,26 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
 import { bootstrapAuthUser } from './helpers/bootstrap-auth-user';
 
+const ASSINATURA_E2E =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+function fecharOsRequest(
+  app: INestApplication<App>,
+  unidadeId: string,
+  osId: string,
+  token: string,
+) {
+  return request(app.getHttpServer())
+    .patch(`/unidades/${unidadeId}/ordens-servico/${osId}/fechar`)
+    .set('Authorization', `Bearer ${token}`)
+    .field('descricaoSolucao', 'Solucao aplicada no teste e2e')
+    .field('assinaturaImagemDataUrl', ASSINATURA_E2E)
+    .attach('fotoAnexo', Buffer.from('fake-image-content'), {
+      filename: 'foto-intervencao.jpg',
+      contentType: 'image/jpeg',
+    });
+}
+
 describe('OrdensServicoController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
@@ -117,14 +137,7 @@ describe('OrdensServicoController (e2e)', () => {
         .expect(201);
       const osId = (criar.body as { id: string }).id;
 
-      const fechar = await request(app.getHttpServer())
-        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}/fechar`)
-        .set('Authorization', `Bearer ${auth.token}`)
-        .attach('fotoAnexo', Buffer.from('fake-image-content'), {
-          filename: 'foto-intervencao.jpg',
-          contentType: 'image/jpeg',
-        })
-        .expect(200);
+      const fechar = await fecharOsRequest(app, unidadeId, osId, auth.token).expect(200);
 
       const fechada = fechar.body as { status: string; dataFechamento: string };
       expect(fechada.status).toBe('CONCLUIDA');
@@ -203,7 +216,7 @@ describe('OrdensServicoController (e2e)', () => {
   );
 
   (runComDb ? it : it.skip)(
-    'PATCH OS concluida retorna 400 ao tentar editar',
+    'PATCH OS concluida: ADMIN pode editar descricao (RN-15)',
     async () => {
       const auth = await bootstrapAuthUser(prisma);
       const unidadesRes = await request(app.getHttpServer())
@@ -215,7 +228,7 @@ describe('OrdensServicoController (e2e)', () => {
       const ativo = await request(app.getHttpServer())
         .post(`/unidades/${unidadeId}/ativos`)
         .set('Authorization', `Bearer ${auth.token}`)
-        .send({ nome: `Ativo update bloqueado ${Date.now()}` })
+        .send({ nome: `Ativo update concluida ${Date.now()}` })
         .expect(201);
       const idAtivo = (ativo.body as { id: string }).id;
 
@@ -230,19 +243,56 @@ describe('OrdensServicoController (e2e)', () => {
         .expect(201);
       const osId = (os.body as { id: string }).id;
 
+      await fecharOsRequest(app, unidadeId, osId, auth.token).expect(200);
+
+      const updated = await request(app.getHttpServer())
+        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}`)
+        .set('Authorization', `Bearer ${auth.token}`)
+        .send({ descricao: 'descricao corrigida pelo gestor' })
+        .expect(200);
+
+      expect((updated.body as { descricao: string }).descricao).toBe(
+        'descricao corrigida pelo gestor',
+      );
+    },
+  );
+
+  (runComDb ? it : it.skip)(
+    'PATCH fechar OS sem assinatura retorna 400 (RN-02)',
+    async () => {
+      const auth = await bootstrapAuthUser(prisma);
+      const unidadesRes = await request(app.getHttpServer())
+        .get('/unidades')
+        .set('Authorization', `Bearer ${auth.token}`)
+        .expect(200);
+      const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
+
+      const ativo = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ativos`)
+        .set('Authorization', `Bearer ${auth.token}`)
+        .send({ nome: `Ativo sem assinatura ${Date.now()}` })
+        .expect(201);
+      const idAtivo = (ativo.body as { id: string }).id;
+
+      const os = await request(app.getHttpServer())
+        .post(`/unidades/${unidadeId}/ordens-servico`)
+        .set('Authorization', `Bearer ${auth.token}`)
+        .send({
+          idAtivo,
+          tipo: 'PREDITIVA',
+          descricao: `os sem assinatura ${Date.now()}`,
+        })
+        .expect(201);
+      const osId = (os.body as { id: string }).id;
+
       await request(app.getHttpServer())
         .patch(`/unidades/${unidadeId}/ordens-servico/${osId}/fechar`)
         .set('Authorization', `Bearer ${auth.token}`)
+        .field('descricaoSolucao', 'Tentativa sem assinatura')
         .attach('fotoAnexo', Buffer.from('fake-image-content'), {
           filename: 'foto-intervencao.jpg',
           contentType: 'image/jpeg',
         })
-        .expect(200);
-
-      await request(app.getHttpServer())
-        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}`)
-        .set('Authorization', `Bearer ${auth.token}`)
-        .send({ descricao: 'tentativa de editar concluida' })
         .expect(400);
     },
   );

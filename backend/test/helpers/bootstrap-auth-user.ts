@@ -12,6 +12,7 @@ type BootstrapAuthUserResult = {
 
 export async function bootstrapAuthUser(
   prisma: PrismaService,
+  options?: { perfil?: 'TECNICO' | 'SUPERVISOR' | 'GESTOR' | 'AUDITOR' | 'ADMIN' },
 ): Promise<BootstrapAuthUserResult> {
   const suffix = randomUUID().slice(0, 8);
   const authSub = randomUUID();
@@ -38,7 +39,7 @@ export async function bootstrapAuthUser(
       email,
       nome: `Usuario E2E ${suffix}`,
       idUnidade: unidade.id,
-      perfil: 'ADMIN',
+      perfil: options?.perfil ?? 'ADMIN',
     },
   });
 

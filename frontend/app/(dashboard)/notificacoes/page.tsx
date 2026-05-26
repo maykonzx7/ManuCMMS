@@ -23,8 +23,9 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { useAuth, useCurrentUnit } from '@/lib/auth'
+import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { useRealtimeConnection } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 
 const typeIcons = {
@@ -53,6 +54,7 @@ export default function NotificacoesPage() {
     fotoUrl?: string | null
   }>>([])
   const { accessToken } = useAuth()
+  const company = useCurrentCompany()
   const unit = useCurrentUnit()
 
   useEffect(() => {
@@ -83,6 +85,24 @@ export default function NotificacoesPage() {
       })
       .catch(() => setNotifications([]))
   }, [accessToken, unit?.id])
+
+  useRealtimeConnection(accessToken, company?.slug, {
+    onNotificacaoNova: (payload) => {
+      setNotifications((prev) => [
+        {
+          id: payload.id,
+          title: payload.titulo,
+          message: payload.mensagem,
+          type: payload.tipo,
+          read: false,
+          createdAt: payload.createdAt,
+          linkPath: payload.linkPath,
+          fotoUrl: payload.fotoUrl,
+        },
+        ...prev,
+      ])
+    },
+  })
 
   const unreadCount = notifications.filter(n => !n.read).length
 

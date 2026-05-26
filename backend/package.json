@@ -31,7 +31,9 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.1.24",
     "@nestjs/terminus": "^11.1.1",
+    "@nestjs/websockets": "^11.1.24",
     "@prisma/client": "5.22.0",
     "@types/nodemailer": "^8.0.0",
     "amqplib": "^1.0.3",
@@ -42,7 +44,8 @@
     "pg": "^8.20.0",
     "redis": "^4.7.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

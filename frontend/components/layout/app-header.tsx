@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { apiRequest } from '@/lib/api'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
+import { useRealtimeConnection } from '@/hooks/use-realtime'
 
 const routeLabels: Record<string, string> = {
   '/': 'Início',
@@ -115,13 +116,24 @@ export function AppHeader() {
     void loadUnreadCount()
     const intervalId = window.setInterval(() => {
       void loadUnreadCount()
-    }, 15000)
+    }, 60000)
 
     return () => {
       mounted = false
       window.clearInterval(intervalId)
     }
   }, [accessToken, isNotificationsPage])
+
+  useRealtimeConnection(accessToken, company?.slug, {
+    onNotificacaoNova: () => {
+      setUnreadCount((prev) => prev + 1)
+    },
+    onReady: () => {
+      void apiRequest<Array<{ lidaEm: string | null }>>('/notificacoes', { accessToken: accessToken! })
+        .then((res) => setUnreadCount(res.filter((item) => !item.lidaEm).length))
+        .catch(() => undefined)
+    },
+  })
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">

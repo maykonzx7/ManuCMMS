@@ -22,6 +22,7 @@ export function usePermissions() {
     canManageAssets: ['SUPERVISOR', 'GESTOR', 'ADMIN'].includes(role),
     canManageUsers: ['SUPERVISOR', 'GESTOR', 'ADMIN'].includes(role),
     canViewAnalytics: ['GESTOR', 'AUDITOR', 'ADMIN'].includes(role),
+    canViewExecutiveDashboard: ['GESTOR', 'ADMIN'].includes(role),
     isAdmin: role === 'ADMIN',
     canExportReports: ['GESTOR', 'AUDITOR', 'ADMIN'].includes(role),
   }

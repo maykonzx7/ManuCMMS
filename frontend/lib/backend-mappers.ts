@@ -25,6 +25,7 @@ export type ApiOrdem = {
   ativoNome: string
   status: string
   tipo: string
+  prioridade?: string
   descricao: string
   fotoAnexo?: string | null
   fotoProblema?: string | null
@@ -113,7 +114,7 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
     descricao: input.descricao,
     solucao: input.descricaoSolucao ?? undefined,
     tipo: (input.tipo?.toUpperCase() ?? 'CORRETIVA') as ServiceOrder['tipo'],
-    prioridade: 'MEDIA',
+    prioridade: (input.prioridade?.toUpperCase() ?? 'MEDIA') as ServiceOrder['prioridade'],
     status: status as ServiceOrder['status'],
     dataAbertura: input.dataAbertura,
     dataFechamento: input.dataFechamento ?? undefined,

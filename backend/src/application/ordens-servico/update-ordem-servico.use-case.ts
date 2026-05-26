@@ -20,6 +20,7 @@ import {
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 
 const DESCRICAO_MAX = 32_000;
@@ -48,6 +49,7 @@ export class UpdateOrdemServicoUseCase {
       motivoTransferencia?: string;
     },
     executorUsuarioId: string,
+    executorPerfil: string,
   ): Promise<OrdemServicoListaItem> {
     const unidade = await this.unidades.findById(idUnidade);
     if (!unidade?.empresaId) {
@@ -95,7 +97,22 @@ export class UpdateOrdemServicoUseCase {
     if (!atual) {
       throw new NotFoundException('Ordem de serviço não encontrada');
     }
-    if (atual.status !== 'ABERTA') {
+
+    const perfil = executorPerfil.toUpperCase();
+    const podeEditarConcluida = perfil === 'GESTOR' || perfil === 'ADMIN';
+
+    if (atual.status === 'CONCLUIDA') {
+      if (!podeEditarConcluida) {
+        throw new BadRequestException(
+          'OS concluída só pode ser alterada por Gestor ou Admin (RN-15)',
+        );
+      }
+      if (idTecnico !== undefined) {
+        throw new BadRequestException(
+          'Transferência de técnico não permitida em OS concluída (RN-15)',
+        );
+      }
+    } else if (atual.status !== 'ABERTA') {
       throw new BadRequestException(
         'Somente OS ABERTA pode ser editada antes de iniciar execução.',
       );
@@ -143,6 +160,7 @@ export class UpdateOrdemServicoUseCase {
       });
     }
 
+    publishOrdemServicoStatus(this.notificacoes, idUnidade, atualizado);
     return atualizado;
   }
 

@@ -21,7 +21,15 @@ import { CreateOrdemServicoUseCase } from '../application/ordens-servico/create-
 import { FecharOrdemServicoUseCase } from '../application/ordens-servico/fechar-ordem-servico.use-case';
 import { GetOrdemServicoByIdUseCase } from '../application/ordens-servico/get-ordem-servico-by-id.use-case';
 import { IniciarExecucaoOrdemServicoUseCase } from '../application/ordens-servico/iniciar-execucao-ordem-servico.use-case';
+import { ListOrdensServicoByAtivoUseCase } from '../application/ordens-servico/list-ordens-servico-by-ativo.use-case';
 import { ListOrdensServicoByUnidadeUseCase } from '../application/ordens-servico/list-ordens-servico-by-unidade.use-case';
+import {
+  CreatePecaUseCase,
+  DeletePecaUseCase,
+  ListPecaMovimentacoesUseCase,
+  ListPecasByUnidadeUseCase,
+  UpdatePecaUseCase,
+} from '../application/pecas/pecas.use-cases';
 import { EscalarOrdemServicoUseCase } from '../application/ordens-servico/escalar-ordem-servico.use-case';
 import { OrdemServicoSlaMonitorService } from '../application/ordens-servico/sla-monitor.service';
 import { UpdateOrdemServicoUseCase } from '../application/ordens-servico/update-ordem-servico.use-case';
@@ -32,10 +40,13 @@ import { AuthPublicController } from './http/auth-public.controller';
 import { AuthSessionController } from './http/auth-session.controller';
 import { AuditoriaController } from './http/auditoria.controller';
 import { AtivosController } from './http/ativos.controller';
+import { PecasController } from './http/pecas.controller';
 import { DashboardController } from './http/dashboard.controller';
+import { GetDashboardExecutivoUseCase } from '../application/dashboard/get-dashboard-executivo.use-case';
 import { OrdensServicoController } from './http/ordens-servico.controller';
 import { HealthController } from './http/health.controller';
 import { IntegracoesController } from './http/integracoes.controller';
+import { IntegracaoParceiroController } from './http/integracao-parceiro.controller';
 import { GestaoEmpresaController } from './http/gestao-empresa.controller';
 import { MeController } from './http/me.controller';
 import { OnboardingController } from './http/onboarding.controller';
@@ -60,6 +71,7 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     DashboardController,
     AuditoriaController,
     IntegracoesController,
+    IntegracaoParceiroController,
     GestaoEmpresaController,
     MeController,
     OnboardingController,
@@ -68,6 +80,7 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     PlatformAdminController,
     UnidadesController,
     AtivosController,
+    PecasController,
     OrdensServicoController,
     UsuariosController,
   ],
@@ -89,7 +102,14 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     GetAtivoByIdUseCase,
     UpdateAtivoUseCase,
     DeleteAtivoUseCase,
+    GetDashboardExecutivoUseCase,
     ListOrdensServicoByUnidadeUseCase,
+    ListOrdensServicoByAtivoUseCase,
+    ListPecasByUnidadeUseCase,
+    ListPecaMovimentacoesUseCase,
+    CreatePecaUseCase,
+    UpdatePecaUseCase,
+    DeletePecaUseCase,
     CreateOrdemServicoUseCase,
     GetOrdemServicoByIdUseCase,
     UpdateOrdemServicoUseCase,

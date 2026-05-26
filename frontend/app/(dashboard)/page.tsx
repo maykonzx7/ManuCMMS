@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Package, ClipboardList, Activity } from 'lucide-react'
+import Link from 'next/link'
+import { Package, ClipboardList, Activity, ArrowRight } from 'lucide-react'
 import { KPICard, RecentOrders, AssetsSummary } from '@/components/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth, useCurrentUnit } from '@/lib/auth'
+import { Button } from '@/components/ui/button'
+import { useAuth, useCurrentUnit, useCurrentUser } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiAtivoToAsset, mapApiOrdemToServiceOrder, type ApiAtivo, type ApiOrdem } from '@/lib/backend-mappers'
+import { usePermissions } from '@/hooks/use-permissions'
+import { ROUTES } from '@/lib/routes'
+import { ORDER_STATUS_LABELS } from '@/lib/constants'
 
 type DashboardExecutivoResponse = {
   periodo: {
@@ -43,7 +48,7 @@ type DashboardExecutivoResponse = {
   }
 }
 
-export default function HomePage() {
+function ExecutiveHome() {
   const { isAuthenticated } = useAuth()
   const unidadeAtual = useCurrentUnit()
   const [ativos, setAtivos] = useState<ReturnType<typeof mapApiAtivoToAsset>[]>([])
@@ -117,8 +122,8 @@ export default function HomePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Painel de Controle</h1>
-        <p className="text-muted-foreground">Visão geral da manutenção industrial</p>
+        <h1 className="text-3xl font-bold tracking-tight">Painel Executivo</h1>
+        <p className="text-muted-foreground">Indicadores e visão geral da manutenção industrial</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -151,4 +156,99 @@ export default function HomePage() {
       ) : null}
     </div>
   )
+}
+
+function TechnicianHome() {
+  const { accessToken, isAuthenticated } = useAuth()
+  const user = useCurrentUser()
+  const unidadeAtual = useCurrentUnit()
+  const [ordens, setOrdens] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken || !unidadeAtual?.id || !user?.id) return
+    setIsLoading(true)
+    const query = new URLSearchParams({ idTecnico: user.id })
+    void apiRequest<ApiOrdem[]>(`/unidades/${unidadeAtual.id}/ordens-servico?${query}`, { accessToken })
+      .then((res) => {
+        setOrdens(res.map((item) => mapApiOrdemToServiceOrder(item, unidadeAtual.id)))
+      })
+      .catch(() => setOrdens([]))
+      .finally(() => setIsLoading(false))
+  }, [accessToken, isAuthenticated, unidadeAtual?.id, user?.id])
+
+  const resumo = useMemo(() => {
+    const abertas = ordens.filter((o) => o.status === 'ABERTA').length
+    const emExecucao = ordens.filter((o) => o.status === 'EM_EXECUCAO').length
+    const concluidas = ordens.filter((o) => o.status === 'CONCLUIDA').length
+    return { abertas, emExecucao, concluidas, total: ordens.length }
+  }, [ordens])
+
+  const minhasRecentes = ordens
+    .filter((o) => o.status === 'ABERTA' || o.status === 'EM_EXECUCAO')
+    .slice(0, 6)
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Minhas Ordens</h1>
+          <p className="text-muted-foreground">
+            Olá, {user?.nome ?? 'técnico'}. Acompanhe suas OS atribuídas nesta unidade.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href={ROUTES.ordens}>
+            Ver todas
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <KPICard title="Abertas" value={resumo.abertas} description="Aguardando início" icon={ClipboardList} />
+        <KPICard title="Em execução" value={resumo.emExecucao} description="Em andamento agora" icon={Activity} />
+        <KPICard title="Concluídas" value={resumo.concluidas} description={`${resumo.total} no total`} icon={Package} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Próximas ações</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando suas ordens...</p>
+          ) : minhasRecentes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma OS aberta ou em execução atribuída a você.</p>
+          ) : (
+            minhasRecentes.map((ordem) => (
+              <Link
+                key={ordem.id}
+                href={`${ROUTES.ordens}/${ordem.id}`}
+                className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-accent"
+              >
+                <div>
+                  <p className="font-medium">{ordem.numero} — {ordem.titulo}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {ORDER_STATUS_LABELS[ordem.status] ?? ordem.status}
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export default function HomePage() {
+  const { canViewExecutiveDashboard } = usePermissions()
+
+  if (canViewExecutiveDashboard) {
+    return <ExecutiveHome />
+  }
+
+  return <TechnicianHome />
 }

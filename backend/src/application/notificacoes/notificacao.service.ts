@@ -2,13 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
+import {
+  RealtimeBroadcastService,
+  type OrdemServicoStatusEvent,
+} from '../../infrastructure/realtime/realtime-broadcast.service';
 import type { NotificacaoInput, NotificacaoView } from './notificacao.types';
 
 @Injectable()
 export class NotificacaoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeBroadcastService,
+  ) {}
 
-  async create(input: NotificacaoInput): Promise<void> {
+  async create(input: NotificacaoInput): Promise<NotificacaoView> {
+    const id = randomUUID();
+    const createdAt = new Date();
+
     await this.prisma.$executeRaw(Prisma.sql`
       INSERT INTO notificacao (
         id,
@@ -25,7 +35,7 @@ export class NotificacaoService {
         updated_at
       )
       VALUES (
-        ${randomUUID()}::uuid,
+        ${id}::uuid,
         ${input.usuarioId}::uuid,
         ${input.empresaId ?? null}::uuid,
         ${input.idUnidade ?? null}::uuid,
@@ -35,10 +45,28 @@ export class NotificacaoService {
         ${input.mensagem},
         ${input.fotoUrl ?? null},
         ${input.linkPath ?? null},
-        NOW(),
-        NOW()
+        ${createdAt},
+        ${createdAt}
       )
     `);
+
+    const view: NotificacaoView = {
+      id,
+      tipo: input.tipo,
+      titulo: input.titulo,
+      mensagem: input.mensagem,
+      fotoUrl: input.fotoUrl ?? null,
+      linkPath: input.linkPath ?? null,
+      lidaEm: null,
+      createdAt: createdAt.toISOString(),
+    };
+
+    this.realtime.emitNotificacaoNova(input.usuarioId, view);
+    return view;
+  }
+
+  emitOrdemServicoStatus(payload: OrdemServicoStatusEvent): void {
+    this.realtime.emitOrdemServicoStatus(payload.idUnidade, payload);
   }
 
   async listByUsuario(usuarioId: string): Promise<NotificacaoView[]> {

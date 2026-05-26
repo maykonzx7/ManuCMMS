@@ -25,6 +25,20 @@ O DDE exige **manual completo** com passo a passo por perfil (**Técnico, Superv
 | 2.6 | Consultar histórico do ativo (leitura) | RF-17 |
 | 2.7 | Gráfico de temperatura (visualização) | RF-09 |
 
+### 2.1 Acesso e login (preenchido)
+
+1. Abra o portal da empresa: `/workspace/acesso` ou `/workspace/acesso/{slug}`.
+2. Informe e-mail e senha cadastrados no convite.
+3. **Resultado:** redirecionamento para `/workspace` com lista **Minhas Ordens** (perfil Técnico).
+4. Recuperação de senha: link na tela de login → e-mail Supabase → `/workspace/acesso/redefinir-senha`.
+
+### 2.5 Fechamento com assinatura (preenchido)
+
+1. Abra a OS em execução → **Fechar ordem**.
+2. Anexe ao menos uma foto; preencha solução (corretiva).
+3. Desenhe a assinatura no canvas; opcionalmente informe peças consumidas.
+4. **Resultado:** OS **Concluída**; ativo volta operacional (RN-14); estoque debitado (RN-07).
+
 ---
 
 ## 3. Capítulo — Supervisor

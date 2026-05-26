@@ -1,10 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { ATIVO_REPOSITORY_PORT } from '../../domain/ports/ativo.repository.port';
 import { ORDEM_SERVICO_REPOSITORY_PORT } from '../../domain/ports/ordem-servico.repository.port';
+import { PECA_REPOSITORY_PORT } from '../../domain/ports/peca.repository.port';
 import { UNIDADE_READ_PORT } from '../../domain/ports/unidade-read.port';
 import { USUARIO_READ_PORT } from '../../domain/ports/usuario-read.port';
 import { PrismaAtivoRepository } from './prisma-ativo.repository';
 import { PrismaOrdemServicoRepository } from './prisma-ordem-servico.repository';
+import { PrismaPecaRepository } from './prisma-peca.repository';
 import { PrismaUnidadeRepository } from './prisma-unidade.repository';
 import { PrismaUsuarioRepository } from './prisma-usuario.repository';
 import { PrismaService } from './prisma.service';
@@ -17,6 +19,7 @@ import { PrismaService } from './prisma.service';
     PrismaAtivoRepository,
     PrismaUsuarioRepository,
     PrismaOrdemServicoRepository,
+    PrismaPecaRepository,
     {
       provide: UNIDADE_READ_PORT,
       useExisting: PrismaUnidadeRepository,
@@ -33,6 +36,10 @@ import { PrismaService } from './prisma.service';
       provide: ORDEM_SERVICO_REPOSITORY_PORT,
       useExisting: PrismaOrdemServicoRepository,
     },
+    {
+      provide: PECA_REPOSITORY_PORT,
+      useExisting: PrismaPecaRepository,
+    },
   ],
   exports: [
     PrismaService,
@@ -40,6 +47,7 @@ import { PrismaService } from './prisma.service';
     ATIVO_REPOSITORY_PORT,
     USUARIO_READ_PORT,
     ORDEM_SERVICO_REPOSITORY_PORT,
+    PECA_REPOSITORY_PORT,
   ],
 })
 export class PrismaModule {}

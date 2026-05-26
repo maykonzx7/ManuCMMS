@@ -1,8 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,
   type IOrdemServicoRepositoryPort,
+  type ListOrdensServicoFilters,
 } from '../../domain/ports/ordem-servico.repository.port';
 import {
   UNIDADE_READ_PORT,
@@ -20,13 +21,16 @@ export class ListOrdensServicoByUnidadeUseCase {
     private readonly slaMonitor: OrdemServicoSlaMonitorService,
   ) {}
 
-  async execute(idUnidade: string): Promise<OrdemServicoListaItem[]> {
+  async execute(
+    idUnidade: string,
+    filters?: ListOrdensServicoFilters,
+  ): Promise<OrdemServicoListaItem[]> {
     const unidade = await this.unidades.findById(idUnidade);
     if (!unidade?.empresaId) {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
 
     await this.slaMonitor.processarAtrasos(unidade.empresaId, idUnidade);
-    return this.ordens.listByUnidade(unidade.empresaId, idUnidade);
+    return this.ordens.listByUnidade(unidade.empresaId, idUnidade, filters);
   }
 }

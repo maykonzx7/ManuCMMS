@@ -18,6 +18,7 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { ListAtivosByUnidadeUseCase } from '../../application/ativos/list-ativos-by-unidade.use-case';
 import { UpdateAtivoUseCase } from '../../application/ativos/update-ativo.use-case';
+import { ListOrdensServicoByAtivoUseCase } from '../../application/ordens-servico/list-ordens-servico-by-ativo.use-case';
 
 type CreateAtivoBody = {
   nome: string;
@@ -56,6 +57,7 @@ export class AtivosController {
     private readonly createAtivo: CreateAtivoUseCase,
     private readonly updateAtivo: UpdateAtivoUseCase,
     private readonly deleteAtivo: DeleteAtivoUseCase,
+    private readonly listOrdensByAtivo: ListOrdensServicoByAtivoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly enforceUnidadeScope: EnforceUnidadeScopeUseCase,
   ) {}
@@ -77,6 +79,17 @@ export class AtivosController {
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.createAtivo.execute(unidadeId, body, req.usuarioLocal!.id);
+  }
+
+  @Get(':ativoId/ordens-servico')
+  async listOrdensServico(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ativoId') ativoId: string,
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    return this.listOrdensByAtivo.execute(unidadeId, ativoId);
   }
 
   @Get(':ativoId')

@@ -14,6 +14,7 @@ export type OrdemServicoListaItem = {
   ativoNome: string;
   idTecnico: string | null;
   tipo: TipoOrdemServicoCodigo;
+  prioridade: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CRITICA';
   status: StatusOrdemServicoCodigo;
   descricao: string;
   fotoAnexo: string | null;

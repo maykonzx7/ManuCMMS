@@ -12,10 +12,26 @@ export type CreateOrdemServicoInput = {
   idUnidade: string;
   idAtivo: string;
   tipo: OrdemServicoListaItem['tipo'];
+  prioridade?: OrdemServicoListaItem['prioridade'];
   descricao: string;
   dataLimiteSla: Date | null;
   idTecnico?: string | null;
   criadoPorUsuarioId: string;
+};
+
+export type ListOrdensServicoFilters = {
+  status?: OrdemServicoListaItem['status'];
+  tipo?: OrdemServicoListaItem['tipo'];
+  prioridade?: OrdemServicoListaItem['prioridade'];
+  idTecnico?: string;
+  idAtivo?: string;
+  from?: Date;
+  to?: Date;
+};
+
+export type PecaConsumoInput = {
+  pecaId: string;
+  quantidade: number;
 };
 
 /** Persistência atômica: OS concluída + ativo OPERACIONAL (RN-14). */
@@ -30,12 +46,19 @@ export type FecharOrdemServicoPersistenciaInput = {
   descricaoSolucao: string | null;
   assinaturaDigital: string | null;
   finalizadoPorUsuarioId: string;
+  pecasConsumidas?: PecaConsumoInput[];
 };
 
 export interface IOrdemServicoRepositoryPort {
   listByUnidade(
     empresaId: string,
     idUnidade: string,
+    filters?: ListOrdensServicoFilters,
+  ): Promise<OrdemServicoListaItem[]>;
+  listByAtivo(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
   ): Promise<OrdemServicoListaItem[]>;
   findByIdInUnidade(
     idOrdemServico: string,

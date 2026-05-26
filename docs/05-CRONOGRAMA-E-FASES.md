@@ -108,15 +108,15 @@
 
 Usar como gate antes da entrega final:
 
-- [ ] CRUD ativos e OS + validação
-- [ ] Login + RBAC + auditoria
-- [ ] IoT/simulação → OS preditiva
-- [ ] Dashboard KPIs tempo real
-- [ ] Airtable com envio automático
-- [ ] UI responsiva
-- [ ] Health + circuit breaker
-- [ ] Deploy HTTPS homologação
-- [ ] Testes ≥ 80% regras críticas
+- [x] CRUD ativos e OS + validação — mai/2026
+- [x] Login + RBAC + auditoria — Supabase + trilha Mongo
+- [ ] IoT/simulação → OS preditiva — **adiado**; ver [IoT-ESCOPO-DDE.md](IoT-ESCOPO-DDE.md)
+- [x] Dashboard KPIs tempo real — API executivo + WebSocket RF-11/18
+- [x] Integração externa (substitui Airtable) — API parceiro + webhook + circuit breaker
+- [ ] UI responsiva — matriz NF-03; anexar screenshots
+- [x] Health + circuit breaker — NF-04/08 evidenciados
+- [ ] Deploy HTTPS homologação — preencher [HOMOLOG-URL.md](HOMOLOG-URL.md)
+- [ ] Testes ≥ 80% regras críticas — medir com `npm test` / cobertura
 
 ---
 
@@ -128,6 +128,14 @@ Ao fechar cada fase: marcar data real, desvio em dias e lições (subseção opc
 
 | Fase | Previsto | Realizado | Notas |
 | ---- | -------- | --------- | ----- |
-| 0 | _TBD_ | | |
-| 1 | _TBD_ | | |
-| … | | | |
+| 0 | sem 1–2 | 26/05/2026 | Docker, CI backend+frontend |
+| 1 | sem 2–4 | 26/05/2026 | IAM Supabase, RBAC, convites |
+| 2 | sem 4–8 | 26/05/2026 | CRUD ativo/OS, RF-17 |
+| 3 | sem 7–10 | 26/05/2026 | Fechamento RN-02, upload, RN-15 |
+| 4 | sem 8–11 | 26/05/2026 | Auditoria UI/export NF-05 |
+| 5 | sem 10–14 | Adiado | IoT — ver IoT-ESCOPO-DDE.md |
+| 6 | sem 11–13 | 26/05/2026 | WebSocket; RF-09 adiado |
+| 7 | sem 12–15 | 26/05/2026 | Dashboard executivo |
+| 8 | sem 14–16 | 26/05/2026 | API parceiro + webhook (≠ Airtable) |
+| 9 | sem 15–17 | Em curso | NF scripts; homolog pendente |
+| 10 | sem 17–18 | Pendente | Manual, ensaio defesa |

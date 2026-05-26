@@ -10,4 +10,5 @@ export const ROUTES = {
   novoAtivo: '/workspace/ativos/novo',
   admin: '/workspace/admin',
   configuracoes: '/workspace/configuracoes',
+  pecas: '/workspace/pecas',
 }

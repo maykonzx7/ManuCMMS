@@ -12,6 +12,7 @@ import type {
   CreateOrdemServicoInput,
   FecharOrdemServicoPersistenciaInput,
   IOrdemServicoRepositoryPort,
+  ListOrdensServicoFilters,
 } from '../../domain/ports/ordem-servico.repository.port';
 import { PrismaService } from './prisma.service';
 
@@ -21,6 +22,7 @@ type OrdemServicoRow = {
   ativoNome: string;
   idTecnico: string | null;
   tipo: OrdemServicoListaItem['tipo'];
+  prioridade: OrdemServicoListaItem['prioridade'];
   status: OrdemServicoListaItem['status'];
   descricao: string;
   fotoAnexo: string | null;
@@ -63,6 +65,7 @@ function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
     descricao:
       o.descricao.length > 500 ? `${o.descricao.slice(0, 500)}…` : o.descricao,
     idTecnico: o.idTecnico,
+    prioridade: o.prioridade,
     observacaoCancelamento: o.observacaoCancelamento,
     descricaoSolucao: o.descricaoSolucao,
     assinaturaDigital: o.assinaturaDigital,
@@ -87,17 +90,72 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
   async listByUnidade(
     empresaId: string,
     idUnidade: string,
+    filters?: ListOrdensServicoFilters,
   ): Promise<OrdemServicoListaItem[]> {
-    const rows = await this.listRowsWhere(Prisma.sql`
-      os.empresa_id = ${empresaId}::uuid
-      AND a.id_unidade = ${idUnidade}::uuid
-    `);
+    const rows = await this.listRowsWhere(
+      this.buildUnidadeWhere(empresaId, idUnidade, filters),
+    );
 
     return Promise.all(
       rows.map(async (row) =>
         this.toListaItem(row, await this.listTransferencias(row.id)),
       ),
     );
+  }
+
+  async listByAtivo(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+  ): Promise<OrdemServicoListaItem[]> {
+    const rows = await this.listRowsWhere(
+      this.buildUnidadeWhere(empresaId, idUnidade, { idAtivo }),
+    );
+
+    return Promise.all(
+      rows.map(async (row) =>
+        this.toListaItem(row, await this.listTransferencias(row.id)),
+      ),
+    );
+  }
+
+  private buildUnidadeWhere(
+    empresaId: string,
+    idUnidade: string,
+    filters?: ListOrdensServicoFilters,
+  ): Prisma.Sql {
+    const parts: Prisma.Sql[] = [
+      Prisma.sql`os.empresa_id = ${empresaId}::uuid`,
+      Prisma.sql`a.id_unidade = ${idUnidade}::uuid`,
+    ];
+
+    if (filters?.status) {
+      parts.push(
+        Prisma.sql`os.status = ${filters.status}::"StatusOrdemServico"`,
+      );
+    }
+    if (filters?.tipo) {
+      parts.push(Prisma.sql`os.tipo = ${filters.tipo}::"TipoOrdemServico"`);
+    }
+    if (filters?.prioridade) {
+      parts.push(
+        Prisma.sql`os.prioridade = ${filters.prioridade}::"PrioridadeOrdemServico"`,
+      );
+    }
+    if (filters?.idTecnico) {
+      parts.push(Prisma.sql`os.id_tecnico = ${filters.idTecnico}::uuid`);
+    }
+    if (filters?.idAtivo) {
+      parts.push(Prisma.sql`os.id_ativo = ${filters.idAtivo}::uuid`);
+    }
+    if (filters?.from) {
+      parts.push(Prisma.sql`os.data_abertura >= ${filters.from}`);
+    }
+    if (filters?.to) {
+      parts.push(Prisma.sql`os.data_abertura <= ${filters.to}`);
+    }
+
+    return Prisma.join(parts, ' AND ');
   }
 
   async create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem> {
@@ -112,6 +170,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           id_tecnico,
           criado_por_usuario_id,
           tipo,
+          prioridade,
           status,
           descricao,
           data_limite_sla,
@@ -125,6 +184,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           ${input.idTecnico ?? null}::uuid,
           ${input.criadoPorUsuarioId}::uuid,
           ${input.tipo}::"TipoOrdemServico",
+          ${input.prioridade ?? 'MEDIA'}::"PrioridadeOrdemServico",
           'ABERTA',
           ${input.descricao},
           ${input.dataLimiteSla},
@@ -317,6 +377,60 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     );
 
     await this.prisma.$transaction(async (tx) => {
+      for (const consumo of input.pecasConsumidas ?? []) {
+        const pecaRows = await tx.$queryRaw<
+          Array<{ id: string; quantidadeEstoque: number; nome: string }>
+        >(Prisma.sql`
+          SELECT
+            id,
+            quantidade_estoque AS "quantidadeEstoque",
+            nome
+          FROM peca
+          WHERE id = ${consumo.pecaId}::uuid
+            AND empresa_id = ${input.empresaId}::uuid
+            AND id_unidade = ${input.idUnidade}::uuid
+          FOR UPDATE
+        `);
+
+        const peca = pecaRows[0];
+        if (!peca) {
+          throw new NotFoundException(`Peça ${consumo.pecaId} não encontrada`);
+        }
+        if (consumo.quantidade <= 0) {
+          throw new NotFoundException('Quantidade de peça deve ser maior que zero');
+        }
+        if (peca.quantidadeEstoque < consumo.quantidade) {
+          throw new NotFoundException(
+            `Estoque insuficiente para peça ${peca.nome} (RN-07)`,
+          );
+        }
+
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE peca
+          SET
+            quantidade_estoque = quantidade_estoque - ${consumo.quantidade},
+            updated_at = NOW()
+          WHERE id = ${consumo.pecaId}::uuid
+        `);
+
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO ordem_servico_peca (
+            id,
+            ordem_servico_id,
+            peca_id,
+            quantidade,
+            created_at
+          )
+          VALUES (
+            ${randomUUID()}::uuid,
+            ${input.idOrdemServico}::uuid,
+            ${consumo.pecaId}::uuid,
+            ${consumo.quantidade},
+            NOW()
+          )
+        `);
+      }
+
       await tx.$executeRaw(Prisma.sql`
         UPDATE ordem_servico
         SET
@@ -566,6 +680,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         a.nome AS "ativoNome",
         os.id_tecnico AS "idTecnico",
         os.tipo,
+        os.prioridade,
         os.status,
         os.descricao,
         os.foto_anexo AS "fotoAnexo",
@@ -605,6 +720,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       ativoNome: r.ativoNome,
       idTecnico: r.idTecnico,
       tipo: r.tipo,
+      prioridade: r.prioridade,
       status: r.status,
       descricao: r.descricao,
       fotoAnexo: r.fotoAnexo,

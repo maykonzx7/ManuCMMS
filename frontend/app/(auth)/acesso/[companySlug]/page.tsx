@@ -10,7 +10,7 @@ export default function CompanyLoginPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, loginWithGoogle, isLoading, isAuthenticated } = useAuth()
+  const { login, loginWithGoogle, requestPasswordReset, isLoading, isAuthenticated } = useAuth()
   const companySlug = params.companySlug as string
   const redirectPath = searchParams.get('redirect') || '/workspace'
 
@@ -58,6 +58,7 @@ export default function CompanyLoginPage() {
       
       <LoginForm 
         onSubmit={handleLogin} 
+        onForgotPassword={(email) => requestPasswordReset(email, '/workspace/acesso/redefinir-senha')}
         empresaSlug={companySlug}
         isLoading={isLoading} 
       />

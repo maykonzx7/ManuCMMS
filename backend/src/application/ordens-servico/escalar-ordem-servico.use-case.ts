@@ -13,6 +13,7 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
@@ -115,6 +116,7 @@ export class EscalarOrdemServicoUseCase {
       },
     });
 
+    publishOrdemServicoStatus(this.notificacoes, idUnidade, ordem);
     return ordem;
   }
 }

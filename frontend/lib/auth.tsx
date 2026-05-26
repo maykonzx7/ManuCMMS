@@ -38,6 +38,8 @@ interface AuthContextType {
   isPlatformOperator: boolean
   login: (email: string, senha: string, empresaSlug?: string) => Promise<void>
   loginWithGoogle: (empresaSlug?: string, redirectPath?: string) => Promise<void>
+  requestPasswordReset: (email: string, redirectPath?: string) => Promise<void>
+  updatePassword: (novaSenha: string) => Promise<void>
   logout: () => Promise<void>
   setUnidadeAtual: (unidade: Unit) => void
 }
@@ -249,6 +251,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
+  const requestPasswordReset = useCallback(async (email: string, redirectPath?: string) => {
+    if (!supabase) {
+      throw new Error('Supabase nao configurado')
+    }
+
+    let emailParaReset = email.trim().toLowerCase()
+    if (!emailParaReset.includes('@')) {
+      const resolved = await apiRequest<{ email: string }>('/auth/resolve-login', {
+        method: 'POST',
+        body: { identificador: emailParaReset },
+      })
+      emailParaReset = resolved.email.trim().toLowerCase()
+    }
+
+    const redirectTo = `${window.location.origin}${redirectPath ?? '/workspace/acesso/redefinir-senha'}`
+
+    const { error } = await supabase.auth.resetPasswordForEmail(emailParaReset, {
+      redirectTo,
+    })
+
+    if (error) {
+      throw new Error(error.message || 'Nao foi possivel enviar o e-mail de recuperacao')
+    }
+  }, [])
+
+  const updatePassword = useCallback(async (novaSenha: string) => {
+    if (!supabase) {
+      throw new Error('Supabase nao configurado')
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: novaSenha })
+    if (error) {
+      throw new Error(error.message || 'Nao foi possivel atualizar a senha')
+    }
+  }, [])
+
   const logout = useCallback(async () => {
     if (supabase) {
       await supabase.auth.signOut()
@@ -272,9 +310,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isPlatformOperator,
     login,
     loginWithGoogle,
+    requestPasswordReset,
+    updatePassword,
     logout,
     setUnidadeAtual,
-  }), [accessToken, isLoading, isPlatformOperator, login, loginWithGoogle, logout, sessionData, setUnidadeAtual])
+  }), [accessToken, isLoading, isPlatformOperator, login, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

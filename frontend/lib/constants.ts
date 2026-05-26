@@ -118,6 +118,7 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   // Telas restritas
   'ordens-detalhe': ['TECNICO', 'SUPERVISOR', 'GESTOR', 'ADMIN'],
   'ativos-cadastro': ['SUPERVISOR', 'GESTOR', 'ADMIN'],
+  'pecas-estoque': ['SUPERVISOR', 'GESTOR', 'ADMIN'],
   usuarios: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
   unidades: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
   dashboard: ['GESTOR', 'ADMIN'],
@@ -142,6 +143,7 @@ export const SIDEBAR_NAVIGATION = [
       { title: 'Início', url: ROUTES.home, icon: 'Home', screen: 'home' },
       { title: 'Ordens de Serviço', url: ROUTES.ordens, icon: 'ClipboardList', screen: 'ordens-lista' },
       { title: 'Ativos', url: ROUTES.ativos, icon: 'Package', screen: 'ativos-lista' },
+      { title: 'Peças / Estoque', url: ROUTES.pecas, icon: 'Boxes', screen: 'pecas-estoque' },
     ],
   },
   {

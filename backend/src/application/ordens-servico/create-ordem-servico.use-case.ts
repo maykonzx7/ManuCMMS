@@ -27,12 +27,20 @@ import {
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 
 const TIPOS_VALIDOS: OrdemServicoListaItem['tipo'][] = [
   'CORRETIVA',
   'PREVENTIVA',
   'PREDITIVA',
+];
+
+const PRIORIDADES_VALIDAS: OrdemServicoListaItem['prioridade'][] = [
+  'BAIXA',
+  'MEDIA',
+  'ALTA',
+  'CRITICA',
 ];
 
 const DESCRICAO_MAX = 32_000;
@@ -65,6 +73,7 @@ export class CreateOrdemServicoUseCase {
       idAtivo: string;
       tipo: string;
       descricao: string;
+      prioridade?: string;
       idTecnico?: string | null;
     },
     criadoPorUsuarioId: string,
@@ -81,6 +90,14 @@ export class CreateOrdemServicoUseCase {
     if (!TIPOS_VALIDOS.includes(tipo)) {
       throw new BadRequestException(
         `tipo deve ser um de: ${TIPOS_VALIDOS.join(', ')}`,
+      );
+    }
+
+    const prioridadeRaw = (body.prioridade ?? 'MEDIA').toUpperCase();
+    const prioridade = prioridadeRaw as OrdemServicoListaItem['prioridade'];
+    if (!PRIORIDADES_VALIDAS.includes(prioridade)) {
+      throw new BadRequestException(
+        `prioridade deve ser uma de: ${PRIORIDADES_VALIDAS.join(', ')}`,
       );
     }
 
@@ -145,6 +162,7 @@ export class CreateOrdemServicoUseCase {
       idUnidade,
       idAtivo: body.idAtivo,
       tipo,
+      prioridade,
       descricao,
       dataLimiteSla: this.resolveSlaDeadline(tipo, unidadeOk),
       idTecnico,
@@ -167,6 +185,7 @@ export class CreateOrdemServicoUseCase {
         idUnidade,
         empresaSlug: unidadeOk.empresaSlug ?? null,
       });
+      publishOrdemServicoStatus(this.notificacoes, idUnidade, ordem);
       return ordem;
     } catch (e) {
       if (
