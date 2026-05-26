@@ -20,6 +20,7 @@ import {
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 
 const URL_MAX = 2048;
+const DESCRICAO_PROBLEMA_MAX = 4000;
 const DESCRICAO_SOLUCAO_MAX = 4000;
 const ASSINATURA_MAX = 1_000_000;
 
@@ -49,6 +50,7 @@ export class FecharOrdemServicoUseCase {
     body: {
       fotoAnexo?: string | null;
       fotoProblema?: string | null;
+      descricaoProblema?: string | null;
       fotoSolucao?: string | null;
       descricaoSolucao?: string | null;
       assinaturaDigital?: string | null;
@@ -82,6 +84,7 @@ export class FecharOrdemServicoUseCase {
 
     const fotoAnexo = normalizarUrl(body.fotoAnexo);
     const fotoProblema = normalizarUrl(body.fotoProblema) ?? osDetalhe?.fotoProblema ?? null;
+    const descricaoProblema = normalizarUrl(body.descricaoProblema) ?? osDetalhe?.descricaoProblema ?? null;
     const fotoSolucao = normalizarUrl(body.fotoSolucao);
     const descricaoSolucao = normalizarUrl(body.descricaoSolucao);
     const assinaturaDigital = normalizarUrl(body.assinaturaDigital);
@@ -98,6 +101,11 @@ export class FecharOrdemServicoUseCase {
       }
     }
 
+    if (descricaoProblema != null && descricaoProblema.length > DESCRICAO_PROBLEMA_MAX) {
+      throw new BadRequestException(
+        `descricaoProblema deve ter até ${DESCRICAO_PROBLEMA_MAX} caracteres`,
+      );
+    }
     if (descricaoSolucao != null && descricaoSolucao.length > DESCRICAO_SOLUCAO_MAX) {
       throw new BadRequestException(
         `descricaoSolucao deve ter até ${DESCRICAO_SOLUCAO_MAX} caracteres`,
@@ -121,6 +129,11 @@ export class FecharOrdemServicoUseCase {
           'OS corretiva exige fotoProblema (RN-13)',
         );
       }
+      if (descricaoProblema == null) {
+        throw new BadRequestException(
+          'OS corretiva exige descricaoProblema (RN-13)',
+        );
+      }
       if (fotoSolucao == null) {
         throw new BadRequestException(
           'OS corretiva exige fotoSolucao para conclusão (RN-13)',
@@ -138,6 +151,7 @@ export class FecharOrdemServicoUseCase {
       idUnidade,
       fotoAnexo: fotoAnexo ?? null,
       fotoProblema: os.tipo === 'CORRETIVA' ? fotoProblema : null,
+      descricaoProblema: os.tipo === 'CORRETIVA' ? descricaoProblema : null,
       fotoSolucao: os.tipo === 'CORRETIVA' ? fotoSolucao : null,
       descricaoSolucao: os.tipo === 'CORRETIVA' ? (descricaoSolucao ?? null) : null,
       assinaturaDigital: assinaturaDigital ?? null,

@@ -39,6 +39,7 @@ type CreateOrdemServicoBody = {
 type FecharOrdemServicoBody = {
   fotoAnexo?: string | null;
   fotoProblema?: string | null;
+  descricaoProblema?: string | null;
   fotoSolucao?: string | null;
   descricaoSolucao?: string | null;
   assinaturaImagemDataUrl?: string | null;
@@ -47,6 +48,7 @@ type FecharOrdemServicoBody = {
 
 type IniciarOrdemServicoBody = {
   fotoProblema?: string | null;
+  descricaoProblema?: string | null;
 };
 
 type UpdateOrdemServicoBody = {
@@ -213,6 +215,7 @@ export class OrdensServicoController {
         fotoProblema: files.fotoProblema?.[0]
           ? fileToPublicUrl(req, files.fotoProblema[0])
           : body.fotoProblema,
+        descricaoProblema: body.descricaoProblema,
       },
     );
   }
@@ -311,6 +314,7 @@ export class OrdensServicoController {
       fotoProblema: files.fotoProblema?.[0]
         ? fileToPublicUrl(req, files.fotoProblema[0])
         : body.fotoProblema,
+      descricaoProblema: body.descricaoProblema,
       fotoSolucao: files.fotoSolucao?.[0]
         ? fileToPublicUrl(req, files.fotoSolucao[0])
         : body.fotoSolucao,

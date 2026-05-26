@@ -6,6 +6,8 @@ export type StatusOrdemServicoCodigo =
   | 'CONCLUIDA'
   | 'CANCELADA';
 
+export type StatusSlaOrdemServicoCodigo = 'NO_PRAZO' | 'ATRASADA' | 'CONCLUIDA';
+
 export type OrdemServicoListaItem = {
   id: string;
   idAtivo: string;
@@ -16,8 +18,11 @@ export type OrdemServicoListaItem = {
   descricao: string;
   fotoAnexo: string | null;
   fotoProblema: string | null;
+  descricaoProblema: string | null;
   fotoSolucao: string | null;
   descricaoSolucao: string | null;
+  dataLimiteSla: Date | null;
+  statusSla: StatusSlaOrdemServicoCodigo;
   assinaturaDigital: string | null;
   observacaoCancelamento: string | null;
   dataAbertura: Date;

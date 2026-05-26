@@ -1,0 +1,21 @@
+ALTER TABLE "empresa"
+  ADD COLUMN "cnpj" VARCHAR(18) NULL,
+  ADD COLUMN "cep" VARCHAR(9) NULL,
+  ADD COLUMN "endereco" VARCHAR(255) NULL,
+  ADD COLUMN "numero_endereco" VARCHAR(20) NULL,
+  ADD COLUMN "bairro" VARCHAR(120) NULL,
+  ADD COLUMN "cidade" VARCHAR(120) NULL,
+  ADD COLUMN "estado" VARCHAR(2) NULL,
+  ADD COLUMN "contato_nome" VARCHAR(150) NULL,
+  ADD COLUMN "contato_email" VARCHAR(100) NULL,
+  ADD COLUMN "contato_telefone" VARCHAR(20) NULL;
+
+ALTER TABLE "unidade_fabril"
+  ADD COLUMN "cep" VARCHAR(9) NULL,
+  ADD COLUMN "endereco" VARCHAR(255) NULL,
+  ADD COLUMN "numero_endereco" VARCHAR(20) NULL,
+  ADD COLUMN "bairro" VARCHAR(120) NULL,
+  ADD COLUMN "cidade" VARCHAR(120) NULL,
+  ADD COLUMN "estado" VARCHAR(2) NULL,
+  ADD COLUMN "complemento" VARCHAR(120) NULL,
+  ADD COLUMN "referencia" VARCHAR(255) NULL;

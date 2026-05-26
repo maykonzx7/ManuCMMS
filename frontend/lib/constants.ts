@@ -126,6 +126,7 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   relatorios: ['GESTOR', 'AUDITOR', 'ADMIN'],
   integracoes: ['GESTOR', 'ADMIN'],
   iot: ['ADMIN'],
+  admin: ['ADMIN'],
   permissoes: ['GESTOR', 'ADMIN'],
   configuracoes: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
 }
@@ -149,6 +150,7 @@ export const SIDEBAR_NAVIGATION = [
       { title: 'Usuários', url: '/workspace/usuarios', icon: 'Users', screen: 'usuarios' },
       { title: 'Unidades', url: '/workspace/unidades', icon: 'Building2', screen: 'unidades' },
       { title: 'Permissões', url: '/workspace/permissoes', icon: 'Shield', screen: 'permissoes' },
+      { title: 'Painel Admin', url: ROUTES.admin, icon: 'Shield', screen: 'admin' },
     ],
   },
   {

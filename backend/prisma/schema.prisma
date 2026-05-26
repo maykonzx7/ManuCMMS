@@ -69,10 +69,26 @@ enum StatusOrdemServico {
   CANCELADA
 }
 
+enum StatusSlaOrdemServico {
+  NO_PRAZO
+  ATRASADA
+  CONCLUIDA
+}
+
 model Empresa {
   id              String           @id @default(uuid()) @db.Uuid
   nomeEmpresa     String           @map("nome_empresa") @db.VarChar(150)
   slug            String           @unique @db.VarChar(120)
+  cnpj            String?          @db.VarChar(18)
+  cep             String?          @db.VarChar(9)
+  endereco        String?          @db.VarChar(255)
+  numeroEndereco  String?          @map("numero_endereco") @db.VarChar(20)
+  bairro          String?          @db.VarChar(120)
+  cidade          String?          @db.VarChar(120)
+  estado          String?          @db.VarChar(2)
+  contatoNome     String?          @map("contato_nome") @db.VarChar(150)
+  contatoEmail    String?          @map("contato_email") @db.VarChar(100)
+  contatoTelefone String?          @map("contato_telefone") @db.VarChar(20)
   status          StatusEmpresa    @default(ATIVA)
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
@@ -92,6 +108,17 @@ model UnidadeFabril {
   empresa       Empresa?            @relation(fields: [empresaId], references: [id])
   nome          String              @db.VarChar(100)
   localizacao   String              @db.VarChar(255)
+  cep           String?             @db.VarChar(9)
+  endereco      String?             @db.VarChar(255)
+  numeroEndereco String?            @map("numero_endereco") @db.VarChar(20)
+  bairro        String?             @db.VarChar(120)
+  cidade        String?             @db.VarChar(120)
+  estado        String?             @db.VarChar(2)
+  complemento   String?             @db.VarChar(120)
+  referencia    String?             @db.VarChar(255)
+  slaCorretivaHoras Int             @default(24) @map("sla_corretiva_horas")
+  slaPreventivaHoras Int            @default(168) @map("sla_preventiva_horas")
+  slaPreditivaHoras Int             @default(72) @map("sla_preditiva_horas")
   status        StatusUnidadeFabril @default(ATIVA)
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
@@ -151,9 +178,13 @@ model OrdemServico {
   fotoAnexo         String?            @map("foto_anexo") @db.VarChar(2048)
   /// RN-13 (OS corretiva): evidência do defeito.
   fotoProblema      String?            @map("foto_problema") @db.VarChar(2048)
+  descricaoProblema String?            @map("descricao_problema") @db.VarChar(4000)
   /// RN-13 (OS corretiva): evidência da correção.
   fotoSolucao       String?            @map("foto_solucao") @db.VarChar(2048)
   descricaoSolucao  String?            @map("descricao_solucao") @db.VarChar(4000)
+  dataLimiteSla     DateTime?          @map("data_limite_sla")
+  statusSla         StatusSlaOrdemServico @default(NO_PRAZO) @map("status_sla")
+  slaAtrasoNotificadoEm DateTime?      @map("sla_atraso_notificado_em")
   observacaoCancelamento String?       @map("observacao_cancelamento") @db.VarChar(1000)
   assinaturaDigital String?            @map("assinatura_digital") @db.Text
   dataAbertura      DateTime           @default(now()) @map("data_abertura")

@@ -8,6 +8,7 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { OrdemServicoSlaMonitorService } from './sla-monitor.service';
 
 @Injectable()
 export class ListOrdensServicoByUnidadeUseCase {
@@ -16,6 +17,7 @@ export class ListOrdensServicoByUnidadeUseCase {
     private readonly ordens: IOrdemServicoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    private readonly slaMonitor: OrdemServicoSlaMonitorService,
   ) {}
 
   async execute(idUnidade: string): Promise<OrdemServicoListaItem[]> {
@@ -24,6 +26,7 @@ export class ListOrdensServicoByUnidadeUseCase {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
 
+    await this.slaMonitor.processarAtrasos(unidade.empresaId, idUnidade);
     return this.ordens.listByUnidade(unidade.empresaId, idUnidade);
   }
 }

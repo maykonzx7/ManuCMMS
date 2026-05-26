@@ -13,6 +13,7 @@ export type CreateOrdemServicoInput = {
   idAtivo: string;
   tipo: OrdemServicoListaItem['tipo'];
   descricao: string;
+  dataLimiteSla: Date | null;
   idTecnico?: string | null;
   criadoPorUsuarioId: string;
 };
@@ -24,6 +25,7 @@ export type FecharOrdemServicoPersistenciaInput = {
   idUnidade: string;
   fotoAnexo: string | null;
   fotoProblema: string | null;
+  descricaoProblema: string | null;
   fotoSolucao: string | null;
   descricaoSolucao: string | null;
   assinaturaDigital: string | null;
@@ -66,7 +68,13 @@ export interface IOrdemServicoRepositoryPort {
     idUnidade: string,
     iniciadoPorUsuarioId: string,
     fotoProblema?: string | null,
+    descricaoProblema?: string | null,
   ): Promise<OrdemServicoListaItem>;
+  markOverdueAndCollect(
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem[]>;
+  markSlaNotified(ordemIds: string[]): Promise<void>;
   cancelar(
     input: {
       idOrdemServico: string;

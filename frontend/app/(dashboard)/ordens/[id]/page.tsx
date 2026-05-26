@@ -117,8 +117,15 @@ export default function OrderDetailPage() {
         toast.error('Para iniciar OS corretiva, envie a foto do problema.')
         return
       }
+      const descricaoProblema = window.prompt('Descreva o problema identificado:')
+      const descricaoProblemaNormalizada = descricaoProblema?.trim()
+      if (!descricaoProblemaNormalizada) {
+        toast.error('Descrição do problema é obrigatória para iniciar OS corretiva.')
+        return
+      }
       const formData = new FormData()
       formData.append('fotoProblema', fotoProblema)
+      formData.append('descricaoProblema', descricaoProblemaNormalizada)
       await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/iniciar`, {
         method: 'PATCH',
         accessToken,
@@ -371,6 +378,9 @@ export default function OrderDetailPage() {
               >
                 {ORDER_STATUS_LABELS[order.status]}
               </Badge>
+              {rawOrder?.statusSla === 'ATRASADA' ? (
+                <Badge variant="destructive">Atrasada</Badge>
+              ) : null}
             </div>
             <p className="mt-1 text-lg text-muted-foreground">{order.titulo}</p>
           </div>
@@ -450,12 +460,27 @@ export default function OrderDetailPage() {
                     {PRIORITY_LABELS[order.prioridade]}
                   </Badge>
                 </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Prazo SLA</p>
+                  <p className="mt-1 text-sm">
+                    {rawOrder?.dataLimiteSla
+                      ? new Date(rawOrder.dataLimiteSla).toLocaleString('pt-BR')
+                      : '-'}
+                  </p>
+                </div>
               </div>
 
               {order.descricao && (
                 <div>
-                  <p className="text-sm text-muted-foreground">Descrição</p>
+                  <p className="text-sm text-muted-foreground">Descrição do problema</p>
                   <p className="mt-1">{order.descricao}</p>
+                </div>
+              )}
+
+              {rawOrder?.descricaoProblema && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Detalhamento do problema</p>
+                  <p className="mt-1">{rawOrder.descricaoProblema}</p>
                 </div>
               )}
 
@@ -780,11 +805,17 @@ export default function OrderDetailPage() {
                       toast.error('Foto da solução é obrigatória para OS corretiva.')
                       return
                     }
+                    const descricaoProblemaAtual = rawOrder?.descricaoProblema?.trim()
+                    if (!descricaoProblemaAtual) {
+                      toast.error('Descrição do problema é obrigatória na OS corretiva.')
+                      return
+                    }
                     if (!descricaoSolucao.trim()) {
                       toast.error('Descrição da solução é obrigatória para concluir a OS.')
                       return
                     }
                     formData.append('fotoSolucao', fotoSolucaoFile)
+                    formData.append('descricaoProblema', descricaoProblemaAtual)
                     formData.append('descricaoSolucao', descricaoSolucao.trim())
                   } else {
                     const fotoAnexo = await requestInterventionPhotoFile('Selecione a foto da intervenção')

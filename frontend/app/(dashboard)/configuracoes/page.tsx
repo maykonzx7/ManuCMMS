@@ -36,19 +36,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { useCurrentCompany } from '@/lib/auth'
 import { useAuth } from '@/lib/auth'
+import { useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { usePermissions } from '@/hooks/use-permissions'
 
 export default function SettingsPage() {
   const router = useRouter()
   const company = useCurrentCompany()
   const { accessToken } = useAuth()
+  const currentUnit = useCurrentUnit()
   const { hasPermission } = usePermissions()
   const canManageSettings = hasPermission('configuracoes')
   const [isLoading, setIsLoading] = useState(false)
   const [empresaNome, setEmpresaNome] = useState(company?.nome || '')
   const [empresaSlug, setEmpresaSlug] = useState(company?.slug || '')
+  const [empresaCnpj, setEmpresaCnpj] = useState('')
+  const [empresaCep, setEmpresaCep] = useState('')
+  const [empresaEndereco, setEmpresaEndereco] = useState('')
+  const [empresaNumero, setEmpresaNumero] = useState('')
+  const [empresaBairro, setEmpresaBairro] = useState('')
+  const [empresaCidade, setEmpresaCidade] = useState('')
+  const [empresaEstado, setEmpresaEstado] = useState('')
+  const [contatoNome, setContatoNome] = useState('')
+  const [contatoEmail, setContatoEmail] = useState('')
+  const [contatoTelefone, setContatoTelefone] = useState('')
+  const [cepLoading, setCepLoading] = useState(false)
   const [empresaStatus, setEmpresaStatus] = useState<'ATIVA' | 'INATIVA' | 'SUSPENSA'>('ATIVA')
+  const [slaCorretivaHoras, setSlaCorretivaHoras] = useState(24)
+  const [slaPreventivaHoras, setSlaPreventivaHoras] = useState(168)
+  const [slaPreditivaHoras, setSlaPreditivaHoras] = useState(72)
 
   useEffect(() => {
     if (canManageSettings) return
@@ -58,7 +75,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!canManageSettings || !accessToken || !company?.id) return
-    void apiRequest<{ empresa: { nomeEmpresa: string; slug: string; status: 'ATIVA' | 'INATIVA' | 'SUSPENSA' } }>(
+    void apiRequest<{ empresa: {
+      nomeEmpresa: string; slug: string; status: 'ATIVA' | 'INATIVA' | 'SUSPENSA';
+      cnpj?: string | null; cep?: string | null; endereco?: string | null; numeroEndereco?: string | null;
+      bairro?: string | null; cidade?: string | null; estado?: string | null;
+      contatoNome?: string | null; contatoEmail?: string | null; contatoTelefone?: string | null;
+    } }>(
       `/empresas/${company.id}/gestao/painel`,
       { accessToken },
     )
@@ -66,12 +88,37 @@ export default function SettingsPage() {
         setEmpresaNome(res.empresa.nomeEmpresa)
         setEmpresaSlug(res.empresa.slug)
         setEmpresaStatus(res.empresa.status)
+        setEmpresaCnpj(res.empresa.cnpj ?? '')
+        setEmpresaCep(res.empresa.cep ?? '')
+        setEmpresaEndereco(res.empresa.endereco ?? '')
+        setEmpresaNumero(res.empresa.numeroEndereco ?? '')
+        setEmpresaBairro(res.empresa.bairro ?? '')
+        setEmpresaCidade(res.empresa.cidade ?? '')
+        setEmpresaEstado(res.empresa.estado ?? '')
+        setContatoNome(res.empresa.contatoNome ?? '')
+        setContatoEmail(res.empresa.contatoEmail ?? '')
+        setContatoTelefone(res.empresa.contatoTelefone ?? '')
       })
       .catch(() => {
         setEmpresaNome(company.nome)
         setEmpresaSlug(company.slug)
       })
   }, [canManageSettings, accessToken, company?.id, company?.nome, company?.slug])
+
+  useEffect(() => {
+    if (!canManageSettings || !accessToken || !currentUnit?.id) return
+    void apiRequest<{
+      slaCorretivaHoras?: number
+      slaPreventivaHoras?: number
+      slaPreditivaHoras?: number
+    }>(`/unidades/${currentUnit.id}`, { accessToken })
+      .then((res) => {
+        setSlaCorretivaHoras(Number(res.slaCorretivaHoras ?? 24))
+        setSlaPreventivaHoras(Number(res.slaPreventivaHoras ?? 168))
+        setSlaPreditivaHoras(Number(res.slaPreditivaHoras ?? 72))
+      })
+      .catch(() => undefined)
+  }, [canManageSettings, accessToken, currentUnit?.id])
 
   const handleSave = async () => {
     if (!canManageSettings) {
@@ -81,17 +128,62 @@ export default function SettingsPage() {
     setIsLoading(true)
     try {
       if (!accessToken || !company?.id) throw new Error('Sessão inválida')
+      await apiRequest(`/empresas/${company.id}/gestao/dados`, {
+        method: 'PATCH',
+        accessToken,
+        body: {
+          nomeEmpresa: empresaNome,
+          cnpj: empresaCnpj,
+          cep: empresaCep,
+          endereco: empresaEndereco,
+          numeroEndereco: empresaNumero,
+          bairro: empresaBairro,
+          cidade: empresaCidade,
+          estado: empresaEstado,
+          contatoNome,
+          contatoEmail,
+          contatoTelefone,
+        },
+      })
       await apiRequest(`/empresas/${company.id}/gestao/status`, {
         method: 'PATCH',
         accessToken,
         body: { status: empresaStatus },
       })
+      if (currentUnit?.id) {
+        await apiRequest(`/unidades/${currentUnit.id}`, {
+          method: 'PATCH',
+          accessToken,
+          body: {
+            slaCorretivaHoras,
+            slaPreventivaHoras,
+            slaPreditivaHoras,
+          },
+        })
+      }
       toast.success('Configurações salvas com sucesso!')
     } catch (error) {
       toast.error('Erro ao salvar configurações')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const preencherCepEmpresa = async () => {
+    if (normalizeCep(empresaCep).length !== 8) return
+    setCepLoading(true)
+    const result = await lookupCep(empresaCep)
+    if (!result) {
+      toast.error('CEP não encontrado.')
+      setCepLoading(false)
+      return
+    }
+    setEmpresaCep(result.cep)
+    setEmpresaEndereco((prev) => prev || result.logradouro)
+    setEmpresaBairro((prev) => prev || result.bairro)
+    setEmpresaCidade((prev) => prev || result.localidade)
+    setEmpresaEstado((prev) => prev || result.uf)
+    setCepLoading(false)
   }
 
   return (
@@ -141,7 +233,6 @@ export default function SettingsPage() {
                     id="company-name" 
                     value={empresaNome}
                     onChange={(e) => setEmpresaNome(e.target.value)}
-                    disabled
                   />
                 </div>
                 <div className="space-y-2">
@@ -156,6 +247,62 @@ export default function SettingsPage() {
                       disabled
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <Input value={empresaCnpj} onChange={(e) => setEmpresaCnpj(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>CEP</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={empresaCep}
+                      onChange={(e) => {
+                        const masked = formatCep(e.target.value)
+                        setEmpresaCep(masked)
+                        if (normalizeCep(masked).length === 8) {
+                          void preencherCepEmpresa()
+                        }
+                      }}
+                      onBlur={() => void preencherCepEmpresa()}
+                      placeholder="00000-000"
+                    />
+                    <Button type="button" variant="outline" onClick={() => void preencherCepEmpresa()} disabled={cepLoading}>
+                      {cepLoading ? '...' : 'Buscar'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Endereço</Label>
+                  <Input value={empresaEndereco} onChange={(e) => setEmpresaEndereco(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Número</Label>
+                  <Input value={empresaNumero} onChange={(e) => setEmpresaNumero(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bairro</Label>
+                  <Input value={empresaBairro} onChange={(e) => setEmpresaBairro(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cidade</Label>
+                  <Input value={empresaCidade} onChange={(e) => setEmpresaCidade(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>UF</Label>
+                  <Input value={empresaEstado} maxLength={2} onChange={(e) => setEmpresaEstado(e.target.value.toUpperCase())} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contato nome</Label>
+                  <Input value={contatoNome} onChange={(e) => setContatoNome(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contato email</Label>
+                  <Input value={contatoEmail} onChange={(e) => setContatoEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contato telefone</Label>
+                  <Input value={contatoTelefone} onChange={(e) => setContatoTelefone(e.target.value)} />
                 </div>
               </div>
 
@@ -215,6 +362,46 @@ export default function SettingsPage() {
                       <SelectItem value="es">Español</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <Separator />
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold">SLA da Unidade Atual</h3>
+                <p className="text-sm text-muted-foreground">
+                  Esses prazos são usados para marcar OS como atrasada automaticamente.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Corretiva (horas)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={8760}
+                      value={slaCorretivaHoras}
+                      onChange={(e) => setSlaCorretivaHoras(Number(e.target.value || 24))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preventiva (horas)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={8760}
+                      value={slaPreventivaHoras}
+                      onChange={(e) => setSlaPreventivaHoras(Number(e.target.value || 168))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preditiva (horas)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={8760}
+                      value={slaPreditivaHoras}
+                      onChange={(e) => setSlaPreditivaHoras(Number(e.target.value || 72))}
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -28,8 +28,11 @@ export type ApiOrdem = {
   descricao: string
   fotoAnexo?: string | null
   fotoProblema?: string | null
+  descricaoProblema?: string | null
   fotoSolucao?: string | null
   descricaoSolucao?: string | null
+  dataLimiteSla?: string | null
+  statusSla?: 'NO_PRAZO' | 'ATRASADA' | 'CONCLUIDA'
   assinaturaDigital?: string | null
   dataAbertura: string
   dataFechamento?: string | null

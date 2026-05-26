@@ -74,8 +74,8 @@ type ApiUsuario = {
 
 export default function OrdersPage() {
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
-  const [orders, setOrders] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ATRASADA' | 'all'>('all')
+  const [orders, setOrders] = useState<Array<ReturnType<typeof mapApiOrdemToServiceOrder> & { statusSla?: string; dataLimiteSla?: string | null }>>([])
   const [ordersError, setOrdersError] = useState<string | null>(null)
   const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
   const [transferOpen, setTransferOpen] = useState(false)
@@ -90,7 +90,11 @@ export default function OrdersPage() {
     if (!accessToken || !currentUnit?.id) return
     try {
       const res = await apiRequest<ApiOrdem[]>(`/unidades/${currentUnit.id}/ordens-servico`, { accessToken })
-      setOrders(res.map((item) => mapApiOrdemToServiceOrder(item, currentUnit.id)))
+      setOrders(res.map((item) => ({
+        ...mapApiOrdemToServiceOrder(item, currentUnit.id),
+        statusSla: item.statusSla,
+        dataLimiteSla: item.dataLimiteSla ?? null,
+      })))
       setOrdersError(null)
     } catch (error) {
       setOrders([])
@@ -130,8 +134,15 @@ export default function OrdersPage() {
           toast.error('Para iniciar OS corretiva, envie a foto do problema.')
           return
         }
+        const descricaoProblema = window.prompt('Descreva o problema identificado:')
+        const descricaoProblemaNormalizada = descricaoProblema?.trim()
+        if (!descricaoProblemaNormalizada) {
+          toast.error('Descrição do problema é obrigatória para iniciar OS corretiva.')
+          return
+        }
         const formData = new FormData()
         formData.append('fotoProblema', fotoProblema)
+        formData.append('descricaoProblema', descricaoProblemaNormalizada)
         await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/iniciar`, {
           method: 'PATCH',
           accessToken,
@@ -266,7 +277,11 @@ export default function OrdersPage() {
     const matchesSearch = 
       order.titulo.toLowerCase().includes(search.toLowerCase()) ||
       order.numero.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'ATRASADA'
+        ? order.statusSla === 'ATRASADA'
+        : order.status === statusFilter)
     return matchesSearch && matchesStatus
   })
 
@@ -276,6 +291,7 @@ export default function OrdersPage() {
       abertas: orders.filter((o) => o.status === 'ABERTA').length,
       emAndamento: orders.filter((o) => o.status === 'EM_ANDAMENTO').length,
       concluidas: orders.filter((o) => o.status === 'CONCLUIDA').length,
+      atrasadas: orders.filter((o) => o.statusSla === 'ATRASADA').length,
     }),
     [orders],
   )
@@ -309,7 +325,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -346,6 +362,15 @@ export default function OrdersPage() {
             <div className="text-2xl font-bold">{stats.concluidas}</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Atrasadas</CardTitle>
+            <div className="h-2 w-2 rounded-full bg-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.atrasadas}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -361,7 +386,7 @@ export default function OrdersPage() {
         </div>
         <Select
           value={statusFilter}
-          onValueChange={(value) => setStatusFilter(value as OrderStatus | 'all')}
+          onValueChange={(value) => setStatusFilter(value as OrderStatus | 'ATRASADA' | 'all')}
         >
           <SelectTrigger className="w-full sm:w-48">
             <Filter className="mr-2 h-4 w-4" />
@@ -369,6 +394,7 @@ export default function OrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="ATRASADA">Atrasadas (SLA)</SelectItem>
             {ORDER_STATUS_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -433,12 +459,17 @@ export default function OrdersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn('text-xs', ORDER_STATUS_COLORS[order.status])}
-                    >
-                      {ORDER_STATUS_LABELS[order.status]}
-                    </Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        variant="outline"
+                        className={cn('text-xs', ORDER_STATUS_COLORS[order.status])}
+                      >
+                        {ORDER_STATUS_LABELS[order.status]}
+                      </Badge>
+                      {order.statusSla === 'ATRASADA' ? (
+                        <Badge variant="destructive" className="text-xs">Atrasada</Badge>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
                     {formatDate(order.dataAbertura)}

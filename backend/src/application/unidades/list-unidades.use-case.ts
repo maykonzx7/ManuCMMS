@@ -23,8 +23,11 @@ export class ListUnidadesUseCase {
     const temEscopoCorporativo = usuarioLocal.cargos.some(
       (cargo) => cargo.idUnidade == null,
     );
+    const perfilComVisaoEmpresa = ['ADMIN', 'GESTOR', 'SUPERVISOR'].includes(
+      usuarioLocal.perfil?.toUpperCase?.() ?? '',
+    );
 
-    if (temEscopoCorporativo && usuarioLocal.empresa?.id) {
+    if ((temEscopoCorporativo || perfilComVisaoEmpresa) && usuarioLocal.empresa?.id) {
       return this.unidades.listByEmpresa(usuarioLocal.empresa.id);
     }
 

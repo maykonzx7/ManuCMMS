@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
+const configuredApiBaseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
+
 const nextConfig = {
+  allowedDevOrigins: ['whelked-bess-promiscuously.ngrok-free.dev'],
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -31,6 +34,7 @@ const nextConfig = {
     return [
       { source: '/workspace', destination: '/' },
       { source: '/workspace/:path*', destination: '/:path*' },
+      { source: '/api/:path*', destination: `${configuredApiBaseUrl}/:path*` },
     ]
   },
 }

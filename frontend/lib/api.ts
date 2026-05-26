@@ -1,20 +1,38 @@
 let inMemoryCompanySlug: string | null = null
 
 export function resolveApiBaseUrl() {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
-  if (configuredBaseUrl && configuredBaseUrl.length > 0) {
-    return configuredBaseUrl.replace(/\/$/, '')
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? ''
+  const normalizedConfigured = configuredBaseUrl.replace(/\/$/, '')
+
+  if (normalizedConfigured.length > 0) {
+    // If frontend is opened through a public host (ex.: ngrok), a localhost API
+    // URL would point to the visitor machine. In this case, force Next proxy.
+    if (typeof window !== 'undefined') {
+      const currentHost = window.location.hostname.toLowerCase()
+      const isCurrentHostLocal =
+        currentHost === 'localhost' ||
+        currentHost === '127.0.0.1' ||
+        currentHost === '::1'
+
+      const isConfiguredAbsolute = /^https?:\/\//i.test(normalizedConfigured)
+      if (isConfiguredAbsolute && !isCurrentHostLocal) {
+        try {
+          const configuredHost = new URL(normalizedConfigured).hostname.toLowerCase()
+          const isConfiguredLocal =
+            configuredHost === 'localhost' ||
+            configuredHost === '127.0.0.1' ||
+            configuredHost === '::1'
+          if (isConfiguredLocal) return '/api'
+        } catch {
+          return '/api'
+        }
+      }
+    }
+
+    return normalizedConfigured
   }
 
-  // Dev fallback: when Next runs on :3000, backend usually runs on :3001.
-  if (typeof window !== 'undefined') {
-    const { protocol, hostname, port, origin } = window.location
-    if (port === '3000') return `${protocol}//${hostname}:3001`
-    return origin
-  }
-
-  const baseUrl = 'http://localhost:3001'
-  return baseUrl.replace(/\/$/, '')
+  return '/api'
 }
 
 function resolveCompanySlugFromPathname(pathname: string): string | null {

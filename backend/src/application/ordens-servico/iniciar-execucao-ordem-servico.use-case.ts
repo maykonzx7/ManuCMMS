@@ -22,7 +22,7 @@ export class IniciarExecucaoOrdemServicoUseCase {
     idUnidade: string,
     idOrdemServico: string,
     iniciadoPorUsuarioId: string,
-    body?: { fotoProblema?: string | null },
+    body?: { fotoProblema?: string | null; descricaoProblema?: string | null },
   ): Promise<OrdemServicoListaItem> {
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -40,9 +40,15 @@ export class IniciarExecucaoOrdemServicoUseCase {
       throw new NotFoundException('Ordem de serviço não encontrada');
     }
     const fotoProblema = body?.fotoProblema?.trim() || null;
+    const descricaoProblema = body?.descricaoProblema?.trim() || null;
     if (ordem.tipo === 'CORRETIVA' && !fotoProblema) {
       throw new BadRequestException(
         'Ao iniciar OS corretiva, anexe a foto do problema (RN-13).',
+      );
+    }
+    if (ordem.tipo === 'CORRETIVA' && !descricaoProblema) {
+      throw new BadRequestException(
+        'Ao iniciar OS corretiva, descreva o problema no campo descricaoProblema.',
       );
     }
 
@@ -52,6 +58,7 @@ export class IniciarExecucaoOrdemServicoUseCase {
       idUnidade,
       iniciadoPorUsuarioId,
       fotoProblema,
+      descricaoProblema,
     );
   }
 }

@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, StatusEmpresa, StatusUsuario } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import { resolveFrontendBaseUrl } from '../../application/shared/frontend-link.shared';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 
 const PERFIS = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'] as const;
@@ -34,8 +35,15 @@ export class GestaoEmpresaController {
     this.ensureEmpresaScope(req, empresaId);
 
     const [empresaRows, usuarios, cargos, permissoes] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ id: string; nomeEmpresa: string; slug: string; status: string }>>(Prisma.sql`
-        SELECT id, nome_empresa AS "nomeEmpresa", slug, status::text AS status
+      this.prisma.$queryRaw<Array<{
+        id: string; nomeEmpresa: string; slug: string; status: string;
+        cnpj: string | null; cep: string | null; endereco: string | null;
+        numeroEndereco: string | null; bairro: string | null; cidade: string | null; estado: string | null;
+        contatoNome: string | null; contatoEmail: string | null; contatoTelefone: string | null;
+      }>>(Prisma.sql`
+        SELECT id, nome_empresa AS "nomeEmpresa", slug, status::text AS status,
+          cnpj, cep, endereco, numero_endereco AS "numeroEndereco", bairro, cidade, estado,
+          contato_nome AS "contatoNome", contato_email AS "contatoEmail", contato_telefone AS "contatoTelefone"
         FROM empresa
         WHERE id = ${empresaId}::uuid
         LIMIT 1
@@ -139,9 +147,12 @@ export class GestaoEmpresaController {
       }
     }
 
-    const frontendBase = this.config.get<string>('FRONTEND_PUBLIC_BASE_URL')?.trim();
+    const frontendBase = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
+      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+    });
     const accessPath = this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() || '/workspace/acesso';
-    const accessLink = frontendBase ? `${frontendBase.replace(/\/+$/, '')}${accessPath}/${empresa.slug}` : null;
+    const accessLink = frontendBase ? `${frontendBase}${accessPath}/${empresa.slug}` : null;
 
     return {
       empresa,
@@ -184,6 +195,67 @@ export class GestaoEmpresaController {
     }
 
     return { ok: true, status: nextStatus };
+  }
+
+  @Patch('dados')
+  async atualizarDadosEmpresa(
+    @Param('empresaId') empresaId: string,
+    @Body() body: {
+      nomeEmpresa?: string;
+      cnpj?: string | null;
+      cep?: string | null;
+      endereco?: string | null;
+      numeroEndereco?: string | null;
+      bairro?: string | null;
+      cidade?: string | null;
+      estado?: string | null;
+      contatoNome?: string | null;
+      contatoEmail?: string | null;
+      contatoTelefone?: string | null;
+    },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const nomeEmpresa = body.nomeEmpresa?.trim();
+    const cnpj = body.cnpj?.trim() || null;
+    const cep = body.cep?.trim() || null;
+    const endereco = body.endereco?.trim() || null;
+    const numeroEndereco = body.numeroEndereco?.trim() || null;
+    const bairro = body.bairro?.trim() || null;
+    const cidade = body.cidade?.trim() || null;
+    const estado = body.estado?.trim().toUpperCase() || null;
+    const contatoNome = body.contatoNome?.trim() || null;
+    const contatoEmail = body.contatoEmail?.trim().toLowerCase() || null;
+    const contatoTelefone = body.contatoTelefone?.trim() || null;
+
+    const fields: Prisma.Sql[] = [];
+    if (nomeEmpresa !== undefined) fields.push(Prisma.sql`nome_empresa = ${nomeEmpresa}`);
+    if (body.cnpj !== undefined) fields.push(Prisma.sql`cnpj = ${cnpj}`);
+    if (body.cep !== undefined) fields.push(Prisma.sql`cep = ${cep}`);
+    if (body.endereco !== undefined) fields.push(Prisma.sql`endereco = ${endereco}`);
+    if (body.numeroEndereco !== undefined) fields.push(Prisma.sql`numero_endereco = ${numeroEndereco}`);
+    if (body.bairro !== undefined) fields.push(Prisma.sql`bairro = ${bairro}`);
+    if (body.cidade !== undefined) fields.push(Prisma.sql`cidade = ${cidade}`);
+    if (body.estado !== undefined) fields.push(Prisma.sql`estado = ${estado}`);
+    if (body.contatoNome !== undefined) fields.push(Prisma.sql`contato_nome = ${contatoNome}`);
+    if (body.contatoEmail !== undefined) fields.push(Prisma.sql`contato_email = ${contatoEmail}`);
+    if (body.contatoTelefone !== undefined) fields.push(Prisma.sql`contato_telefone = ${contatoTelefone}`);
+    if (fields.length === 0) {
+      throw new BadRequestException('Informe ao menos um dado para atualização.');
+    }
+    fields.push(Prisma.sql`updated_at = NOW()`);
+
+    const updated = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE empresa
+      SET ${Prisma.join(fields, ', ')}
+      WHERE id = ${empresaId}::uuid
+    `);
+    if (!updated) {
+      throw new BadRequestException('Empresa não encontrada.');
+    }
+    return { ok: true };
   }
 
   @Patch('usuarios/:usuarioId/status')

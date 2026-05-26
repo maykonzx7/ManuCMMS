@@ -27,6 +27,7 @@ import {
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 
 const TIPOS_VALIDOS: OrdemServicoListaItem['tipo'][] = [
   'CORRETIVA',
@@ -35,6 +36,11 @@ const TIPOS_VALIDOS: OrdemServicoListaItem['tipo'][] = [
 ];
 
 const DESCRICAO_MAX = 32_000;
+const SLA_HORAS_PADRAO: Record<OrdemServicoListaItem['tipo'], number> = {
+  CORRETIVA: 24,
+  PREVENTIVA: 168,
+  PREDITIVA: 72,
+};
 
 @Injectable()
 export class CreateOrdemServicoUseCase {
@@ -140,6 +146,7 @@ export class CreateOrdemServicoUseCase {
       idAtivo: body.idAtivo,
       tipo,
       descricao,
+      dataLimiteSla: this.resolveSlaDeadline(tipo, unidadeOk),
       idTecnico,
       criadoPorUsuarioId,
     };
@@ -170,6 +177,30 @@ export class CreateOrdemServicoUseCase {
       }
       throw e;
     }
+  }
+
+  private resolveSlaDeadline(
+    tipo: OrdemServicoListaItem['tipo'],
+    unidade: { slaCorretivaHoras?: number | null; slaPreventivaHoras?: number | null; slaPreditivaHoras?: number | null },
+  ): Date {
+    const unidadeMap: Record<OrdemServicoListaItem['tipo'], number | null | undefined> = {
+      CORRETIVA: unidade.slaCorretivaHoras,
+      PREVENTIVA: unidade.slaPreventivaHoras,
+      PREDITIVA: unidade.slaPreditivaHoras,
+    };
+    const envMap: Record<OrdemServicoListaItem['tipo'], string> = {
+      CORRETIVA: 'OS_SLA_CORRETIVA_HORAS',
+      PREVENTIVA: 'OS_SLA_PREVENTIVA_HORAS',
+      PREDITIVA: 'OS_SLA_PREDITIVA_HORAS',
+    };
+    const fallback = SLA_HORAS_PADRAO[tipo];
+    const fromUnidade = Number(unidadeMap[tipo]);
+    if (Number.isFinite(fromUnidade) && fromUnidade > 0) {
+      return new Date(Date.now() + fromUnidade * 60 * 60 * 1000);
+    }
+    const parsed = Number(this.config.get<string>(envMap[tipo]) ?? fallback);
+    const horas = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    return new Date(Date.now() + horas * 60 * 60 * 1000);
   }
 
   private async notifyOsAssigned(input: {
@@ -223,8 +254,10 @@ export class CreateOrdemServicoUseCase {
       return;
     }
 
-    const frontendBaseUrl =
-      this.config.get<string>('FRONTEND_PUBLIC_BASE_URL')?.trim() || '';
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
+      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+    });
     const accessPath =
       this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
       '/workspace/acesso';
@@ -238,7 +271,7 @@ export class CreateOrdemServicoUseCase {
       ? `${accessPath.replace(/\/+$/, '')}/${normalizedEmpresaSlug}`
       : accessPath;
     const osLink = frontendBaseUrl
-      ? `${frontendBaseUrl.replace(/\/+$/, '')}${accessPathWithScope}?${query.toString()}`
+      ? `${frontendBaseUrl}${accessPathWithScope}?${query.toString()}`
       : null;
 
     const subject = `Nova OS atribuida: ${ordem.ativoNome} (${ordem.tipo})`;

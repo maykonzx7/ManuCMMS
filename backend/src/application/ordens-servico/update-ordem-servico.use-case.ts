@@ -20,6 +20,7 @@ import {
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 
 const DESCRICAO_MAX = 32_000;
 
@@ -178,8 +179,10 @@ export class UpdateOrdemServicoUseCase {
       return;
     }
 
-    const frontendBaseUrl =
-      this.config.get<string>('FRONTEND_PUBLIC_BASE_URL')?.trim() || '';
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
+      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+    });
     const accessPath =
       this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
       '/workspace/acesso';
@@ -193,7 +196,7 @@ export class UpdateOrdemServicoUseCase {
       ? `${accessPath.replace(/\/+$/, '')}/${normalizedEmpresaSlug}`
       : accessPath;
     const osLink = frontendBaseUrl
-      ? `${frontendBaseUrl.replace(/\/+$/, '')}${accessPathWithScope}?${query.toString()}`
+      ? `${frontendBaseUrl}${accessPathWithScope}?${query.toString()}`
       : null;
 
     const subject = `OS atribuida a voce: ${ordem.ativoNome} (${ordem.tipo})`;

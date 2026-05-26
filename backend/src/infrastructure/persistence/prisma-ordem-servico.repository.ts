@@ -25,8 +25,11 @@ type OrdemServicoRow = {
   descricao: string;
   fotoAnexo: string | null;
   fotoProblema: string | null;
+  descricaoProblema: string | null;
   fotoSolucao: string | null;
   descricaoSolucao: string | null;
+  dataLimiteSla: Date | null;
+  statusSla: OrdemServicoListaItem['statusSla'];
   assinaturaDigital: string | null;
   observacaoCancelamento: string | null;
   dataAbertura: Date;
@@ -63,6 +66,9 @@ function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
     observacaoCancelamento: o.observacaoCancelamento,
     descricaoSolucao: o.descricaoSolucao,
     assinaturaDigital: o.assinaturaDigital,
+    descricaoProblema: o.descricaoProblema,
+    dataLimiteSla: o.dataLimiteSla?.toISOString() ?? null,
+    statusSla: o.statusSla,
     dataAbertura: o.dataAbertura.toISOString(),
     dataFechamento: o.dataFechamento?.toISOString() ?? null,
     idCriadoPorUsuario: o.idCriadoPorUsuario,
@@ -108,6 +114,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           tipo,
           status,
           descricao,
+          data_limite_sla,
+          status_sla,
           data_abertura
         )
         VALUES (
@@ -119,6 +127,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           ${input.tipo}::"TipoOrdemServico",
           'ABERTA',
           ${input.descricao},
+          ${input.dataLimiteSla},
+          'NO_PRAZO',
           NOW()
         )
       `);
@@ -314,9 +324,11 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           data_fechamento = NOW(),
           foto_anexo = ${input.fotoAnexo},
           foto_problema = ${input.fotoProblema},
+          descricao_problema = ${input.descricaoProblema},
           foto_solucao = ${input.fotoSolucao},
           descricao_solucao = ${input.descricaoSolucao},
           assinatura_digital = ${input.assinaturaDigital},
+          status_sla = 'CONCLUIDA',
           finalizado_por_usuario_id = ${input.finalizadoPorUsuarioId}::uuid
         WHERE id = ${input.idOrdemServico}::uuid
           AND empresa_id = ${input.empresaId}::uuid
@@ -351,6 +363,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     idUnidade: string,
     iniciadoPorUsuarioId: string,
     fotoProblema?: string | null,
+    descricaoProblema?: string | null,
   ): Promise<OrdemServicoListaItem> {
     const atual = await this.findStatusTransitionCandidate(
       idOrdemServico,
@@ -372,6 +385,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     ];
     if (fotoProblema) {
       fields.push(Prisma.sql`foto_problema = ${fotoProblema}`);
+    }
+    if (descricaoProblema) {
+      fields.push(Prisma.sql`descricao_problema = ${descricaoProblema}`);
     }
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE ordem_servico
@@ -419,7 +435,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         UPDATE ordem_servico
         SET
           status = 'CANCELADA',
-          observacao_cancelamento = ${input.observacaoCancelamento}
+          observacao_cancelamento = ${input.observacaoCancelamento},
+          status_sla = 'CONCLUIDA'
         WHERE id = ${input.idOrdemServico}::uuid
           AND empresa_id = ${input.empresaId}::uuid
       `);
@@ -459,6 +476,51 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     });
 
     return item;
+  }
+
+  async markOverdueAndCollect(
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<OrdemServicoListaItem[]> {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ordem_servico os
+      SET status_sla = 'ATRASADA'
+      FROM ativo a
+      WHERE os.id_ativo = a.id
+        AND os.empresa_id = ${empresaId}::uuid
+        AND a.id_unidade = ${idUnidade}::uuid
+        AND os.status IN ('ABERTA', 'EM_EXECUCAO')
+        AND os.data_limite_sla IS NOT NULL
+        AND os.data_limite_sla < NOW()
+        AND os.status_sla <> 'ATRASADA'
+    `);
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT os.id
+      FROM ordem_servico os
+      JOIN ativo a ON a.id = os.id_ativo
+      WHERE os.empresa_id = ${empresaId}::uuid
+        AND a.id_unidade = ${idUnidade}::uuid
+        AND os.status_sla = 'ATRASADA'
+        AND os.sla_atraso_notificado_em IS NULL
+        AND os.status IN ('ABERTA', 'EM_EXECUCAO')
+    `);
+
+    const itens: OrdemServicoListaItem[] = [];
+    for (const row of rows) {
+      itens.push(await this.findById(row.id, empresaId));
+    }
+    return itens;
+  }
+
+  async markSlaNotified(ordemIds: string[]): Promise<void> {
+    if (ordemIds.length === 0) return;
+    const idsSql = ordemIds.map((id) => Prisma.sql`${id}::uuid`);
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ordem_servico
+      SET sla_atraso_notificado_em = NOW()
+      WHERE id IN (${Prisma.join(idsSql)})
+    `);
   }
 
   private async findStatusTransitionCandidate(
@@ -508,8 +570,11 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         os.descricao,
         os.foto_anexo AS "fotoAnexo",
         os.foto_problema AS "fotoProblema",
+        os.descricao_problema AS "descricaoProblema",
         os.foto_solucao AS "fotoSolucao",
         os.descricao_solucao AS "descricaoSolucao",
+        os.data_limite_sla AS "dataLimiteSla",
+        os.status_sla AS "statusSla",
         os.assinatura_digital AS "assinaturaDigital",
         os.observacao_cancelamento AS "observacaoCancelamento",
         os.data_abertura AS "dataAbertura",
@@ -544,8 +609,11 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       descricao: r.descricao,
       fotoAnexo: r.fotoAnexo,
       fotoProblema: r.fotoProblema,
+      descricaoProblema: r.descricaoProblema,
       fotoSolucao: r.fotoSolucao,
       descricaoSolucao: r.descricaoSolucao,
+      dataLimiteSla: r.dataLimiteSla,
+      statusSla: r.statusSla,
       assinaturaDigital: r.assinaturaDigital,
       observacaoCancelamento: r.observacaoCancelamento,
       dataAbertura: r.dataAbertura,

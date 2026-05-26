@@ -34,6 +34,7 @@ const routeLabels: Record<string, string> = {
   '/relatorios': 'Relatórios',
   '/integracoes': 'Integrações',
   '/iot': 'IoT',
+  '/admin': 'Painel Admin',
   '/permissoes': 'Permissões',
   '/configuracoes': 'Configurações',
 }

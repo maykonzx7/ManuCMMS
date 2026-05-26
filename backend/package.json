@@ -23,10 +23,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:routes:no-auth": "cd bruno && bru run auth/01-me-sem-token.bru --env-file environments/local.bru --tests-only",
-    "test:routes:auth": "node scripts/run-bruno-auth.cjs auth/02-me-com-token.bru",
-    "test:routes": "node scripts/run-bruno-auth.cjs auth"
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -62,7 +59,6 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.0.0",
-    "@usebruno/cli": "^3.3.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
