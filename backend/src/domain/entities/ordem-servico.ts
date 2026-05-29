@@ -8,6 +8,34 @@ export type StatusOrdemServicoCodigo =
 
 export type StatusSlaOrdemServicoCodigo = 'NO_PRAZO' | 'ATRASADA' | 'CONCLUIDA';
 
+export type OrdemServicoTransferenciaItem = {
+  id: string;
+  deTecnicoId: string | null;
+  deTecnicoNome: string | null;
+  paraTecnicoId: string;
+  paraTecnicoNome: string | null;
+  transferidoPorUsuarioId: string;
+  transferidoPorNome: string | null;
+  motivo: string;
+  createdAt: Date;
+};
+
+export type OrdemServicoPecaConsumidaItem = {
+  pecaId: string;
+  codigo: string;
+  nome: string;
+  quantidade: number;
+};
+
+export type OrdemServicoComentarioItem = {
+  id: string;
+  ordemServicoId: string;
+  usuarioId: string;
+  usuarioNome: string;
+  texto: string;
+  createdAt: Date;
+};
+
 export type OrdemServicoListaItem = {
   id: string;
   idAtivo: string;
@@ -35,18 +63,7 @@ export type OrdemServicoListaItem = {
   idFinalizadoPorUsuario: string | null;
   finalizadoPorNome: string | null;
   transferencias: OrdemServicoTransferenciaItem[];
-};
-
-export type OrdemServicoTransferenciaItem = {
-  id: string;
-  deTecnicoId: string | null;
-  deTecnicoNome: string | null;
-  paraTecnicoId: string;
-  paraTecnicoNome: string | null;
-  transferidoPorUsuarioId: string;
-  transferidoPorNome: string | null;
-  motivo: string;
-  createdAt: Date;
+  pecasConsumidas?: OrdemServicoPecaConsumidaItem[];
 };
 
 /** Dados mínimos para aplicar regras de fechamento (RN-02, RN-13). */

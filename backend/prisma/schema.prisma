@@ -204,6 +204,7 @@ model OrdemServico {
   dataFechamento    DateTime?          @map("data_fechamento")
   transferencias    OrdemServicoTransferencia[]
   pecasConsumidas   OrdemServicoPeca[]
+  comentarios       OrdemServicoComentario[]
 
   @@index([empresaId, status, dataAbertura])
   @@index([idAtivo])
@@ -235,6 +236,7 @@ model Usuario {
   transferenciasRealizadas OrdemServicoTransferencia[] @relation("OsTransferidaPor")
   transferenciasDeTecnico OrdemServicoTransferencia[] @relation("OsTransferenciaDe")
   transferenciasParaTecnico OrdemServicoTransferencia[] @relation("OsTransferenciaPara")
+  comentariosOrdemServico OrdemServicoComentario[]
   usuariosEmpresa   UsuarioEmpresa[]
   convitesCriados   ConviteAcesso[]  @relation("ConviteCriadoPor")
   convitesAceitos   ConviteAcesso[]  @relation("ConviteAceitoPor")
@@ -293,6 +295,20 @@ model OrdemServicoPeca {
   @@unique([ordemServicoId, pecaId])
   @@index([pecaId])
   @@map("ordem_servico_peca")
+}
+
+model OrdemServicoComentario {
+  id             String       @id @default(uuid()) @db.Uuid
+  ordemServicoId String       @map("ordem_servico_id") @db.Uuid
+  usuarioId      String       @map("usuario_id") @db.Uuid
+  texto          String       @db.VarChar(2000)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  usuario        Usuario      @relation(fields: [usuarioId], references: [id])
+
+  @@index([ordemServicoId, createdAt])
+  @@map("ordem_servico_comentario")
 }
 
 model Notificacao {

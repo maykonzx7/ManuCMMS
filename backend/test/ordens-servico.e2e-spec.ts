@@ -6,9 +6,6 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infrastructure/persistence/prisma.service';
 import { bootstrapAuthUser } from './helpers/bootstrap-auth-user';
 
-const ASSINATURA_E2E =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-
 function fecharOsRequest(
   app: INestApplication<App>,
   unidadeId: string,
@@ -19,7 +16,7 @@ function fecharOsRequest(
     .patch(`/unidades/${unidadeId}/ordens-servico/${osId}/fechar`)
     .set('Authorization', `Bearer ${token}`)
     .field('descricaoSolucao', 'Solucao aplicada no teste e2e')
-    .field('assinaturaImagemDataUrl', ASSINATURA_E2E)
+    .field('confirmacaoConclusao', 'true')
     .attach('fotoAnexo', Buffer.from('fake-image-content'), {
       filename: 'foto-intervencao.jpg',
       contentType: 'image/jpeg',
@@ -258,7 +255,7 @@ describe('OrdensServicoController (e2e)', () => {
   );
 
   (runComDb ? it : it.skip)(
-    'PATCH fechar OS sem assinatura retorna 400 (RN-02)',
+    'PATCH fechar OS sem confirmacao retorna 400 (RN-02)',
     async () => {
       const auth = await bootstrapAuthUser(prisma);
       const unidadesRes = await request(app.getHttpServer())

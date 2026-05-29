@@ -2,8 +2,10 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import type {
+  OrdemServicoComentarioItem,
   OrdemServicoListaItem,
   OrdemServicoParaFechamento,
+  OrdemServicoPecaConsumidaItem,
   OrdemServicoTransferenciaItem,
 } from '../../domain/entities/ordem-servico';
 import type { IAuditLogPort } from '../../domain/ports/audit-log.port';
@@ -226,7 +228,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       AND a.id_unidade = ${idUnidade}::uuid
     `);
     if (!rows[0]) return null;
-    return this.toListaItem(rows[0], await this.listTransferencias(rows[0].id));
+    const transferencias = await this.listTransferencias(rows[0].id);
+    const pecasConsumidas = await this.listPecasConsumidas(rows[0].id);
+    return this.toListaItem(rows[0], transferencias, pecasConsumidas);
   }
 
   async updateDados(input: {
@@ -713,6 +717,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
   private toListaItem(
     r: OrdemServicoRow,
     transferencias: OrdemServicoTransferenciaItem[] = [],
+    pecasConsumidas: OrdemServicoPecaConsumidaItem[] = [],
   ): OrdemServicoListaItem {
     return {
       id: r.id,
@@ -741,6 +746,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       idFinalizadoPorUsuario: r.idFinalizadoPorUsuario,
       finalizadoPorNome: r.finalizadoPorNome,
       transferencias,
+      pecasConsumidas,
     };
   }
 
@@ -777,5 +783,97 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       motivo: row.motivo,
       createdAt: row.createdAt,
     }));
+  }
+
+  private async listPecasConsumidas(
+    ordemServicoId: string,
+  ): Promise<OrdemServicoPecaConsumidaItem[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        pecaId: string;
+        codigo: string;
+        nome: string;
+        quantidade: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        osp.peca_id AS "pecaId",
+        p.codigo,
+        p.nome,
+        osp.quantidade
+      FROM ordem_servico_peca osp
+      JOIN peca p ON p.id = osp.peca_id
+      WHERE osp.ordem_servico_id = ${ordemServicoId}::uuid
+      ORDER BY p.codigo ASC
+    `);
+
+    return rows.map((row) => ({
+      pecaId: row.pecaId,
+      codigo: row.codigo,
+      nome: row.nome,
+      quantidade: row.quantidade,
+    }));
+  }
+
+  async listComentarios(
+    ordemServicoId: string,
+  ): Promise<OrdemServicoComentarioItem[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        ordemServicoId: string;
+        usuarioId: string;
+        usuarioNome: string;
+        texto: string;
+        createdAt: Date;
+      }>
+    >(Prisma.sql`
+      SELECT
+        c.id,
+        c.ordem_servico_id AS "ordemServicoId",
+        c.usuario_id AS "usuarioId",
+        u.nome AS "usuarioNome",
+        c.texto,
+        c.created_at AS "createdAt"
+      FROM ordem_servico_comentario c
+      JOIN usuario u ON u.id = c.usuario_id
+      WHERE c.ordem_servico_id = ${ordemServicoId}::uuid
+      ORDER BY c.created_at ASC
+    `);
+
+    return rows.map((row) => ({
+      id: row.id,
+      ordemServicoId: row.ordemServicoId,
+      usuarioId: row.usuarioId,
+      usuarioNome: row.usuarioNome,
+      texto: row.texto,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async createComentario(input: {
+    ordemServicoId: string;
+    usuarioId: string;
+    texto: string;
+  }): Promise<OrdemServicoComentarioItem> {
+    const id = randomUUID();
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO ordem_servico_comentario (id, ordem_servico_id, usuario_id, texto, created_at, updated_at)
+      VALUES (
+        ${id}::uuid,
+        ${input.ordemServicoId}::uuid,
+        ${input.usuarioId}::uuid,
+        ${input.texto},
+        NOW(),
+        NOW()
+      )
+    `);
+
+    const rows = await this.listComentarios(input.ordemServicoId);
+    const created = rows.find((item) => item.id === id);
+    if (!created) {
+      throw new NotFoundException('Comentário não encontrado após criação');
+    }
+    return created;
   }
 }

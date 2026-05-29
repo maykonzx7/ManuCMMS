@@ -9,11 +9,12 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { mkdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -21,6 +22,9 @@ import { diskStorage } from 'multer';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { CancelarOrdemServicoUseCase } from '../../application/ordens-servico/cancelar-ordem-servico.use-case';
+import { CreateOrdemServicoComentarioUseCase } from '../../application/ordens-servico/create-ordem-servico-comentario.use-case';
+import { ExportOrdemServicoUseCase } from '../../application/ordens-servico/export-ordem-servico.use-case';
+import { ListOrdemServicoComentariosUseCase } from '../../application/ordens-servico/list-ordem-servico-comentarios.use-case';
 import { CreateOrdemServicoUseCase } from '../../application/ordens-servico/create-ordem-servico.use-case';
 import { FecharOrdemServicoUseCase } from '../../application/ordens-servico/fechar-ordem-servico.use-case';
 import { GetOrdemServicoByIdUseCase } from '../../application/ordens-servico/get-ordem-servico-by-id.use-case';
@@ -45,8 +49,7 @@ type FecharOrdemServicoBody = {
   descricaoProblema?: string | null;
   fotoSolucao?: string | null;
   descricaoSolucao?: string | null;
-  assinaturaImagemDataUrl?: string | null;
-  assinaturaNome?: string | null;
+  confirmacaoConclusao?: string | boolean | null;
   pecasConsumidas?: string | null;
 };
 
@@ -68,6 +71,10 @@ type CancelarOrdemServicoBody = {
 type EscalarOrdemServicoBody = {
   motivo: string;
   statusAtivoSugerido?: 'MANUTENCAO' | 'FALHA' | null;
+};
+
+type CreateComentarioBody = {
+  texto: string;
 };
 
 type FecharOrdemServicoFiles = {
@@ -123,6 +130,9 @@ export class OrdensServicoController {
     private readonly iniciarExecucao: IniciarExecucaoOrdemServicoUseCase,
     private readonly cancelarOrdem: CancelarOrdemServicoUseCase,
     private readonly escalarOrdem: EscalarOrdemServicoUseCase,
+    private readonly listComentarios: ListOrdemServicoComentariosUseCase,
+    private readonly createComentario: CreateOrdemServicoComentarioUseCase,
+    private readonly exportOrdem: ExportOrdemServicoUseCase,
   ) {}
 
   @Get()
@@ -155,6 +165,52 @@ export class OrdensServicoController {
     return this.filterOrdensByTecnicoScope(req, ordens);
   }
 
+  @Get('export')
+  async exportList(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('unidadeId') unidadeId: string,
+    @Query('formato') formato?: string,
+    @Query('status') status?: string,
+    @Query('tipo') tipo?: string,
+    @Query('prioridade') prioridade?: string,
+    @Query('idTecnico') idTecnico?: string,
+    @Query('idAtivo') idAtivo?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const filters = parseListFilters({
+      status,
+      tipo,
+      prioridade,
+      idTecnico,
+      idAtivo,
+      from,
+      to,
+    });
+    const ordens = await this.exportOrdem.exportMany(unidadeId, filters ?? {});
+    const scoped = this.filterOrdensByTecnicoScope(req, ordens);
+    const fmt = this.exportOrdem.normalizeFormato(formato);
+    if (fmt === 'json') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="ordens_${unidadeId}_${Date.now()}.json"`,
+      );
+      res.send({ geradoEm: new Date().toISOString(), total: scoped.length, ordens: scoped });
+      return;
+    }
+    const csv = this.exportOrdem.buildCsvMany(scoped);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="ordens_${unidadeId}_${Date.now()}.csv"`,
+    );
+    res.send(csv);
+  }
+
   @Post()
   async create(
     @Param('unidadeId') unidadeId: string,
@@ -165,6 +221,70 @@ export class OrdensServicoController {
     this.authorizePermission.execute(req.usuarioLocal, 'os.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.createOrdem.execute(unidadeId, body, req.usuarioLocal!.id);
+  }
+
+  @Get(':ordemServicoId/export')
+  async exportOne(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+    @Query('formato') formato?: string,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    const payload = await this.exportOrdem.exportOne(unidadeId, ordemServicoId);
+    const fmt = this.exportOrdem.normalizeFormato(formato);
+    if (fmt === 'json') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="os_${ordemServicoId}.json"`,
+      );
+      res.send(payload);
+      return;
+    }
+    const csv = this.exportOrdem.buildCsvOne(payload);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="os_${ordemServicoId}.csv"`,
+    );
+    res.send(csv);
+  }
+
+  @Get(':ordemServicoId/comentarios')
+  async listComentariosByOrdem(
+    @Req() req: Request,
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    return this.listComentarios.execute(unidadeId, ordemServicoId);
+  }
+
+  @Post(':ordemServicoId/comentarios')
+  async addComentario(
+    @Req() req: Request,
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+    @Body() body: CreateComentarioBody,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    return this.createComentario.execute(
+      unidadeId,
+      ordemServicoId,
+      req.usuarioLocal!.id,
+      body.texto,
+    );
   }
 
   @Get(':ordemServicoId')
@@ -317,19 +437,20 @@ export class OrdensServicoController {
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
     this.assertTecnicoCanAccessOrdem(req, ordem);
-    const assinaturaPayload =
-      body.assinaturaImagemDataUrl?.trim()
-        ? JSON.stringify({
-            tipo: 'canvas',
-            dataUrl: body.assinaturaImagemDataUrl.trim(),
-            nomeAssinante: body.assinaturaNome?.trim() || req.usuarioLocal?.nome || null,
-            usuarioId: req.usuarioLocal?.id ?? null,
-            usuarioNome: req.usuarioLocal?.nome ?? null,
-            ip: resolveRequestIp(req),
-            userAgent: req.get('user-agent') ?? null,
-            dataHora: new Date().toISOString(),
-          })
-        : null;
+    const confirmacaoConclusao =
+      body.confirmacaoConclusao === true ||
+      body.confirmacaoConclusao === 'true' ||
+      String(body.confirmacaoConclusao ?? '').toLowerCase() === 'true';
+    const assinaturaPayload = confirmacaoConclusao
+      ? JSON.stringify({
+          tipo: 'confirmacao',
+          usuarioId: req.usuarioLocal?.id ?? null,
+          usuarioNome: req.usuarioLocal?.nome ?? null,
+          ip: resolveRequestIp(req),
+          userAgent: req.get('user-agent') ?? null,
+          confirmadoEm: new Date().toISOString(),
+        })
+      : null;
 
     return this.fecharOrdem.execute(unidadeId, ordemServicoId, {
       fotoAnexo: files.fotoAnexo?.[0]

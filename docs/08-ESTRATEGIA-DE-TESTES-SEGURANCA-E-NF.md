@@ -21,7 +21,7 @@ Consolida os **critérios de medição** explícitos no ERS que ainda não tinha
 
 | NF | Evidência esperada | Ferramenta / método (explícito no relatório) |
 | -- | ------------------ | --------------------------------------------- |
-| NF-01 | Relatório Lighthouse ou GTmetrix nas páginas críticas | Lighthouse, GTmetrix | **Script pronto** — [evidencias/NF-01-lighthouse/README.md](evidencias/NF-01-lighthouse/README.md) |
+| NF-01 | Tempo de resposta HTTP + opcional GTmetrix manual | curl (script) | **Script pronto** — [evidencias/NF-01-performance/README.md](evidencias/NF-01-performance/README.md) |
 | NF-02 | Relatório OWASP ZAP + evidência HTTPS/OIDC | OWASP ZAP | Pendente homologação HTTPS |
 | NF-03 | Matriz de dispositivos testados ou screenshots | Manual + devtools responsivos | **Matriz documentada** — [evidencias/NF-03-responsividade.md](evidencias/NF-03-responsividade.md) |
 | NF-04 | Logs de health check + teste com RabbitMQ parado | Scripts manuais/automáticos | **Coletado** — [evidencias/NF-04-health/](evidencias/NF-04-health/) |
@@ -31,12 +31,12 @@ Consolida os **critérios de medição** explícitos no ERS que ainda não tinha
 | NF-08 | Métricas de fila sob carga | RabbitMQ management + testes | **Circuit breaker webhook** — [evidencias/NF-08-circuit-breaker.md](evidencias/NF-08-circuit-breaker.md) + teste unitário |
 | NF-09 | Upload 800 MB completo com sucesso | Teste manual ou automatizado longo |
 | NF-10 | Política de backup + simulação de restore | Documento + evidência do provedor | **Política + dump local** — [evidencias/NF-10-backup-restore.md](evidencias/NF-10-backup-restore.md) |
-| NF-11 | Relatório axe / Lighthouse a11y | axe, Lighthouse | Mesmo pacote NF-01 (categoria Accessibility) |
+| NF-11 | Relatório axe DevTools nos fluxos críticos | axe (Firefox/Chrome) | [evidencias/NF-11-a11y/README.md](evidencias/NF-11-a11y/README.md) |
 | NF-12 | Amostra de logs estruturados em homologação | Stack de logging |
 
 Armazenar evidências na pasta `docs/evidencias/` (ou repositório separado) com data.
 
-**Última atualização:** 26/05/2026 — ver [evidencias/README.md](evidencias/README.md) para artefatos coletados (NF-04, NF-05, NF-08 unitário, NF-10 dump local, scripts Lighthouse).
+**Última atualização:** 26/05/2026 — ver [evidencias/README.md](evidencias/README.md) para artefatos coletados (NF-01 curl, NF-04, NF-05, NF-08 unitário, NF-10 dump local).
 
 ---
 

@@ -115,6 +115,27 @@ Teste e2e com lista de unidades (integração): `RUN_DB_E2E=1 npm run test:e2e` 
 
 No **push** ou **pull request** para `main`, o workflow [`.github/workflows/ci-backend.yml`](.github/workflows/ci-backend.yml) sobe **Postgres, Mongo e RabbitMQ** como serviços, executa **Prisma migrate deploy** e **seed**, depois **lint**, **build** e **testes** (inclui e2e com `/unidades`).
 
+## Produção / homologação (DDE)
+
+Stack Docker de produção local + deploy cloud (Railway + Vercel):
+
+```bash
+chmod +x scripts/prod/*.sh
+./scripts/prod/setup-env.sh
+# Edite backend/.env.production (Supabase, CORS, FRONTEND_PUBLIC_BASE_URL)
+./scripts/prod/up.sh
+./scripts/prod/verify.sh
+```
+
+Coleta de evidências NF e checklist da defesa:
+
+```bash
+cd frontend && npm run build && npm run start -p 3001 &
+./scripts/prod/collect-nf-dde.sh
+```
+
+Documentação: [docs/14-DEPLOY-HOMOLOGACAO.md](docs/14-DEPLOY-HOMOLOGACAO.md), [docs/CHECKLIST-DEFESA-DDE.md](docs/CHECKLIST-DEFESA-DDE.md).
+
 ## Próximos passos
 
 - Fase 1: IAM (Supabase), modelo de unidade fabril e RBAC — ver [docs/00-PLANO-MAESTRO.md](docs/00-PLANO-MAESTRO.md) e [docs/05-CRONOGRAMA-E-FASES.md](docs/05-CRONOGRAMA-E-FASES.md).

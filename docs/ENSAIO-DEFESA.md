@@ -38,15 +38,15 @@
 - Auditoria: quem/quando/valor anterior (NF-05)
 - Export CSV
 
-## 7. IoT — narrativa de escopo adiado (2 min)
+## 7. IoT — próxima entrega (2 min)
 
-- Health IoT; RN-01 previsto Fase 5
-- Interoperabilidade entregue via API/webhook
+- RN-01 / RF-09 em implementação após homologação
+- Interoperabilidade já entregue: API parceiro + webhook + health IoT
 
 ## 8. Encerramento
 
-- Pendencias homolog HTTPS e evidencias NF publicas
-- Perguntas
+- Evidências NF em `docs/evidencias/` + URLs em [HOMOLOG-URL.md](HOMOLOG-URL.md)
+- Checklist: [CHECKLIST-DEFESA-DDE.md](CHECKLIST-DEFESA-DDE.md)
 
 ## Checklist pre-ensaio
 

@@ -54,6 +54,22 @@ export type ApiOrdem = {
     motivo: string
     createdAt: string
   }>
+  pecasConsumidas?: Array<{
+    pecaId: string
+    codigo: string
+    nome: string
+    quantidade: number
+  }>
+  observacaoCancelamento?: string | null
+}
+
+export type ApiOrdemComentario = {
+  id: string
+  ordemServicoId: string
+  usuarioId: string
+  usuarioNome: string
+  texto: string
+  createdAt: string
 }
 
 export type ApiUsuario = {

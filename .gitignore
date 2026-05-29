@@ -13,6 +13,7 @@ coverage/
 # Ambiente (nunca commitar segredos)
 .env
 .env.local
+.env.prod
 .env.*.local
 !.env.example
 

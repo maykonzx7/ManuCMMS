@@ -13,6 +13,7 @@ import {
   Play,
   XCircle,
   CheckCircle,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,7 +54,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, downloadApiFile } from '@/lib/api'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
 import { useRealtimeConnection } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
@@ -83,6 +84,7 @@ export default function OrdersPage() {
   const [transferOrderId, setTransferOrderId] = useState('')
   const [transferTecnicoId, setTransferTecnicoId] = useState('')
   const [transferMotivo, setTransferMotivo] = useState('')
+  const [exportandoLista, setExportandoLista] = useState(false)
   const { canCreateOrder, canManageOrderStatus, canEditOrder } = usePermissions()
   const { accessToken } = useAuth()
   const company = useCurrentCompany()
@@ -319,6 +321,28 @@ export default function OrdersPage() {
     })
   }
 
+  async function baixarLista(formato: 'csv' | 'json') {
+    if (!currentUnit?.id) return
+    setExportandoLista(true)
+    try {
+      const query = new URLSearchParams({ formato })
+      if (statusFilter !== 'all' && statusFilter !== 'ATRASADA') {
+        query.set('status', statusFilter === 'EM_ANDAMENTO' ? 'EM_EXECUCAO' : statusFilter)
+      }
+      const ext = formato === 'csv' ? 'csv' : 'json'
+      await downloadApiFile(
+        `/unidades/${currentUnit.id}/ordens-servico/export?${query.toString()}`,
+        `ordens_${currentUnit.nome.replace(/\s+/g, '_').toLowerCase()}.${ext}`,
+        { accessToken },
+      )
+      toast.success(`Lista exportada em ${ext.toUpperCase()}.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao exportar ordens')
+    } finally {
+      setExportandoLista(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -329,14 +353,24 @@ export default function OrdersPage() {
             Gerencie as ordens de manutenção da sua unidade
           </p>
         </div>
-        {canCreateOrder && (
-          <Button asChild>
-            <Link href="/ordens/nova">
-              <Plus className="mr-2 h-4 w-4" />
-              Nova OS
-            </Link>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('csv')}>
+            <Download className="mr-2 h-4 w-4" />
+            Exportar CSV
           </Button>
-        )}
+          <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('json')}>
+            <Download className="mr-2 h-4 w-4" />
+            Exportar JSON
+          </Button>
+          {canCreateOrder && (
+            <Button asChild>
+              <Link href="/ordens/nova">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova OS
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}

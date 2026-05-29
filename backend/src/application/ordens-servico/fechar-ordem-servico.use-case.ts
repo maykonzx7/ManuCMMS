@@ -129,7 +129,7 @@ export class FecharOrdemServicoUseCase {
 
     if (assinaturaDigital == null) {
       throw new BadRequestException(
-        'Assinatura digital do técnico é obrigatória para concluir OS (RN-02)',
+        'Confirmação de conclusão é obrigatória para fechar OS (RN-02)',
       );
     }
 

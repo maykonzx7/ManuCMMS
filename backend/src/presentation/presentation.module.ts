@@ -16,6 +16,9 @@ import { AcceptConviteAcessoUseCase } from '../application/onboarding/accept-con
 import { CreateConviteAcessoUseCase } from '../application/onboarding/create-convite-acesso.use-case';
 import { CreateEmpresaWithInviteUseCase } from '../application/onboarding/create-empresa-with-invite.use-case';
 import { NotificacaoService } from '../application/notificacoes/notificacao.service';
+import { CreateOrdemServicoComentarioUseCase } from '../application/ordens-servico/create-ordem-servico-comentario.use-case';
+import { ExportOrdemServicoUseCase } from '../application/ordens-servico/export-ordem-servico.use-case';
+import { ListOrdemServicoComentariosUseCase } from '../application/ordens-servico/list-ordem-servico-comentarios.use-case';
 import { CancelarOrdemServicoUseCase } from '../application/ordens-servico/cancelar-ordem-servico.use-case';
 import { CreateOrdemServicoUseCase } from '../application/ordens-servico/create-ordem-servico.use-case';
 import { FecharOrdemServicoUseCase } from '../application/ordens-servico/fechar-ordem-servico.use-case';
@@ -118,6 +121,9 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     EscalarOrdemServicoUseCase,
     OrdemServicoSlaMonitorService,
     CancelarOrdemServicoUseCase,
+    ListOrdemServicoComentariosUseCase,
+    CreateOrdemServicoComentarioUseCase,
+    ExportOrdemServicoUseCase,
     PostgresHealthIndicator,
     MongoHealthIndicator,
     RabbitmqHealthIndicator,

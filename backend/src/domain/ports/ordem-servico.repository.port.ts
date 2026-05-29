@@ -1,4 +1,5 @@
 import type {
+  OrdemServicoComentarioItem,
   OrdemServicoListaItem,
   OrdemServicoParaFechamento,
 } from '../entities/ordem-servico';
@@ -107,4 +108,10 @@ export interface IOrdemServicoRepositoryPort {
       canceladoPorUsuarioId: string;
     },
   ): Promise<OrdemServicoListaItem>;
+  listComentarios(ordemServicoId: string): Promise<OrdemServicoComentarioItem[]>;
+  createComentario(input: {
+    ordemServicoId: string;
+    usuarioId: string;
+    texto: string;
+  }): Promise<OrdemServicoComentarioItem>;
 }

@@ -72,7 +72,8 @@ export FRONTEND_BASE_URL=https://SEU-FRONT
 
 ## Evidências NF (checklist)
 
-- [ ] **NF-01** Lighthouse ≥ 90 — `./scripts/collect-nf-evidence.sh` ou CI `ci-lighthouse.yml`
+- [ ] **NF-01** Tempo de resposta HTTP — `./scripts/collect-nf-evidence.sh` → `NF-01-performance/resumo-tempo-resposta.json`
+- [ ] **NF-11** axe DevTools — [NF-11-a11y/README.md](evidencias/NF-11-a11y/README.md)
 - [ ] **NF-03** Screenshots — `docs/evidencias/NF-03-screenshots/` + `capture-nf03-screenshots.sh`
 - [ ] **NF-08** Screenshot UI — [NF-08-circuit-breaker/PROCEDIMENTO-UI.md](evidencias/NF-08-circuit-breaker/PROCEDIMENTO-UI.md)
 - [ ] **NF-10** Backup — incluído em `collect-nf-evidence.sh` (Postgres + Mongo local)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -14,6 +14,8 @@ import {
   XCircle,
   MessageSquare,
   AlertTriangle,
+  Download,
+  Send,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,9 +32,9 @@ import {
 } from '@/lib/constants'
 import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
-import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
-import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
+import { useAuth, useCurrentUnit, useCurrentUser } from '@/lib/auth'
+import { apiRequest, downloadApiFile } from '@/lib/api'
+import { mapApiOrdemToServiceOrder, type ApiOrdem, type ApiOrdemComentario } from '@/lib/backend-mappers'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -49,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 type ApiUsuario = {
   id?: string
@@ -69,6 +72,7 @@ export default function OrderDetailPage() {
   const params = useParams()
   const { canManageOrderStatus, canEditOrder } = usePermissions()
   const { accessToken } = useAuth()
+  const currentUser = useCurrentUser()
   const unit = useCurrentUnit()
   const [order, setOrder] = useState<ReturnType<typeof mapApiOrdemToServiceOrder> | null>(null)
   const [rawOrder, setRawOrder] = useState<ApiOrdem | null>(null)
@@ -77,13 +81,52 @@ export default function OrderDetailPage() {
   const [transferMotivo, setTransferMotivo] = useState('')
   const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
   const [closeOpen, setCloseOpen] = useState(false)
-  const [assinaturaNome, setAssinaturaNome] = useState('')
+  const [confirmacaoConclusao, setConfirmacaoConclusao] = useState(false)
   const [descricaoSolucao, setDescricaoSolucao] = useState('')
   const [fotoSolucaoFile, setFotoSolucaoFile] = useState<File | null>(null)
   const [pecasCatalog, setPecasCatalog] = useState<ApiPeca[]>([])
   const [pecasConsumo, setPecasConsumo] = useState<Record<string, number>>({})
-  const assinaturaCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const drawingRef = useRef(false)
+  const [comentarios, setComentarios] = useState<ApiOrdemComentario[]>([])
+  const [novoComentario, setNovoComentario] = useState('')
+  const [salvandoComentario, setSalvandoComentario] = useState(false)
+  const [exportando, setExportando] = useState(false)
+
+  const confirmacaoFechamento = useMemo(() => {
+    if (!rawOrder?.assinaturaDigital) return null
+    try {
+      const parsed = JSON.parse(rawOrder.assinaturaDigital) as {
+        tipo?: string
+        usuarioNome?: string | null
+        nomeAssinante?: string | null
+        confirmadoEm?: string
+        dataHora?: string
+        dataUrl?: string
+      }
+      if (parsed.tipo === 'confirmacao') {
+        return {
+          nome: parsed.usuarioNome ?? rawOrder.finalizadoPorNome ?? 'Técnico',
+          data: parsed.confirmadoEm ?? parsed.dataHora ?? rawOrder.dataFechamento,
+          legacyCanvas: null as string | null,
+        }
+      }
+      if (parsed.tipo === 'canvas' && parsed.dataUrl) {
+        return {
+          nome: parsed.nomeAssinante ?? parsed.usuarioNome ?? rawOrder.finalizadoPorNome,
+          data: parsed.dataHora ?? rawOrder.dataFechamento,
+          legacyCanvas: parsed.dataUrl,
+        }
+      }
+    } catch {
+      if (rawOrder.assinaturaDigital.startsWith('data:image')) {
+        return {
+          nome: rawOrder.finalizadoPorNome,
+          data: rawOrder.dataFechamento,
+          legacyCanvas: rawOrder.assinaturaDigital,
+        }
+      }
+    }
+    return null
+  }, [rawOrder?.assinaturaDigital, rawOrder?.finalizadoPorNome, rawOrder?.dataFechamento])
 
   const loadOrder = async () => {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
@@ -98,9 +141,65 @@ export default function OrderDetailPage() {
       })
   }
 
+  const loadComentarios = async () => {
+    if (!accessToken || !unit?.id || typeof params.id !== 'string') return
+    try {
+      const res = await apiRequest<ApiOrdemComentario[]>(
+        `/unidades/${unit.id}/ordens-servico/${params.id}/comentarios`,
+        { accessToken },
+      )
+      setComentarios(res)
+    } catch {
+      setComentarios([])
+    }
+  }
+
   useEffect(() => {
     void loadOrder()
+    void loadComentarios()
   }, [accessToken, params.id, unit?.id])
+
+  async function enviarComentario() {
+    if (!accessToken || !unit?.id || typeof params.id !== 'string') return
+    const texto = novoComentario.trim()
+    if (texto.length < 2) {
+      toast.error('Digite um comentário com ao menos 2 caracteres.')
+      return
+    }
+    setSalvandoComentario(true)
+    try {
+      await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/comentarios`, {
+        method: 'POST',
+        accessToken,
+        body: { texto },
+      })
+      setNovoComentario('')
+      await loadComentarios()
+      toast.success('Comentário adicionado.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao salvar comentário')
+    } finally {
+      setSalvandoComentario(false)
+    }
+  }
+
+  async function baixarOrdem(formato: 'csv' | 'json') {
+    if (!unit?.id || typeof params.id !== 'string' || !order) return
+    setExportando(true)
+    try {
+      const ext = formato === 'csv' ? 'csv' : 'json'
+      await downloadApiFile(
+        `/unidades/${unit.id}/ordens-servico/${params.id}/export?formato=${formato}`,
+        `os_${order.numero}.${ext}`,
+        { accessToken },
+      )
+      toast.success(`Download ${ext.toUpperCase()} iniciado.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao baixar OS')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   useEffect(() => {
     if (!closeOpen || !accessToken || !unit?.id) return
@@ -167,6 +266,7 @@ export default function OrderDetailPage() {
       return
     }
     formData.append('descricaoSolucao', descricaoSolucaoNormalizada)
+    formData.append('confirmacaoConclusao', 'true')
     if (isCorretiva) {
       const fotoSolucao = fotoSolucaoFile
       if (!fotoSolucao) {
@@ -191,6 +291,7 @@ export default function OrderDetailPage() {
     setCloseOpen(false)
     setDescricaoSolucao('')
     setFotoSolucaoFile(null)
+    setConfirmacaoConclusao(false)
   }
 
   async function cancelarOrdem() {
@@ -320,46 +421,6 @@ export default function OrderDetailPage() {
       input.click()
     })
 
-  const clearSignature = () => {
-    const canvas = assinaturaCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }
-
-  const getSignatureDataUrl = (): string | null => {
-    const canvas = assinaturaCanvasRef.current
-    if (!canvas) return null
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data
-    const hasStroke = pixels.some((v, i) => (i + 1) % 4 === 0 ? false : v !== 0)
-    if (!hasStroke) return null
-    return canvas.toDataURL('image/jpeg', 0.7)
-  }
-
-  const drawAt = (clientX: number, clientY: number) => {
-    const canvas = assinaturaCanvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = ((clientX - rect.left) / rect.width) * canvas.width
-    const y = ((clientY - rect.top) / rect.height) * canvas.height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    if (!drawingRef.current) {
-      ctx.beginPath()
-      ctx.moveTo(x, y)
-      drawingRef.current = true
-      return
-    }
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#111827'
-    ctx.lineTo(x, y)
-    ctx.stroke()
-  }
-
   if (!order) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -404,7 +465,15 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('csv')}>
+            <Download className="mr-2 h-4 w-4" />
+            CSV
+          </Button>
+          <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('json')}>
+            <Download className="mr-2 h-4 w-4" />
+            JSON
+          </Button>
           {canManageOrderStatus && order.status === 'ABERTA' && (
             <Button onClick={() => void iniciarOrdem()}>
               <Play className="mr-2 h-4 w-4" />
@@ -413,7 +482,7 @@ export default function OrderDetailPage() {
           )}
           {canManageOrderStatus && order.status === 'EM_ANDAMENTO' && (
             <Button onClick={() => {
-              setAssinaturaNome(order.responsavel?.nome || '')
+              setConfirmacaoConclusao(false)
               setCloseOpen(true)
             }}>
               <CheckCircle className="mr-2 h-4 w-4" />
@@ -478,12 +547,12 @@ export default function OrderDetailPage() {
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Prazo SLA</p>
-                  <p className="mt-1 text-sm">
-                    {rawOrder?.dataLimiteSla
-                      ? new Date(rawOrder.dataLimiteSla).toLocaleString('pt-BR')
-                      : '-'}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Status SLA</p>
+                  <p className="mt-1 text-sm">{rawOrder?.statusSla ?? '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Identificador</p>
+                  <p className="mt-1 font-mono text-xs break-all">{order.id}</p>
                 </div>
               </div>
 
@@ -534,6 +603,47 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
+              {rawOrder?.observacaoCancelamento && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Motivo do cancelamento</p>
+                  <p className="mt-1">{rawOrder.observacaoCancelamento}</p>
+                </div>
+              )}
+
+              {(rawOrder?.pecasConsumidas?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Peças consumidas</p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {rawOrder?.pecasConsumidas?.map((peca) => (
+                      <li key={peca.pecaId} className="rounded-md border px-3 py-2">
+                        {peca.codigo} — {peca.nome} · Qtd: {peca.quantidade}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {confirmacaoFechamento && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Confirmação de conclusão</p>
+                  {confirmacaoFechamento.legacyCanvas ? (
+                    <img
+                      src={confirmacaoFechamento.legacyCanvas}
+                      alt="Assinatura de fechamento (legado)"
+                      className="mt-2 max-h-32 rounded-md border bg-white"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm">
+                      {confirmacaoFechamento.nome ?? 'Técnico'}
+                      {confirmacaoFechamento.data
+                        ? ` · ${formatDate(confirmacaoFechamento.data)}`
+                        : ''}
+                      {' · confirmação eletrônica'}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {order.observacoes && (
                 <div>
                   <p className="text-sm text-muted-foreground">Observações</p>
@@ -542,6 +652,28 @@ export default function OrderDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Transferências */}
+          {(rawOrder?.transferencias?.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Transferências</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {rawOrder?.transferencias?.map((t) => (
+                  <div key={t.id} className="rounded-md border p-3 text-sm">
+                    <p className="font-medium">
+                      {t.deTecnicoNome ?? 'Não atribuído'} → {t.paraTecnicoNome ?? 'Técnico'}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Por {t.transferidoPorNome ?? 'usuário'} em {formatDate(t.createdAt)}
+                    </p>
+                    <p className="mt-1">{t.motivo}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Asset Card */}
           <Card>
@@ -629,6 +761,14 @@ export default function OrderDetailPage() {
                   <p className="font-medium">{formatDate(order.dataFechamento)}</p>
                 </div>
               )}
+              <div>
+                <p className="text-sm text-muted-foreground">Prazo SLA</p>
+                <p className="font-medium">
+                  {rawOrder?.dataLimiteSla
+                    ? new Date(rawOrder.dataLimiteSla).toLocaleString('pt-BR')
+                    : '-'}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -680,18 +820,52 @@ export default function OrderDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Comments placeholder */}
+          {/* Comments */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
                 Comentários
+                <Badge variant="secondary">{comentarios.length}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhum comentário ainda
-              </p>
+            <CardContent className="space-y-4">
+              {comentarios.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Nenhum comentário ainda
+                </p>
+              ) : (
+                <div className="max-h-72 space-y-3 overflow-y-auto">
+                  {comentarios.map((item) => (
+                    <div key={item.id} className="rounded-md border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{item.usuarioNome}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(item.createdAt)}
+                        </p>
+                      </div>
+                      <p className="mt-2 text-sm whitespace-pre-wrap">{item.texto}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Textarea
+                  rows={3}
+                  value={novoComentario}
+                  onChange={(e) => setNovoComentario(e.target.value)}
+                  placeholder="Adicionar observação sobre a execução..."
+                  maxLength={2000}
+                />
+                <Button
+                  className="w-full"
+                  disabled={salvandoComentario}
+                  onClick={() => void enviarComentario()}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {salvandoComentario ? 'Enviando...' : 'Comentar'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -741,21 +915,15 @@ export default function OrderDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
+      <Dialog open={closeOpen} onOpenChange={(open) => {
+        setCloseOpen(open)
+        if (!open) setConfirmacaoConclusao(false)
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Concluir OS com assinatura</DialogTitle>
+            <DialogTitle>Concluir ordem de serviço</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2">
-              <Label>Nome do assinante</Label>
-              <input
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                value={assinaturaNome}
-                onChange={(e) => setAssinaturaNome(e.target.value)}
-                placeholder="Nome de quem está finalizando"
-              />
-            </div>
             {order.tipo === 'CORRETIVA' && (
               <div className="space-y-2">
                 <Label>Foto da solução (obrigatória)</Label>
@@ -801,48 +969,32 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             ) : null}
-            <div className="space-y-2">
-              <Label>Assinatura (canvas)</Label>
-              <canvas
-                ref={assinaturaCanvasRef}
-                width={600}
-                height={180}
-                className="w-full rounded-md border bg-white"
-                onMouseDown={(e) => {
-                  drawingRef.current = false
-                  drawAt(e.clientX, e.clientY)
-                }}
-                onMouseMove={(e) => {
-                  if (e.buttons !== 1) return
-                  drawAt(e.clientX, e.clientY)
-                }}
-                onMouseUp={() => { drawingRef.current = false }}
-                onMouseLeave={() => { drawingRef.current = false }}
-                onTouchStart={(e) => {
-                  const t = e.touches[0]
-                  if (!t) return
-                  drawingRef.current = false
-                  drawAt(t.clientX, t.clientY)
-                }}
-                onTouchMove={(e) => {
-                  const t = e.touches[0]
-                  if (!t) return
-                  drawAt(t.clientX, t.clientY)
-                }}
-                onTouchEnd={() => { drawingRef.current = false }}
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="confirmacao-conclusao"
+                checked={confirmacaoConclusao}
+                onCheckedChange={(checked) => setConfirmacaoConclusao(checked === true)}
               />
-              <Button type="button" variant="outline" onClick={clearSignature}>Limpar assinatura</Button>
+              <div className="space-y-1">
+                <Label htmlFor="confirmacao-conclusao" className="leading-snug">
+                  Confirmo que concluí esta intervenção conforme descrito
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Técnico: {currentUser?.nome ?? order.responsavel?.nome ?? 'Usuário logado'}
+                </p>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCloseOpen(false)}>Cancelar</Button>
               <Button
+                disabled={!confirmacaoConclusao}
                 onClick={async () => {
-                  const assinatura = getSignatureDataUrl()
-                  if (!assinatura) {
-                    toast.error('Assine no campo de assinatura para concluir.')
+                  if (!confirmacaoConclusao) {
+                    toast.error('Marque a confirmação para concluir a OS.')
                     return
                   }
                   const formData = new FormData()
+                  formData.append('confirmacaoConclusao', 'true')
                   if (order.tipo === 'CORRETIVA') {
                     if (!fotoSolucaoFile) {
                       toast.error('Foto da solução é obrigatória para OS corretiva.')
@@ -873,8 +1025,6 @@ export default function OrderDetailPage() {
                     formData.append('fotoAnexo', fotoAnexo)
                     formData.append('descricaoSolucao', descricaoSolucao.trim())
                   }
-                  formData.append('assinaturaImagemDataUrl', assinatura)
-                  formData.append('assinaturaNome', assinaturaNome.trim())
                   const consumo = Object.entries(pecasConsumo)
                     .filter(([, qty]) => qty > 0)
                     .map(([pecaId, quantidade]) => ({ pecaId, quantidade }))
@@ -887,11 +1037,11 @@ export default function OrderDetailPage() {
                     accessToken,
                     body: formData,
                   })
-                  toast.success('Ordem concluída com assinatura.')
+                  toast.success('Ordem concluída.')
                   await loadOrder()
                   setCloseOpen(false)
                   setPecasConsumo({})
-                  clearSignature()
+                  setConfirmacaoConclusao(false)
                 }}
               >
                 Confirmar conclusão

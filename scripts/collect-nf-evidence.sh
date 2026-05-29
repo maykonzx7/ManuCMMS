@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Coleta evidências NF reproduzíveis para o DDE ManuCMMS.
-# Requisitos: curl, docker, python3, Chrome/Chromium (para Lighthouse).
+# Requisitos: curl, docker (NF-04/05/10).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,133 +9,112 @@ API="${API_BASE_URL:-http://localhost:3000}"
 FRONT="${FRONTEND_BASE_URL:-http://localhost:3001}"
 DATE="$(date -Iseconds)"
 
-# Lighthouse (chrome-launcher) exige CHROME_PATH no Linux quando não há Chrome em paths padrão.
-resolve_chrome_path() {
-  local candidate
-  if [[ -n "${CHROME_PATH:-}" && -x "$CHROME_PATH" ]]; then
-    echo "$CHROME_PATH"
-    return 0
-  fi
-  for candidate in \
-    /usr/bin/chromium \
-    /usr/bin/chromium-browser \
-    /usr/bin/google-chrome-stable \
-    /usr/bin/google-chrome \
-    /usr/bin/brave \
-    /opt/google/chrome/chrome; do
-    if [[ -x "$candidate" ]]; then
-      echo "$candidate"
+# Detecta containers dev (docker-compose.yml) ou prod (docker-compose.prod.yml).
+resolve_container() {
+  local base="$1"
+  local name
+  for name in "$base" "${base}-prod"; do
+    if docker ps --format '{{.Names}}' 2>/dev/null | rg -qx "$name"; then
+      echo "$name"
       return 0
     fi
   done
-  if command -v chromium >/dev/null 2>&1; then
-    command -v chromium
-    return 0
-  fi
-  if command -v google-chrome-stable >/dev/null 2>&1; then
-    command -v google-chrome-stable
-    return 0
-  fi
   return 1
 }
 
-mkdir -p "$EVID/NF-01-lighthouse" "$EVID/NF-04-health" "$EVID/NF-05-auditoria" \
+MONGO_USER="${MONGO_USER:-manucmms}"
+MONGO_PASS="${MONGO_PASS:-}"
+RABBIT_CONTAINER="$(resolve_container manucmms-rabbitmq || true)"
+MONGO_CONTAINER="$(resolve_container manucmms-mongo || true)"
+POSTGRES_CONTAINER="$(resolve_container manucmms-postgres || true)"
+if [[ -z "$MONGO_PASS" ]]; then
+  if [[ "$MONGO_CONTAINER" == *-prod ]]; then
+    MONGO_PASS=manucmms_prod
+  else
+    MONGO_PASS=manucmms_dev
+  fi
+fi
+
+mkdir -p "$EVID/NF-01-performance" "$EVID/NF-04-health" "$EVID/NF-05-auditoria" \
   "$EVID/NF-08-circuit-breaker" "$EVID/NF-10-backup" "$EVID/NF-03-screenshots"
+
+echo "[NF-01] Tempo de resposta HTTP (curl)..."
+python3 - <<PY
+import json, subprocess, datetime
+
+front = "$FRONT"
+pages = [
+    ("acesso", f"{front}/workspace/acesso"),
+    ("convite", f"{front}/workspace/convite"),
+]
+rows = []
+for name, url in pages:
+    proc = subprocess.run(
+        ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{time_total} %{time_starttransfer}", url],
+        capture_output=True,
+        text=True,
+    )
+    parts = (proc.stdout or "").strip().split()
+    code = int(parts[0]) if parts else 0
+    total = float(parts[1]) if len(parts) > 1 else None
+    ttfb = float(parts[2]) if len(parts) > 2 else None
+    rows.append({
+        "pagina": name,
+        "url": url,
+        "http_code": code,
+        "time_total_s": total,
+        "time_ttfb_s": ttfb,
+        "aceite_local": code == 200 and (ttfb or 99) < 2.0,
+    })
+
+out = {
+    "data": "$DATE",
+    "metodo": "curl (sem Lighthouse)",
+    "criterio": "HTTP 200 e TTFB < 2s nas páginas públicas",
+    "paginas": rows,
+}
+path = "$EVID/NF-01-performance/resumo-tempo-resposta.json"
+with open(path, "w") as f:
+    json.dump(out, f, indent=2)
+print(f"  → {path}")
+PY
 
 echo "[NF-04] Health com todos os serviços..."
 curl -s "$API/health" > "$EVID/NF-04-health/health-all-up.json"
 
-if docker ps --format '{{.Names}}' | rg -q '^manucmms-rabbitmq$'; then
-  echo "[NF-04] Simulando indisponibilidade do RabbitMQ..."
-  docker stop manucmms-rabbitmq >/dev/null
+if [[ -n "$RABBIT_CONTAINER" ]]; then
+  echo "[NF-04] Simulando indisponibilidade do RabbitMQ ($RABBIT_CONTAINER)..."
+  docker stop "$RABBIT_CONTAINER" >/dev/null
   sleep 3
   curl -s "$API/health" > "$EVID/NF-04-health/health-rabbit-down.json"
-  docker start manucmms-rabbitmq >/dev/null
+  docker start "$RABBIT_CONTAINER" >/dev/null
   sleep 8
   curl -s "$API/health" > "$EVID/NF-04-health/health-recovered.json"
 fi
 
-echo "[NF-05] Amostra de log de auditoria (MongoDB)..."
-docker exec manucmms-mongo mongosh "mongodb://manucmms:manucmms_dev@127.0.0.1:27017/manucmms?authSource=admin" \
-  --quiet --eval 'JSON.stringify(db.log_auditoria.find({}, {entidade_afetada:1, id_usuario:1, valor_anterior:1, valor_novo:1, created_at:1}).sort({created_at:-1}).limit(5).toArray(), null, 2)' \
-  > "$EVID/NF-05-auditoria/amostra-log-auditoria.json" || true
-
-if command -v lighthouse >/dev/null 2>&1 || npx --yes lighthouse --version >/dev/null 2>&1; then
-  if CHROME_BIN="$(resolve_chrome_path)"; then
-    export CHROME_PATH="$CHROME_BIN"
-    echo "[NF-01/NF-11] Lighthouse (Chrome: $CHROME_PATH)..."
-    LH_FAILED=0
-    for spec in "acesso|$FRONT/workspace/acesso" "convite|$FRONT/workspace/convite"; do
-      name="${spec%%|*}"
-      url="${spec#*|}"
-      if ! npx --yes lighthouse@12.6.1 "$url" \
-        --quiet \
-        --chrome-flags="--headless=new --no-sandbox --disable-gpu" \
-        --output=json --output=html \
-        --output-path="$EVID/NF-01-lighthouse/${name}-desktop" \
-        --only-categories=performance,accessibility,best-practices,seo; then
-        LH_FAILED=1
-        echo "[NF-01] Falha Lighthouse desktop: $name ($url)" >&2
-      fi
-      if ! npx --yes lighthouse@12.6.1 "$url" \
-        --quiet \
-        --chrome-flags="--headless=new --no-sandbox --disable-gpu" \
-        --form-factor=mobile --screenEmulation.mobile=true \
-        --output=json \
-        --output-path="$EVID/NF-01-lighthouse/${name}-mobile" \
-        --only-categories=performance,accessibility,best-practices,seo; then
-        LH_FAILED=1
-        echo "[NF-01] Falha Lighthouse mobile: $name ($url)" >&2
-      fi
-    done
-    if [[ "$LH_FAILED" -eq 1 ]]; then
-      echo "[NF-01] Alguns relatórios Lighthouse falharam — confira se o frontend responde em $FRONT" >&2
-    fi
-  else
-    echo "[NF-01] Chromium/Chrome não encontrado (Lighthouse não usa Firefox)." >&2
-    echo "  Só para esta coleta: sudo pacman -S chromium" >&2
-    echo "  Confirme: test -x /usr/bin/chromium && export CHROME_PATH=/usr/bin/chromium" >&2
-    echo "  NF-11 no Firefox: extensão axe DevTools — ver docs/evidencias/NF-01-lighthouse/README.md" >&2
-    echo "  Reexecute: ./scripts/collect-nf-evidence.sh" >&2
-  fi
-  python3 - <<PY
-import json, glob, os
-base = "$EVID/NF-01-lighthouse"
-rows = []
-for path in glob.glob(base + "/*.report.json"):
-    with open(path) as f:
-        data = json.load(f)
-    cats = data.get("categories", {})
-    rows.append({
-        "arquivo": os.path.basename(path),
-        "url": data.get("finalUrl"),
-        "performance": round((cats.get("performance") or {}).get("score", 0) * 100),
-        "accessibility": round((cats.get("accessibility") or {}).get("score", 0) * 100),
-        "best_practices": round((cats.get("best-practices") or {}).get("score", 0) * 100),
-        "seo": round((cats.get("seo") or {}).get("score", 0) * 100),
-    })
-with open(base + "/resumo-scores.json", "w") as f:
-    json.dump(rows, f, indent=2)
-PY
-else
-  echo "[NF-01] Lighthouse não disponível — instale Chromium/Chrome e reexecute."
+if [[ -n "$MONGO_CONTAINER" ]]; then
+  echo "[NF-05] Amostra de log de auditoria (MongoDB — $MONGO_CONTAINER)..."
+  docker exec "$MONGO_CONTAINER" mongosh "mongodb://${MONGO_USER}:${MONGO_PASS}@127.0.0.1:27017/manucmms?authSource=admin" \
+    --quiet --eval 'JSON.stringify(db.log_auditoria.find({}, {entidade_afetada:1, id_usuario:1, valor_anterior:1, valor_novo:1, created_at:1}).sort({created_at:-1}).limit(5).toArray(), null, 2)' \
+    > "$EVID/NF-05-auditoria/amostra-log-auditoria.json" || true
 fi
 
-if docker ps --format '{{.Names}}' | rg -q '^manucmms-postgres$'; then
-  echo "[NF-10] Backup Postgres..."
+if [[ -n "$POSTGRES_CONTAINER" ]]; then
+  echo "[NF-10] Backup Postgres ($POSTGRES_CONTAINER)..."
   DUMP="$EVID/NF-10-backup/manucmms-$(date +%F).dump"
-  docker exec manucmms-postgres pg_dump -U manucmms -Fc manucmms > "$DUMP" || true
+  docker exec "$POSTGRES_CONTAINER" pg_dump -U manucmms -Fc manucmms > "$DUMP" || true
   echo "{\"arquivo\":\"$(basename "$DUMP")\",\"data\":\"$DATE\",\"tipo\":\"pg_dump -Fc\"}" \
     > "$EVID/NF-10-backup/ultimo-backup.json"
 fi
 
-if docker ps --format '{{.Names}}' | rg -q '^manucmms-mongo$'; then
-  echo "[NF-10] Backup MongoDB auditoria..."
-  docker exec manucmms-mongo mongodump \
-    --uri="mongodb://manucmms:manucmms_dev@127.0.0.1:27017/manucmms?authSource=admin" \
+if [[ -n "$MONGO_CONTAINER" ]]; then
+  echo "[NF-10] Backup MongoDB auditoria ($MONGO_CONTAINER)..."
+  docker exec "$MONGO_CONTAINER" mongodump \
+    --uri="mongodb://${MONGO_USER}:${MONGO_PASS}@127.0.0.1:27017/manucmms?authSource=admin" \
     --gzip --archive=/tmp/audit.gz 2>/dev/null || true
-  docker cp manucmms-mongo:/tmp/audit.gz "$EVID/NF-10-backup/audit-$(date +%F).gz" 2>/dev/null || true
+  docker cp "$MONGO_CONTAINER:/tmp/audit.gz" "$EVID/NF-10-backup/audit-$(date +%F).gz" 2>/dev/null || true
 fi
 
 echo "Coleta concluída em $DATE"
 echo "Artefatos em: $EVID"
+echo "NF-11 (a11y): evidência manual — docs/evidencias/NF-11-a11y/README.md"

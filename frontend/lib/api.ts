@@ -110,3 +110,40 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   return payload as T
 }
+
+type ApiDownloadOptions = {
+  accessToken?: string
+  headers?: Record<string, string>
+}
+
+export async function downloadApiFile(
+  path: string,
+  fileName: string,
+  options: ApiDownloadOptions = {},
+): Promise<void> {
+  const mergedHeaders: Record<string, string> = { ...(options.headers ?? {}) }
+  if (!mergedHeaders['x-company-slug']) {
+    const companySlug = resolveApiCompanySlug()
+    if (companySlug) mergedHeaders['x-company-slug'] = companySlug
+  }
+
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    credentials: 'include',
+    headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    throw new Error(payload?.message ?? `Falha no download (${response.status})`)
+  }
+
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.URL.revokeObjectURL(url)
+}

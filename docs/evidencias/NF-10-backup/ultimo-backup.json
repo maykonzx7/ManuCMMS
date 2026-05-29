@@ -1,6 +1,1 @@
-{
-  "arquivo": "manucmms-2026-05-26.dump",
-  "data": "2026-05-26T19:18:58-03:00",
-  "tipo": "pg_dump -Fc",
-  "nota": "Arquivo .dump gerado localmente; não versionado (ver .gitignore). Restore documentado em NF-10-backup-restore.md"
-}
+{"arquivo":"manucmms-2026-05-29.dump","data":"2026-05-29T13:20:57-03:00","tipo":"pg_dump -Fc"}
