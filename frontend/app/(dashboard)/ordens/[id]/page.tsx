@@ -90,6 +90,7 @@ export default function OrderDetailPage() {
   const [novoComentario, setNovoComentario] = useState('')
   const [salvandoComentario, setSalvandoComentario] = useState(false)
   const [exportando, setExportando] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<{ url: string; label: string } | null>(null)
 
   const confirmacaoFechamento = useMemo(() => {
     if (!rawOrder?.assinaturaDigital) return null
@@ -183,11 +184,11 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function baixarOrdem(formato: 'csv' | 'json') {
+  async function baixarOrdem(formato: 'csv' | 'json' | 'pdf') {
     if (!unit?.id || typeof params.id !== 'string' || !order) return
     setExportando(true)
     try {
-      const ext = formato === 'csv' ? 'csv' : 'json'
+      const ext = formato
       await downloadApiFile(
         `/unidades/${unit.id}/ordens-servico/${params.id}/export?formato=${formato}`,
         `os_${order.numero}.${ext}`,
@@ -474,6 +475,10 @@ export default function OrderDetailPage() {
             <Download className="mr-2 h-4 w-4" />
             JSON
           </Button>
+          <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('pdf')}>
+            <Download className="mr-2 h-4 w-4" />
+            PDF
+          </Button>
           {canManageOrderStatus && order.status === 'ABERTA' && (
             <Button onClick={() => void iniciarOrdem()}>
               <Play className="mr-2 h-4 w-4" />
@@ -582,22 +587,34 @@ export default function OrderDetailPage() {
                   <p className="text-sm text-muted-foreground">Evidências</p>
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     {rawOrder?.fotoProblema && (
-                      <a href={rawOrder.fotoProblema} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border">
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPreview({ url: rawOrder.fotoProblema!, label: 'Foto do problema' })}
+                        className="block overflow-hidden rounded-md border text-left transition hover:opacity-90"
+                      >
                         <img src={rawOrder.fotoProblema} alt="Foto do problema" className="h-40 w-full object-cover" />
-                        <p className="p-2 text-xs text-muted-foreground">Problema</p>
-                      </a>
+                        <p className="p-2 text-xs text-muted-foreground">Problema · clique para ampliar</p>
+                      </button>
                     )}
                     {rawOrder?.fotoSolucao && (
-                      <a href={rawOrder.fotoSolucao} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border">
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPreview({ url: rawOrder.fotoSolucao!, label: 'Foto da solução' })}
+                        className="block overflow-hidden rounded-md border text-left transition hover:opacity-90"
+                      >
                         <img src={rawOrder.fotoSolucao} alt="Foto da solução" className="h-40 w-full object-cover" />
-                        <p className="p-2 text-xs text-muted-foreground">Solução</p>
-                      </a>
+                        <p className="p-2 text-xs text-muted-foreground">Solução · clique para ampliar</p>
+                      </button>
                     )}
                     {rawOrder?.fotoAnexo && (
-                      <a href={rawOrder.fotoAnexo} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border">
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPreview({ url: rawOrder.fotoAnexo!, label: 'Foto da intervenção' })}
+                        className="block overflow-hidden rounded-md border text-left transition hover:opacity-90"
+                      >
                         <img src={rawOrder.fotoAnexo} alt="Foto da intervenção" className="h-40 w-full object-cover" />
-                        <p className="p-2 text-xs text-muted-foreground">Intervenção</p>
-                      </a>
+                        <p className="p-2 text-xs text-muted-foreground">Intervenção · clique para ampliar</p>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1048,6 +1065,23 @@ export default function OrderDetailPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={photoPreview != null} onOpenChange={(open) => { if (!open) setPhotoPreview(null) }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{photoPreview?.label ?? 'Evidência fotográfica'}</DialogTitle>
+          </DialogHeader>
+          {photoPreview ? (
+            <div className="overflow-hidden rounded-md border bg-muted/20">
+              <img
+                src={photoPreview.url}
+                alt={photoPreview.label}
+                className="max-h-[75vh] w-full object-contain"
+              />
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

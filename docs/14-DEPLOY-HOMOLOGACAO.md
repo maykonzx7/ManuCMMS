@@ -1,6 +1,6 @@
 # Deploy de homologação — ManuCMMS
 
-Atualizado em: 26/05/2026
+Atualizado em: 02/06/2026
 
 ## Objetivo
 
@@ -11,8 +11,8 @@ Publicar uma versão **HTTPS** do ManuCMMS para demonstração acadêmica (DDE),
 | Camada | Serviço sugerido | Observação |
 |--------|------------------|------------|
 | Frontend | Vercel | Next.js App Router; rewrites `/api` → backend |
-| Backend API + WebSocket | Railway / Render / Fly.io | Docker (`backend/Dockerfile`) |
-| Postgres | Supabase ou Railway Postgres | `prisma migrate deploy` no boot |
+| Backend API + WebSocket | **Render** (Web Service) | Docker (`backend/Dockerfile`); health `/health` |
+| Postgres | Supabase | `prisma migrate deploy` no boot |
 | MongoDB | Atlas M0 | Auditoria |
 | RabbitMQ + Redis | CloudAMQP + Upstash (ou stack Docker única) | Homologação enxuta |
 
@@ -29,34 +29,53 @@ Publicar uma versão **HTTPS** do ManuCMMS para demonstração acadêmica (DDE),
 - `CORS_ALLOWED_ORIGINS=https://<seu-dominio-frontend>`
 - `CORS_ALLOWED_ORIGIN_SUFFIXES=.vercel.app` (opcional para previews)
 
-### Frontend
+### Frontend (Vercel)
+
+Detalhamento completo: [15-VERCEL-FRONTEND-DEPLOY-KEYS.md](15-VERCEL-FRONTEND-DEPLOY-KEYS.md) · ficha: [VERCEL-FRONTEND-KEYS-PREENCHER.md](VERCEL-FRONTEND-KEYS-PREENCHER.md).
 
 - `NEXT_PUBLIC_API_BASE_URL=https://<seu-dominio-api>`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-## Passo a passo — backend (Docker)
+## Passo a passo — backend (Render)
+
+1. [render.com](https://render.com) → **New → Web Service** → conectar o repositório GitHub.
+2. **Root Directory:** `backend` ← **obrigatório** (monorepo; senão: `open Dockerfile: no such file or directory`).
+3. **Environment:** Docker — Dockerfile em `backend/Dockerfile` (ou use o blueprint `render.yaml` na raiz).
+4. **Health Check Path:** `/health`
+5. Cadastrar variáveis de `backend/.env.production.example` em *Environment* (Supabase, MongoDB Atlas, CloudAMQP, Upstash, CORS, etc.).
+6. Definir `PUBLIC_BASE_URL=https://<servico>.onrender.com` após o primeiro deploy.
+7. Deploy → validar `GET https://<servico>.onrender.com/health`
+
+### Erro comum: `failed to read dockerfile: open Dockerfile: no such file or directory`
+
+O Render está buildando na **raiz do repo**, mas o Dockerfile só existe em `backend/`.
+
+**Correção no painel:** *Settings → Build & Deploy → Root Directory* = `backend` → **Save Changes** → **Manual Deploy**.
+
+Alternativa sem mudar root: *Dockerfile Path* = `backend/Dockerfile` e *Docker Context* = `backend`.
+
+Ou importar o blueprint [`render.yaml`](../render.yaml) na raiz do repositório.
+
+WebSocket: `wss://<servico>.onrender.com/realtime` (Socket.IO)
+
+**Stack Docker local** (evidências / testes antes do cloud):
 
 ```bash
-cd backend
-cp .env.production.example .env.production
-# editar credenciais reais
-
-cd ..
-docker compose -f docker-compose.prod.yml up -d --build
+cd backend && cp .env.production.example .env.production
+cd .. && docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy
 ```
 
-Healthcheck: `GET https://<api>/health`
-
-WebSocket: namespace `wss://<api>/realtime` (Socket.IO)
-
 ## Passo a passo — frontend (Vercel)
 
-1. Importar repositório (`frontend/` como root ou monorepo com root dir).
-2. Definir `NEXT_PUBLIC_API_BASE_URL` apontando para a API pública.
-3. Configurar redirect Supabase: `/workspace/acesso/redefinir-senha`.
-4. Deploy → validar login, OS, integrações e notificações em tempo real.
+Ver [15-VERCEL-FRONTEND-DEPLOY-KEYS.md](15-VERCEL-FRONTEND-DEPLOY-KEYS.md).
+
+1. Importar repositório — **Root Directory:** `frontend/`.
+2. Cadastrar as 3 variáveis `NEXT_PUBLIC_*` (Production + Preview).
+3. Supabase Auth: Site URL + Redirect URLs (`/workspace/acesso/redefinir-senha`, previews `.vercel.app`).
+4. Atualizar `FRONTEND_PUBLIC_BASE_URL` e CORS no backend.
+5. Deploy → validar login, OS, integrações e notificações em tempo real.
 
 ## URLs de homologação
 

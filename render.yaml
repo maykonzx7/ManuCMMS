@@ -1,0 +1,24 @@
+# Blueprint Render — ManuCMMS API
+# https://render.com/docs/blueprint-spec
+#
+# Monorepo: o Dockerfile fica em backend/. Sem rootDir, o Render procura
+# Dockerfile na raiz e falha com "no such file or directory".
+
+services:
+  - type: web
+    name: manucmms-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_PUBLIC_BASE_URL
+        value: https://manucmms.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://manucmms.vercel.app
+      - key: CORS_ALLOWED_ORIGIN_SUFFIXES
+        value: .vercel.app

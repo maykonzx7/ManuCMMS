@@ -2,15 +2,15 @@
 
 | Ambiente | URL | Status |
 |----------|-----|--------|
-| Frontend | `https://____________.vercel.app` | Pendente |
-| API + WebSocket | `https://____________.railway.app` | Pendente |
-| Health | `https://____________.railway.app/health` | Pendente |
+| Frontend | `https://manucmms.vercel.app` | Deploy ok |
+| API + WebSocket (Render) | `https://____________.onrender.com` | Pendente |
+| Health | `https://____________.onrender.com/health` | Pendente |
 
 ## Validação
 
 ```bash
 export API_BASE_URL=https://SUA-API
-export FRONTEND_BASE_URL=https://SEU-FRONT
+export FRONTEND_BASE_URL=https://manucmms.vercel.app
 chmod +x scripts/homolog/check-homolog.sh
 ./scripts/homolog/check-homolog.sh
 ```

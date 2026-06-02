@@ -117,7 +117,7 @@ No **push** ou **pull request** para `main`, o workflow [`.github/workflows/ci-b
 
 ## Produção / homologação (DDE)
 
-Stack Docker de produção local + deploy cloud (Railway + Vercel):
+Stack Docker de produção local + deploy cloud (Render + Vercel):
 
 ```bash
 chmod +x scripts/prod/*.sh

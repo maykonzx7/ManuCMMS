@@ -321,7 +321,7 @@ export default function OrdersPage() {
     })
   }
 
-  async function baixarLista(formato: 'csv' | 'json') {
+  async function baixarLista(formato: 'csv' | 'json' | 'pdf') {
     if (!currentUnit?.id) return
     setExportandoLista(true)
     try {
@@ -329,7 +329,7 @@ export default function OrdersPage() {
       if (statusFilter !== 'all' && statusFilter !== 'ATRASADA') {
         query.set('status', statusFilter === 'EM_ANDAMENTO' ? 'EM_EXECUCAO' : statusFilter)
       }
-      const ext = formato === 'csv' ? 'csv' : 'json'
+      const ext = formato
       await downloadApiFile(
         `/unidades/${currentUnit.id}/ordens-servico/export?${query.toString()}`,
         `ordens_${currentUnit.nome.replace(/\s+/g, '_').toLowerCase()}.${ext}`,
@@ -361,6 +361,10 @@ export default function OrdersPage() {
           <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('json')}>
             <Download className="mr-2 h-4 w-4" />
             Exportar JSON
+          </Button>
+          <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('pdf')}>
+            <Download className="mr-2 h-4 w-4" />
+            Exportar PDF
           </Button>
           {canCreateOrder && (
             <Button asChild>

@@ -202,6 +202,16 @@ export class OrdensServicoController {
       res.send({ geradoEm: new Date().toISOString(), total: scoped.length, ordens: scoped });
       return;
     }
+    if (fmt === 'pdf') {
+      const pdf = this.exportOrdem.buildPdfMany(scoped, unidadeId);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="ordens_${unidadeId}_${Date.now()}.pdf"`,
+      );
+      res.send(pdf);
+      return;
+    }
     const csv = this.exportOrdem.buildCsvMany(scoped);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
@@ -244,6 +254,16 @@ export class OrdensServicoController {
         `attachment; filename="os_${ordemServicoId}.json"`,
       );
       res.send(payload);
+      return;
+    }
+    if (fmt === 'pdf') {
+      const pdf = this.exportOrdem.buildPdfOne(payload);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="os_${ordemServicoId}.pdf"`,
+      );
+      res.send(pdf);
       return;
     }
     const csv = this.exportOrdem.buildCsvOne(payload);

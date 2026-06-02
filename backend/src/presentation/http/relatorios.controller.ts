@@ -10,6 +10,7 @@ import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
+import { buildProfessionalPdfDocument } from '../../application/shared/simple-pdf.shared';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 
 type OrdemResumoRow = {
@@ -102,7 +103,29 @@ export class RelatoriosController {
       return;
     }
 
-    const pdfBuffer = this.buildSimplePdf(rows, unidade, fromDate, toDate);
+    const pdfBuffer = buildProfessionalPdfDocument({
+      documentTitle: 'Relatorio de Ordens de Servico',
+      documentSubtitle: `${rows.length} ordem(ns) no periodo selecionado`,
+      generatedAt: new Date().toISOString(),
+      headerMeta: [
+        { label: 'Unidade', value: unidade },
+        { label: 'Periodo inicio', value: fromDate.toISOString() },
+        { label: 'Periodo fim', value: toDate.toISOString() },
+      ],
+      sections: [
+        {
+          title: 'Resumo',
+          keyValues: [{ label: 'Total de ordens', value: String(rows.length) }],
+        },
+        {
+          title: 'Ordens no periodo',
+          bullets: rows.slice(0, 120).map(
+            (row, index) =>
+              `${index + 1}. ${row.ativoNome} · ${row.tipo} · ${row.status} · Tec ${row.tecnicoNome ?? 'N/D'} · ${row.dataAbertura.toISOString().slice(0, 10)}`,
+          ),
+        },
+      ],
+    });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -167,73 +190,5 @@ export class RelatoriosController {
     );
 
     return [meta, header, ...data].join('\n');
-  }
-
-  private buildSimplePdf(
-    rows: OrdemResumoRow[],
-    unidadeId: string,
-    fromDate: Date,
-    toDate: Date,
-  ) {
-    const lines = [
-      'Relatorio ManuCMMS',
-      `Gerado em: ${new Date().toISOString()}`,
-      `Unidade: ${unidadeId}`,
-      `Periodo: ${fromDate.toISOString()} a ${toDate.toISOString()}`,
-      `Total de ordens: ${rows.length}`,
-      '',
-      ...rows.slice(0, 40).map((row, index) =>
-        `${index + 1}. ${row.ativoNome} | ${row.tipo} | ${row.status} | Tec: ${row.tecnicoNome ?? 'N/D'} | Abertura: ${row.dataAbertura.toISOString()}`
-      ),
-    ];
-    const normalizedLines = lines.map((line) =>
-      line
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^\x20-\x7E]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim(),
-    );
-    const escapedLines = normalizedLines.map((line) =>
-      line.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)'),
-    );
-
-    const textOps = [
-      'BT',
-      '/F1 10 Tf',
-      '14 TL',
-      '40 800 Td',
-      ...escapedLines.map((line) => `(${line}) Tj T*`),
-      'ET',
-    ].join('\n');
-
-    const stream = textOps;
-
-    const objects = [
-      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
-      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
-      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
-      '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
-      `5 0 obj << /Length ${Buffer.byteLength(stream, 'utf-8')} >> stream\n${stream}\nendstream endobj`,
-    ];
-
-    let pdf = '%PDF-1.4\n';
-    const offsets: number[] = [];
-
-    for (const obj of objects) {
-      offsets.push(pdf.length);
-      pdf += `${obj}\n`;
-    }
-
-    const xrefStart = pdf.length;
-    pdf += `xref\n0 ${objects.length + 1}\n`;
-    pdf += '0000000000 65535 f \n';
-    for (const offset of offsets) {
-      pdf += `${offset.toString().padStart(10, '0')} 00000 n \n`;
-    }
-
-    pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-    return Buffer.from(pdf, 'utf-8');
   }
 }
