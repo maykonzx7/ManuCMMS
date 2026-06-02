@@ -1,12 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-const SLUG_RESERVED = new Set([
-  'admin',
-  'api',
-  'login',
-  'root',
-  'system',
-]);
+const SLUG_RESERVED = new Set(['admin', 'api', 'login', 'root', 'system']);
 
 export function normalizeCompanyName(value: string | undefined) {
   return value?.trim().replace(/\s+/g, ' ') ?? '';
@@ -41,12 +35,18 @@ export function normalizeEmail(email: string | undefined) {
   return email?.trim().toLowerCase() ?? '';
 }
 
-export function normalizeDisplayName(value: string | undefined, fallback: string) {
+export function normalizeDisplayName(
+  value: string | undefined,
+  fallback: string,
+) {
   const nome = value?.trim().replace(/\s+/g, ' ') ?? '';
   return nome.length > 0 ? nome : fallback;
 }
 
-export function normalizePortalPath(value: string | undefined, fallback: string) {
+export function normalizePortalPath(
+  value: string | undefined,
+  fallback: string,
+) {
   const raw = value?.trim() || fallback;
   const normalized = raw.startsWith('/') ? raw : `/${raw}`;
   return normalized.replace(/\/+$/, '') || fallback;

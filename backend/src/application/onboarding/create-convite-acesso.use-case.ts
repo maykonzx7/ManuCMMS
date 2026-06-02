@@ -74,7 +74,9 @@ export class CreateConviteAcessoUseCase {
       input.nomeDestino,
       emailDestino.split('@')[0] || 'Colaborador',
     );
-    const cargoCodigo = input.cargoCodigo?.trim().toUpperCase() as PerfilUsuarioCodigo;
+    const cargoCodigo = input.cargoCodigo
+      ?.trim()
+      .toUpperCase() as PerfilUsuarioCodigo;
     if (!PERFIS_CONVITE.includes(cargoCodigo)) {
       throw new BadRequestException(
         `cargoCodigo invalido; use um de: ${PERFIS_CONVITE.join(', ')}.`,
@@ -173,7 +175,9 @@ export class CreateConviteAcessoUseCase {
       frontendNgrokBaseUrl: this.config.get<string>(
         'FRONTEND_NGROK_PUBLIC_BASE_URL',
       ),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
       nodeEnv: this.config.get<string>('NODE_ENV'),
     });
     const invitePath = normalizePortalPath(
@@ -192,7 +196,10 @@ export class CreateConviteAcessoUseCase {
       timeStyle: 'short',
     }).format(expiraEm);
 
-    let entregaEmail: { status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU'; erro?: string } = {
+    let entregaEmail: {
+      status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU';
+      erro?: string;
+    } = {
       status: 'NAO_CONFIGURADO',
     };
 
@@ -217,7 +224,9 @@ export class CreateConviteAcessoUseCase {
         entregaEmail = {
           status: 'FALHOU',
           erro:
-            error instanceof Error ? error.message : 'Falha ao enviar email de convite.',
+            error instanceof Error
+              ? error.message
+              : 'Falha ao enviar email de convite.',
         };
       }
     }

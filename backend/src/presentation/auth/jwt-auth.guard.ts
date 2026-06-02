@@ -42,7 +42,9 @@ export class JwtAuthGuard implements CanActivate {
       .trim()
       .toLowerCase();
     this.isProduction = env === 'production';
-    this.trustedOrigins = (this.config.get<string>('CORS_ALLOWED_ORIGINS') ?? '')
+    this.trustedOrigins = (
+      this.config.get<string>('CORS_ALLOWED_ORIGINS') ?? ''
+    )
       .split(',')
       .map((value) => value.trim())
       .filter((value) => value.length > 0);
@@ -56,7 +58,11 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const { protocol, hostname } = new URL(origin);
       if (protocol !== 'http:' && protocol !== 'https:') return false;
-      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1'
+      ) {
         return true;
       }
       if (hostname.startsWith('192.168.')) return true;
@@ -67,16 +73,21 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
+  private headerValue(
+    value: string | string[] | undefined,
+  ): string | undefined {
+    const raw = Array.isArray(value) ? value[0] : value;
+    const trimmed = raw?.trim();
+    return trimmed ? trimmed : undefined;
+  }
+
   private resolveOrigin(req: Request): string | null {
-    const originHeader = req.headers.origin;
-    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
-    if (origin?.trim()) return origin.trim();
-    const refererHeader = req.headers.referer;
-    const referer = Array.isArray(refererHeader) ? refererHeader[0] : refererHeader;
-    if (!referer?.trim()) return null;
+    const origin = this.headerValue(req.headers.origin);
+    if (origin) return origin;
+    const referer = this.headerValue(req.headers.referer);
+    if (!referer) return null;
     try {
-      const url = new URL(referer.trim());
-      return url.origin;
+      return new URL(referer).origin;
     } catch {
       return null;
     }
@@ -86,7 +97,9 @@ export class JwtAuthGuard implements CanActivate {
     if (!this.isUnsafeMethod(req.method)) return;
     const origin = this.resolveOrigin(req);
     if (!origin) {
-      throw new UnauthorizedException('Origem da requisição ausente para operação sensível.');
+      throw new UnauthorizedException(
+        'Origem da requisição ausente para operação sensível.',
+      );
     }
     if (this.trustedOrigins.includes(origin)) return;
     if (!this.isProduction && this.isLocalDevOrigin(origin)) return;

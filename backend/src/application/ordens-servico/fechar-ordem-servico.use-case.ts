@@ -87,8 +87,12 @@ export class FecharOrdemServicoUseCase {
     );
 
     const fotoAnexo = normalizarUrl(body.fotoAnexo);
-    const fotoProblema = normalizarUrl(body.fotoProblema) ?? osDetalhe?.fotoProblema ?? null;
-    const descricaoProblema = normalizarUrl(body.descricaoProblema) ?? osDetalhe?.descricaoProblema ?? null;
+    const fotoProblema =
+      normalizarUrl(body.fotoProblema) ?? osDetalhe?.fotoProblema ?? null;
+    const descricaoProblema =
+      normalizarUrl(body.descricaoProblema) ??
+      osDetalhe?.descricaoProblema ??
+      null;
     const fotoSolucao = normalizarUrl(body.fotoSolucao);
     const descricaoSolucao = normalizarUrl(body.descricaoSolucao);
     const assinaturaDigital = normalizarUrl(body.assinaturaDigital);
@@ -105,17 +109,26 @@ export class FecharOrdemServicoUseCase {
       }
     }
 
-    if (descricaoProblema != null && descricaoProblema.length > DESCRICAO_PROBLEMA_MAX) {
+    if (
+      descricaoProblema != null &&
+      descricaoProblema.length > DESCRICAO_PROBLEMA_MAX
+    ) {
       throw new BadRequestException(
         `descricaoProblema deve ter até ${DESCRICAO_PROBLEMA_MAX} caracteres`,
       );
     }
-    if (descricaoSolucao != null && descricaoSolucao.length > DESCRICAO_SOLUCAO_MAX) {
+    if (
+      descricaoSolucao != null &&
+      descricaoSolucao.length > DESCRICAO_SOLUCAO_MAX
+    ) {
       throw new BadRequestException(
         `descricaoSolucao deve ter até ${DESCRICAO_SOLUCAO_MAX} caracteres`,
       );
     }
-    if (assinaturaDigital != null && assinaturaDigital.length > ASSINATURA_MAX) {
+    if (
+      assinaturaDigital != null &&
+      assinaturaDigital.length > ASSINATURA_MAX
+    ) {
       throw new BadRequestException(
         `assinaturaDigital deve ter até ${ASSINATURA_MAX} caracteres`,
       );
@@ -136,7 +149,9 @@ export class FecharOrdemServicoUseCase {
     if (body.pecasConsumidas?.length) {
       for (const item of body.pecasConsumidas) {
         if (!item.pecaId?.trim()) {
-          throw new BadRequestException('pecaId é obrigatório em pecasConsumidas');
+          throw new BadRequestException(
+            'pecaId é obrigatório em pecasConsumidas',
+          );
         }
         if (!Number.isInteger(item.quantidade) || item.quantidade <= 0) {
           throw new BadRequestException(
@@ -176,7 +191,8 @@ export class FecharOrdemServicoUseCase {
       fotoProblema: os.tipo === 'CORRETIVA' ? fotoProblema : null,
       descricaoProblema: os.tipo === 'CORRETIVA' ? descricaoProblema : null,
       fotoSolucao: os.tipo === 'CORRETIVA' ? fotoSolucao : null,
-      descricaoSolucao: os.tipo === 'CORRETIVA' ? (descricaoSolucao ?? null) : null,
+      descricaoSolucao:
+        os.tipo === 'CORRETIVA' ? (descricaoSolucao ?? null) : null,
       assinaturaDigital: assinaturaDigital ?? null,
       finalizadoPorUsuarioId,
       pecasConsumidas: body.pecasConsumidas,
@@ -207,7 +223,8 @@ export class FecharOrdemServicoUseCase {
     const recipients = usuarios.filter(
       (u) => u.perfil === 'ADMIN' || u.id === ordem.idTecnico,
     );
-    const fotoNotificacao = ordem.fotoSolucao ?? ordem.fotoAnexo ?? ordem.fotoProblema;
+    const fotoNotificacao =
+      ordem.fotoSolucao ?? ordem.fotoAnexo ?? ordem.fotoProblema;
     const msg = `OS ${ordem.id.slice(0, 8).toUpperCase()} concluida na unidade ${unidadeNome}. Ativo: ${ordem.ativoNome}. Evidencias foram anexadas.`;
 
     for (const user of recipients) {

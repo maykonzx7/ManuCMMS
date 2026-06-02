@@ -85,7 +85,10 @@ export class AcceptConviteAcessoUseCase {
       throw new NotFoundException('Convite nao encontrado.');
     }
 
-    if (convite.status !== 'PENDENTE' || convite.expiraEm.getTime() < Date.now()) {
+    if (
+      convite.status !== 'PENDENTE' ||
+      convite.expiraEm.getTime() < Date.now()
+    ) {
       throw new BadRequestException('Convite expirado ou indisponivel.');
     }
 

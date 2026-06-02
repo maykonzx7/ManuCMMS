@@ -1,7 +1,18 @@
-import { Body, Controller, Delete, Inject, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Inject,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { AUDIT_LOG_PORT, type IAuditLogPort } from '../../domain/ports/audit-log.port';
+import {
+  AUDIT_LOG_PORT,
+  type IAuditLogPort,
+} from '../../domain/ports/audit-log.port';
 import { SupabaseAuthService } from '../auth/supabase-auth.service';
 import { Public } from '../auth/public.decorator';
 
@@ -31,9 +42,12 @@ export class AuthSessionController {
 
     const authUser = await this.supabaseAuth.validateAccessToken(token);
 
-    const secure = (process.env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
+    const secure =
+      (process.env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
     const sameSite = secure ? 'none' : 'lax';
-    const maxAgeSeconds = Number(process.env.AUTH_SESSION_COOKIE_MAX_AGE_SECONDS ?? '28800');
+    const maxAgeSeconds = Number(
+      process.env.AUTH_SESSION_COOKIE_MAX_AGE_SECONDS ?? '28800',
+    );
     res.cookie('manucmms_access_token', token, {
       httpOnly: true,
       secure,
@@ -43,15 +57,21 @@ export class AuthSessionController {
     });
 
     const companySlugHeader = req.headers['x-company-slug'];
-    const companySlug = Array.isArray(companySlugHeader) ? companySlugHeader[0] : companySlugHeader;
+    const companySlug = Array.isArray(companySlugHeader)
+      ? companySlugHeader[0]
+      : companySlugHeader;
     if ((companySlug ?? '').trim()) {
-      res.cookie('manucmms_company_slug', String(companySlug).trim().toLowerCase(), {
-        httpOnly: true,
-        secure,
-        sameSite,
-        path: '/',
-        maxAge: Math.max(300, maxAgeSeconds) * 1000,
-      });
+      res.cookie(
+        'manucmms_company_slug',
+        String(companySlug).trim().toLowerCase(),
+        {
+          httpOnly: true,
+          secure,
+          sameSite,
+          path: '/',
+          maxAge: Math.max(300, maxAgeSeconds) * 1000,
+        },
+      );
     }
 
     await this.auditLog.append({
@@ -75,7 +95,8 @@ export class AuthSessionController {
     const cookieToken = readCookie(req, 'manucmms_access_token');
     if (cookieToken) {
       try {
-        const authUser = await this.supabaseAuth.validateAccessToken(cookieToken);
+        const authUser =
+          await this.supabaseAuth.validateAccessToken(cookieToken);
         await this.auditLog.append({
           idUsuario: authUser.userId,
           entidadeAfetada: 'AuthSession',
@@ -91,10 +112,21 @@ export class AuthSessionController {
       }
     }
 
-    const secure = (process.env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
+    const secure =
+      (process.env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
     const sameSite = secure ? 'none' : 'lax';
-    res.clearCookie('manucmms_access_token', { path: '/', httpOnly: true, secure, sameSite });
-    res.clearCookie('manucmms_company_slug', { path: '/', httpOnly: true, secure, sameSite });
+    res.clearCookie('manucmms_access_token', {
+      path: '/',
+      httpOnly: true,
+      secure,
+      sameSite,
+    });
+    res.clearCookie('manucmms_company_slug', {
+      path: '/',
+      httpOnly: true,
+      secure,
+      sameSite,
+    });
     res.status(204).send();
   }
 }

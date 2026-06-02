@@ -24,14 +24,20 @@ export class NotificacoesController {
   }
 
   @Patch(':notificacaoId/lida')
-  async markAsRead(@Req() req: Request, @Param('notificacaoId') notificacaoId: string) {
+  async markAsRead(
+    @Req() req: Request,
+    @Param('notificacaoId') notificacaoId: string,
+  ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
     await this.notificacoes.markAsRead(req.usuarioLocal!.id, notificacaoId);
     return { ok: true };
   }
 
   @Delete(':notificacaoId')
-  async remove(@Req() req: Request, @Param('notificacaoId') notificacaoId: string) {
+  async remove(
+    @Req() req: Request,
+    @Param('notificacaoId') notificacaoId: string,
+  ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
     await this.notificacoes.delete(req.usuarioLocal!.id, notificacaoId);
     return { ok: true };

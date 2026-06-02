@@ -109,7 +109,11 @@ export class CreateAtivoUseCase {
       FABRICANTE_MAX,
       'fabricante',
     );
-    const modelo = this.normalizeOptionalField(input.modelo, MODELO_MAX, 'modelo');
+    const modelo = this.normalizeOptionalField(
+      input.modelo,
+      MODELO_MAX,
+      'modelo',
+    );
     const numeroSerie = this.normalizeOptionalField(
       input.numeroSerie,
       NUMERO_SERIE_MAX,
@@ -129,7 +133,10 @@ export class CreateAtivoUseCase {
     if (!unidadeOk.empresaId) {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
-    const ativosUnidade = await this.ativos.listByUnidade(unidadeOk.empresaId, idUnidade);
+    const ativosUnidade = await this.ativos.listByUnidade(
+      unidadeOk.empresaId,
+      idUnidade,
+    );
     const nomeJaExiste = ativosUnidade.some(
       (ativo) =>
         ativo.status === 'OPERACIONAL' &&
@@ -154,7 +161,8 @@ export class CreateAtivoUseCase {
     if (modelo !== undefined) payload.modelo = modelo;
     if (numeroSerie !== undefined) payload.numeroSerie = numeroSerie;
     if (observacoes !== undefined) payload.observacoes = observacoes;
-    if (custoHoraParada !== undefined) payload.custoHoraParada = custoHoraParada;
+    if (custoHoraParada !== undefined)
+      payload.custoHoraParada = custoHoraParada;
     if (custoManutencaoMensal !== undefined) {
       payload.custoManutencaoMensal = custoManutencaoMensal;
     }

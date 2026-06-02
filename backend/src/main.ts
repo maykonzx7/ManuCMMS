@@ -41,7 +41,11 @@ function buildCorsOriginChecker() {
     try {
       const { protocol, hostname } = new URL(origin);
       if (protocol !== 'http:' && protocol !== 'https:') return false;
-      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1'
+      ) {
         return true;
       }
       if (hostname.startsWith('192.168.')) return true;
@@ -53,7 +57,10 @@ function buildCorsOriginChecker() {
     }
   }
 
-  return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  return (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) => {
     // Requests from curl, server-to-server clients and health checks may not send Origin.
     if (!origin) {
       callback(null, true);
@@ -72,7 +79,11 @@ function buildCorsOriginChecker() {
 
     try {
       const hostname = new URL(origin).hostname;
-      if (suffixes.some((suffix) => hostname === suffix || hostname.endsWith(suffix))) {
+      if (
+        suffixes.some(
+          (suffix) => hostname === suffix || hostname.endsWith(suffix),
+        )
+      ) {
         callback(null, true);
         return;
       }

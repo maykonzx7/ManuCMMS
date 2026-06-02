@@ -37,12 +37,24 @@ export class GestaoEmpresaController {
     this.ensureEmpresaScope(req, empresaId);
 
     const [empresaRows, usuarios, cargos, permissoes] = await Promise.all([
-      this.prisma.$queryRaw<Array<{
-        id: string; nomeEmpresa: string; slug: string; status: string;
-        cnpj: string | null; cep: string | null; endereco: string | null;
-        numeroEndereco: string | null; bairro: string | null; cidade: string | null; estado: string | null;
-        contatoNome: string | null; contatoEmail: string | null; contatoTelefone: string | null;
-      }>>(Prisma.sql`
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          nomeEmpresa: string;
+          slug: string;
+          status: string;
+          cnpj: string | null;
+          cep: string | null;
+          endereco: string | null;
+          numeroEndereco: string | null;
+          bairro: string | null;
+          cidade: string | null;
+          estado: string | null;
+          contatoNome: string | null;
+          contatoEmail: string | null;
+          contatoTelefone: string | null;
+        }>
+      >(Prisma.sql`
         SELECT id, nome_empresa AS "nomeEmpresa", slug, status::text AS status,
           cnpj, cep, endereco, numero_endereco AS "numeroEndereco", bairro, cidade, estado,
           contato_nome AS "contatoNome", contato_email AS "contatoEmail", contato_telefone AS "contatoTelefone"
@@ -144,17 +156,28 @@ export class GestaoEmpresaController {
         });
         continue;
       }
-      if (row.permissaoCodigo && !current.permissoes.includes(row.permissaoCodigo)) {
+      if (
+        row.permissaoCodigo &&
+        !current.permissoes.includes(row.permissaoCodigo)
+      ) {
         current.permissoes.push(row.permissaoCodigo);
       }
     }
 
     const frontendBase = resolveFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
     });
-    const accessPath = this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() || '/workspace/acesso';
-    const accessLink = frontendBase ? `${frontendBase}${accessPath}/${empresa.slug}` : null;
+    const accessPath =
+      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
+      '/workspace/acesso';
+    const accessLink = frontendBase
+      ? `${frontendBase}${accessPath}/${empresa.slug}`
+      : null;
 
     return {
       empresa,
@@ -179,9 +202,13 @@ export class GestaoEmpresaController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
 
-    const nextStatus = (body.status ?? '').trim().toUpperCase() as StatusEmpresa;
+    const nextStatus = (body.status ?? '')
+      .trim()
+      .toUpperCase() as StatusEmpresa;
     if (!['ATIVA', 'INATIVA', 'SUSPENSA'].includes(nextStatus)) {
-      throw new BadRequestException('status inválido. Use: ATIVA, INATIVA ou SUSPENSA.');
+      throw new BadRequestException(
+        'status inválido. Use: ATIVA, INATIVA ou SUSPENSA.',
+      );
     }
 
     const updated = await this.prisma.$executeRaw(Prisma.sql`
@@ -202,7 +229,8 @@ export class GestaoEmpresaController {
   @Patch('dados')
   async atualizarDadosEmpresa(
     @Param('empresaId') empresaId: string,
-    @Body() body: {
+    @Body()
+    body: {
       nomeEmpresa?: string;
       cnpj?: string | null;
       cep?: string | null;
@@ -233,19 +261,27 @@ export class GestaoEmpresaController {
     const contatoTelefone = body.contatoTelefone?.trim() || null;
 
     const fields: Prisma.Sql[] = [];
-    if (nomeEmpresa !== undefined) fields.push(Prisma.sql`nome_empresa = ${nomeEmpresa}`);
+    if (nomeEmpresa !== undefined)
+      fields.push(Prisma.sql`nome_empresa = ${nomeEmpresa}`);
     if (body.cnpj !== undefined) fields.push(Prisma.sql`cnpj = ${cnpj}`);
     if (body.cep !== undefined) fields.push(Prisma.sql`cep = ${cep}`);
-    if (body.endereco !== undefined) fields.push(Prisma.sql`endereco = ${endereco}`);
-    if (body.numeroEndereco !== undefined) fields.push(Prisma.sql`numero_endereco = ${numeroEndereco}`);
+    if (body.endereco !== undefined)
+      fields.push(Prisma.sql`endereco = ${endereco}`);
+    if (body.numeroEndereco !== undefined)
+      fields.push(Prisma.sql`numero_endereco = ${numeroEndereco}`);
     if (body.bairro !== undefined) fields.push(Prisma.sql`bairro = ${bairro}`);
     if (body.cidade !== undefined) fields.push(Prisma.sql`cidade = ${cidade}`);
     if (body.estado !== undefined) fields.push(Prisma.sql`estado = ${estado}`);
-    if (body.contatoNome !== undefined) fields.push(Prisma.sql`contato_nome = ${contatoNome}`);
-    if (body.contatoEmail !== undefined) fields.push(Prisma.sql`contato_email = ${contatoEmail}`);
-    if (body.contatoTelefone !== undefined) fields.push(Prisma.sql`contato_telefone = ${contatoTelefone}`);
+    if (body.contatoNome !== undefined)
+      fields.push(Prisma.sql`contato_nome = ${contatoNome}`);
+    if (body.contatoEmail !== undefined)
+      fields.push(Prisma.sql`contato_email = ${contatoEmail}`);
+    if (body.contatoTelefone !== undefined)
+      fields.push(Prisma.sql`contato_telefone = ${contatoTelefone}`);
     if (fields.length === 0) {
-      throw new BadRequestException('Informe ao menos um dado para atualização.');
+      throw new BadRequestException(
+        'Informe ao menos um dado para atualização.',
+      );
     }
     fields.push(Prisma.sql`updated_at = NOW()`);
 
@@ -270,9 +306,13 @@ export class GestaoEmpresaController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
 
-    const nextStatus = (body.status ?? '').trim().toUpperCase() as StatusUsuario;
+    const nextStatus = (body.status ?? '')
+      .trim()
+      .toUpperCase() as StatusUsuario;
     if (!['ATIVO', 'INATIVO', 'BLOQUEADO'].includes(nextStatus)) {
-      throw new BadRequestException('status inválido. Use: ATIVO, INATIVO ou BLOQUEADO.');
+      throw new BadRequestException(
+        'status inválido. Use: ATIVO, INATIVO ou BLOQUEADO.',
+      );
     }
 
     const updated = await this.prisma.$executeRaw(Prisma.sql`
@@ -305,7 +345,9 @@ export class GestaoEmpresaController {
 
     const perfil = (body.perfil ?? '').trim().toUpperCase() as PerfilCodigo;
     if (!PERFIS.includes(perfil)) {
-      throw new BadRequestException(`perfil inválido. Use: ${PERFIS.join(', ')}.`);
+      throw new BadRequestException(
+        `perfil inválido. Use: ${PERFIS.join(', ')}.`,
+      );
     }
 
     const updated = await this.prisma.$executeRaw(Prisma.sql`
@@ -357,7 +399,9 @@ export class GestaoEmpresaController {
     }
 
     const supabaseUrl = this.config.get<string>('SUPABASE_URL')?.trim();
-    const serviceRole = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY')?.trim();
+    const serviceRole = this.config
+      .get<string>('SUPABASE_SERVICE_ROLE_KEY')
+      ?.trim();
     if (authSub && supabaseUrl && serviceRole) {
       const response = await fetch(
         `${supabaseUrl.replace(/\/$/, '')}/auth/v1/admin/users/${authSub}`,
@@ -372,9 +416,10 @@ export class GestaoEmpresaController {
         },
       );
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { msg?: string; error_description?: string }
-          | null;
+        const payload = (await response.json().catch(() => null)) as {
+          msg?: string;
+          error_description?: string;
+        } | null;
         throw new BadRequestException(
           payload?.error_description ||
             payload?.msg ||
@@ -405,7 +450,9 @@ export class GestaoEmpresaController {
           (error.code === 'P2010' &&
             (error.meta as { code?: string } | undefined)?.code === '23505'))
       ) {
-        throw new BadRequestException('Email já está em uso por outro usuário.');
+        throw new BadRequestException(
+          'Email já está em uso por outro usuário.',
+        );
       }
       throw error;
     }
@@ -425,7 +472,9 @@ export class GestaoEmpresaController {
 
     const nome = (body.nome ?? '').trim();
     if (!nome || nome.length < 3 || nome.length > 150) {
-      throw new BadRequestException('nome inválido. Use entre 3 e 150 caracteres.');
+      throw new BadRequestException(
+        'nome inválido. Use entre 3 e 150 caracteres.',
+      );
     }
 
     const updated = await this.prisma.$executeRaw(Prisma.sql`
@@ -456,12 +505,22 @@ export class GestaoEmpresaController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
 
-    const usuarioAcesso = (body.usuarioAcesso ?? body.credencial ?? '').trim().toLowerCase();
-    if (!usuarioAcesso || usuarioAcesso.length < 3 || usuarioAcesso.length > 60) {
-      throw new BadRequestException('usuarioAcesso inválido. Use entre 3 e 60 caracteres.');
+    const usuarioAcesso = (body.usuarioAcesso ?? body.credencial ?? '')
+      .trim()
+      .toLowerCase();
+    if (
+      !usuarioAcesso ||
+      usuarioAcesso.length < 3 ||
+      usuarioAcesso.length > 60
+    ) {
+      throw new BadRequestException(
+        'usuarioAcesso inválido. Use entre 3 e 60 caracteres.',
+      );
     }
     if (!/^[a-z0-9._-]+$/.test(usuarioAcesso)) {
-      throw new BadRequestException('usuarioAcesso inválido. Use apenas letras minúsculas, números, ponto, underline ou hífen.');
+      throw new BadRequestException(
+        'usuarioAcesso inválido. Use apenas letras minúsculas, números, ponto, underline ou hífen.',
+      );
     }
 
     try {
@@ -486,7 +545,9 @@ export class GestaoEmpresaController {
           (error.code === 'P2010' &&
             (error.meta as { code?: string } | undefined)?.code === '23505'))
       ) {
-        throw new BadRequestException('Usuário de acesso já está em uso por outro usuário.');
+        throw new BadRequestException(
+          'Usuário de acesso já está em uso por outro usuário.',
+        );
       }
       throw error;
     }
@@ -502,7 +563,12 @@ export class GestaoEmpresaController {
     @Body() body: { credencial: string },
     @Req() req: Request,
   ) {
-    return this.atualizarUsuarioAcessoUsuario(empresaId, usuarioId, { usuarioAcesso: body.credencial }, req);
+    return this.atualizarUsuarioAcessoUsuario(
+      empresaId,
+      usuarioId,
+      { usuarioAcesso: body.credencial },
+      req,
+    );
   }
 
   @Patch('cargos/:cargoId/permissoes')
@@ -516,10 +582,16 @@ export class GestaoEmpresaController {
     this.ensureEmpresaScope(req, empresaId);
 
     const codigos = Array.from(
-      new Set((Array.isArray(body.permissoes) ? body.permissoes : []).map((item) => item.trim()).filter(Boolean)),
+      new Set(
+        (Array.isArray(body.permissoes) ? body.permissoes : [])
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
     );
 
-    const cargoRows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const cargoRows = await this.prisma.$queryRaw<
+      Array<{ id: string }>
+    >(Prisma.sql`
       SELECT id
       FROM cargo
       WHERE id = ${cargoId}::uuid
@@ -531,7 +603,9 @@ export class GestaoEmpresaController {
     }
 
     const permissaoRows = codigos.length
-      ? await this.prisma.$queryRaw<Array<{ id: string; codigo: string }>>(Prisma.sql`
+      ? await this.prisma.$queryRaw<
+          Array<{ id: string; codigo: string }>
+        >(Prisma.sql`
           SELECT id, codigo
           FROM permissao
           WHERE codigo IN (${Prisma.join(codigos)})
@@ -587,23 +661,39 @@ export class GestaoEmpresaController {
     const descricao = body.descricao?.trim() || null;
     const nivelHierarquico = Number(body.nivelHierarquico ?? 15);
     const codigosPermissao = Array.from(
-      new Set((body.permissoes ?? []).map((item) => item.trim()).filter(Boolean)),
+      new Set(
+        (body.permissoes ?? []).map((item) => item.trim()).filter(Boolean),
+      ),
     );
 
     if (!codigo || codigo.length < 3 || codigo.length > 80) {
-      throw new BadRequestException('codigo inválido. Use entre 3 e 80 caracteres.');
+      throw new BadRequestException(
+        'codigo inválido. Use entre 3 e 80 caracteres.',
+      );
     }
     if (!/^[A-Z0-9_]+$/.test(codigo)) {
-      throw new BadRequestException('codigo inválido. Use apenas A-Z, 0-9 e _.');
+      throw new BadRequestException(
+        'codigo inválido. Use apenas A-Z, 0-9 e _.',
+      );
     }
     if (!nome || nome.length < 3 || nome.length > 120) {
-      throw new BadRequestException('nome inválido. Use entre 3 e 120 caracteres.');
+      throw new BadRequestException(
+        'nome inválido. Use entre 3 e 120 caracteres.',
+      );
     }
-    if (!Number.isFinite(nivelHierarquico) || nivelHierarquico < 1 || nivelHierarquico > 100) {
-      throw new BadRequestException('nivelHierarquico inválido. Use um número entre 1 e 100.');
+    if (
+      !Number.isFinite(nivelHierarquico) ||
+      nivelHierarquico < 1 ||
+      nivelHierarquico > 100
+    ) {
+      throw new BadRequestException(
+        'nivelHierarquico inválido. Use um número entre 1 e 100.',
+      );
     }
 
-    const exists = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const exists = await this.prisma.$queryRaw<
+      Array<{ id: string }>
+    >(Prisma.sql`
       SELECT id
       FROM cargo
       WHERE empresa_id = ${empresaId}::uuid
@@ -611,11 +701,15 @@ export class GestaoEmpresaController {
       LIMIT 1
     `);
     if (exists[0]?.id) {
-      throw new BadRequestException('Já existe cargo com este código na empresa.');
+      throw new BadRequestException(
+        'Já existe cargo com este código na empresa.',
+      );
     }
 
     const permissaoRows = codigosPermissao.length
-      ? await this.prisma.$queryRaw<Array<{ id: string; codigo: string }>>(Prisma.sql`
+      ? await this.prisma.$queryRaw<
+          Array<{ id: string; codigo: string }>
+        >(Prisma.sql`
           SELECT id, codigo
           FROM permissao
           WHERE codigo IN (${Prisma.join(codigosPermissao)})
@@ -690,7 +784,9 @@ export class GestaoEmpresaController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
 
-    const rows = await this.prisma.$queryRaw<Array<{ email: string }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ email: string }>
+    >(Prisma.sql`
       SELECT u.email
       FROM usuario u
       JOIN usuario_empresa ue ON ue.usuario_id = u.id
@@ -705,33 +801,42 @@ export class GestaoEmpresaController {
     }
 
     const supabaseUrl = this.config.get<string>('SUPABASE_URL')?.trim();
-    const serviceRole = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY')?.trim();
+    const serviceRole = this.config
+      .get<string>('SUPABASE_SERVICE_ROLE_KEY')
+      ?.trim();
     if (!supabaseUrl || !serviceRole) {
       throw new InternalServerErrorException(
         'SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias para reset de senha administrativo.',
       );
     }
 
-    const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/admin/generate_link`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: serviceRole,
-        Authorization: `Bearer ${serviceRole}`,
+    const response = await fetch(
+      `${supabaseUrl.replace(/\/$/, '')}/auth/v1/admin/generate_link`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: serviceRole,
+          Authorization: `Bearer ${serviceRole}`,
+        },
+        body: JSON.stringify({
+          type: 'recovery',
+          email,
+        }),
       },
-      body: JSON.stringify({
-        type: 'recovery',
-        email,
-      }),
-    });
+    );
 
-    const payload = await response.json().catch(() => null) as
-      | { action_link?: string; error_description?: string; msg?: string }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      action_link?: string;
+      error_description?: string;
+      msg?: string;
+    } | null;
 
     if (!response.ok) {
       throw new BadRequestException(
-        payload?.error_description || payload?.msg || 'Não foi possível gerar link de redefinição de senha.',
+        payload?.error_description ||
+          payload?.msg ||
+          'Não foi possível gerar link de redefinição de senha.',
       );
     }
 
@@ -754,10 +859,14 @@ export class GestaoEmpresaController {
 
     const senha = (body.senha ?? '').trim();
     if (senha.length < 8 || senha.length > 72) {
-      throw new BadRequestException('senha inválida. Use entre 8 e 72 caracteres.');
+      throw new BadRequestException(
+        'senha inválida. Use entre 8 e 72 caracteres.',
+      );
     }
 
-    const rows = await this.prisma.$queryRaw<Array<{ authSub: string | null }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ authSub: string | null }>
+    >(Prisma.sql`
       SELECT u.auth_sub AS "authSub"
       FROM usuario u
       JOIN usuario_empresa ue ON ue.usuario_id = u.id
@@ -768,11 +877,15 @@ export class GestaoEmpresaController {
 
     const authSub = rows[0]?.authSub ?? null;
     if (!authSub) {
-      throw new BadRequestException('Usuário não encontrado na empresa ou sem vínculo de autenticação.');
+      throw new BadRequestException(
+        'Usuário não encontrado na empresa ou sem vínculo de autenticação.',
+      );
     }
 
     const supabaseUrl = this.config.get<string>('SUPABASE_URL')?.trim();
-    const serviceRole = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY')?.trim();
+    const serviceRole = this.config
+      .get<string>('SUPABASE_SERVICE_ROLE_KEY')
+      ?.trim();
     if (!supabaseUrl || !serviceRole) {
       throw new InternalServerErrorException(
         'SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias para atualização de senha administrativa.',
@@ -793,9 +906,10 @@ export class GestaoEmpresaController {
     );
 
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as
-        | { msg?: string; error_description?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        msg?: string;
+        error_description?: string;
+      } | null;
       throw new BadRequestException(
         payload?.error_description ||
           payload?.msg ||
@@ -807,7 +921,10 @@ export class GestaoEmpresaController {
   }
 
   @Get('integracao')
-  async getIntegracao(@Param('empresaId') empresaId: string, @Req() req: Request) {
+  async getIntegracao(
+    @Param('empresaId') empresaId: string,
+    @Req() req: Request,
+  ) {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
     return this.integracaoWebhook.getResumo(empresaId);
@@ -837,16 +954,23 @@ export class GestaoEmpresaController {
   }
 
   @Post('integracao/regenerar-api-key')
-  async regenerarApiKey(@Param('empresaId') empresaId: string, @Req() req: Request) {
+  async regenerarApiKey(
+    @Param('empresaId') empresaId: string,
+    @Req() req: Request,
+  ) {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
-    const apiKeyIntegracao = await this.integracaoWebhook.regenerateApiKey(empresaId);
+    const apiKeyIntegracao =
+      await this.integracaoWebhook.regenerateApiKey(empresaId);
     const resumo = await this.integracaoWebhook.getResumo(empresaId);
     return { ...resumo, apiKeyIntegracao };
   }
 
   @Post('integracao/testar-webhook')
-  async testarWebhook(@Param('empresaId') empresaId: string, @Req() req: Request) {
+  async testarWebhook(
+    @Param('empresaId') empresaId: string,
+    @Req() req: Request,
+  ) {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
     return this.integracaoWebhook.testWebhook(empresaId);
@@ -855,7 +979,9 @@ export class GestaoEmpresaController {
   private ensureEmpresaScope(req: Request, empresaId: string) {
     const currentEmpresaId = req.usuarioLocal?.empresa?.id;
     if (!currentEmpresaId || currentEmpresaId !== empresaId) {
-      throw new BadRequestException('Empresa fora do escopo do usuário autenticado.');
+      throw new BadRequestException(
+        'Empresa fora do escopo do usuário autenticado.',
+      );
     }
   }
 }

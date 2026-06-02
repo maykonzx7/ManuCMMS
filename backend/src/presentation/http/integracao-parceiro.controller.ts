@@ -48,15 +48,19 @@ export class IntegracaoParceiroController {
       from?: Date;
       to?: Date;
     } = {};
-    if (status?.trim()) filters.status = status.trim().toUpperCase() as typeof filters.status;
-    if (tipo?.trim()) filters.tipo = tipo.trim().toUpperCase() as typeof filters.tipo;
+    if (status?.trim())
+      filters.status = status.trim().toUpperCase() as typeof filters.status;
+    if (tipo?.trim())
+      filters.tipo = tipo.trim().toUpperCase() as typeof filters.tipo;
     if (from) {
       filters.from = new Date(from);
-      if (Number.isNaN(filters.from.getTime())) throw new BadRequestException('from inválido');
+      if (Number.isNaN(filters.from.getTime()))
+        throw new BadRequestException('from inválido');
     }
     if (to) {
       filters.to = new Date(to);
-      if (Number.isNaN(filters.to.getTime())) throw new BadRequestException('to inválido');
+      if (Number.isNaN(filters.to.getTime()))
+        throw new BadRequestException('to inválido');
     }
     return this.listOrdens.execute(unidadeId, filters);
   }
@@ -93,7 +97,9 @@ export class IntegracaoParceiroController {
       LIMIT 1
     `);
     if (!rows[0]) {
-      throw new NotFoundException('Unidade fabril não encontrada para esta API key.');
+      throw new NotFoundException(
+        'Unidade fabril não encontrada para esta API key.',
+      );
     }
   }
 }

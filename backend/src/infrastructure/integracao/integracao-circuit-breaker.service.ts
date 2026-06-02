@@ -31,7 +31,9 @@ export class IntegracaoCircuitBreakerService {
     const current = this.states.get(key) ?? { failures: 0, openUntil: 0 };
     const failures = current.failures + 1;
     const openUntil =
-      failures >= this.failureThreshold ? Date.now() + this.openMs : current.openUntil;
+      failures >= this.failureThreshold
+        ? Date.now() + this.openMs
+        : current.openUntil;
     this.states.set(key, { failures, openUntil });
   }
 }

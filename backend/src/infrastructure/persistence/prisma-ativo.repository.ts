@@ -168,7 +168,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
       fields.push(Prisma.sql`status = ${input.status}::"StatusAtivo"`);
     }
     if (fields.length === 0) {
-      return this.findByIdInUnidade(input.empresaId, input.idUnidade, input.idAtivo);
+      return this.findByIdInUnidade(
+        input.empresaId,
+        input.idUnidade,
+        input.idAtivo,
+      );
     }
     fields.push(Prisma.sql`updated_at = NOW()`);
 
@@ -180,7 +184,11 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         AND id_unidade = ${input.idUnidade}::uuid
     `);
 
-    return this.findByIdInUnidade(input.empresaId, input.idUnidade, input.idAtivo);
+    return this.findByIdInUnidade(
+      input.empresaId,
+      input.idUnidade,
+      input.idAtivo,
+    );
   }
 
   async deleteByIdInUnidade(
@@ -202,7 +210,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     idAtivo: string,
     idUnidade: string,
   ): Promise<boolean> {
-    const rows = await this.prisma.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ exists: boolean }>
+    >(Prisma.sql`
       SELECT EXISTS (
         SELECT 1
         FROM ativo
@@ -220,7 +230,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     idAtivo: string,
     idUnidade: string,
   ): Promise<AtivoListaItem['status'] | null> {
-    const rows = await this.prisma.$queryRaw<Array<{ status: AtivoListaItem['status'] }>>(
+    const rows = await this.prisma.$queryRaw<
+      Array<{ status: AtivoListaItem['status'] }>
+    >(
       Prisma.sql`
         SELECT status
         FROM ativo

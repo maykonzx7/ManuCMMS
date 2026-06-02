@@ -82,11 +82,18 @@ export class SupabaseAuthService {
         const canFallback = anonKey && supabaseUrl;
         // Newer Supabase projects can issue asymmetric tokens (non-HS256).
         // In that case, fallback to online introspection with /auth/v1/user.
-        if (canFallback && message.toLowerCase().includes('invalid algorithm')) {
+        if (
+          canFallback &&
+          message.toLowerCase().includes('invalid algorithm')
+        ) {
           this.logger.warn(
             'Token com algoritmo diferente de HS256; aplicando fallback de validacao no Supabase Auth.',
           );
-          return this.validateWithSupabaseAuth(accessToken, supabaseUrl, anonKey);
+          return this.validateWithSupabaseAuth(
+            accessToken,
+            supabaseUrl,
+            anonKey,
+          );
         }
         throw error;
       }

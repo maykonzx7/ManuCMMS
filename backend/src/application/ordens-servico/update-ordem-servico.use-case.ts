@@ -57,7 +57,10 @@ export class UpdateOrdemServicoUseCase {
     }
 
     const descricao = body.descricao?.trim();
-    if (body.descricao !== undefined && (!descricao || descricao.length > DESCRICAO_MAX)) {
+    if (
+      body.descricao !== undefined &&
+      (!descricao || descricao.length > DESCRICAO_MAX)
+    ) {
       throw new BadRequestException(
         `descricao deve ter entre 1 e ${DESCRICAO_MAX} caracteres`,
       );
@@ -68,9 +71,9 @@ export class UpdateOrdemServicoUseCase {
       idTecnico = null;
     }
 
-    let tecnicoSelecionado:
-      | Awaited<ReturnType<IUsuarioReadPort['findByIdInUnidade']>>
-      | null = null;
+    let tecnicoSelecionado: Awaited<
+      ReturnType<IUsuarioReadPort['findByIdInUnidade']>
+    > | null = null;
 
     if (idTecnico !== undefined && idTecnico !== null) {
       tecnicoSelecionado = await this.usuarios.findByIdInUnidade(
@@ -78,15 +81,21 @@ export class UpdateOrdemServicoUseCase {
         idUnidade,
       );
       if (!tecnicoSelecionado) {
-        throw new NotFoundException('Técnico não encontrado nesta unidade fabril');
+        throw new NotFoundException(
+          'Técnico não encontrado nesta unidade fabril',
+        );
       }
       if (tecnicoSelecionado.perfil !== 'TECNICO') {
-        throw new BadRequestException('Usuario atribuido precisa ter perfil TECNICO');
+        throw new BadRequestException(
+          'Usuario atribuido precisa ter perfil TECNICO',
+        );
       }
     }
 
     if (descricao === undefined && idTecnico === undefined) {
-      throw new BadRequestException('Informe ao menos um campo para atualização');
+      throw new BadRequestException(
+        'Informe ao menos um campo para atualização',
+      );
     }
 
     const atual = await this.ordens.findByIdInUnidade(
@@ -119,9 +128,13 @@ export class UpdateOrdemServicoUseCase {
     }
 
     const mudouTecnico =
-      idTecnico !== undefined && (atual.idTecnico ?? null) !== (idTecnico ?? null);
+      idTecnico !== undefined &&
+      (atual.idTecnico ?? null) !== (idTecnico ?? null);
     const motivoTransferencia = body.motivoTransferencia?.trim();
-    if (mudouTecnico && (!motivoTransferencia || motivoTransferencia.length < 10)) {
+    if (
+      mudouTecnico &&
+      (!motivoTransferencia || motivoTransferencia.length < 10)
+    ) {
       throw new BadRequestException(
         'Transferência de OS exige motivo com no mínimo 10 caracteres.',
       );
@@ -142,8 +155,12 @@ export class UpdateOrdemServicoUseCase {
     }
 
     if (mudouTecnico && atualizado.idTecnico) {
-      const tecnicoDestino = tecnicoSelecionado
-        ?? (await this.usuarios.findByIdInUnidade(atualizado.idTecnico, idUnidade));
+      const tecnicoDestino =
+        tecnicoSelecionado ??
+        (await this.usuarios.findByIdInUnidade(
+          atualizado.idTecnico,
+          idUnidade,
+        ));
       await this.notifyTecnicoReassigned({
         tecnico: tecnicoDestino,
         ordem: atualizado,
@@ -198,8 +215,12 @@ export class UpdateOrdemServicoUseCase {
     }
 
     const frontendBaseUrl = resolveFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
     });
     const accessPath =
       this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||

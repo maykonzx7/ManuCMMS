@@ -48,10 +48,14 @@ export class CreateOrdemServicoComentarioUseCase {
   ): Promise<OrdemServicoComentarioItem> {
     const normalized = texto.trim();
     if (normalized.length < 2) {
-      throw new BadRequestException('Comentário deve ter ao menos 2 caracteres.');
+      throw new BadRequestException(
+        'Comentário deve ter ao menos 2 caracteres.',
+      );
     }
     if (normalized.length > 2000) {
-      throw new BadRequestException('Comentário deve ter no máximo 2000 caracteres.');
+      throw new BadRequestException(
+        'Comentário deve ter no máximo 2000 caracteres.',
+      );
     }
 
     const unidade = await this.unidades.findById(idUnidade);
@@ -113,8 +117,7 @@ export class CreateOrdemServicoComentarioUseCase {
     }
 
     const osCurta = os.id.slice(0, 8).toUpperCase();
-    const preview =
-      texto.length > 120 ? `${texto.slice(0, 117)}...` : texto;
+    const preview = texto.length > 120 ? `${texto.slice(0, 117)}...` : texto;
 
     await this.notificacoes.create({
       usuarioId: os.idTecnico,
@@ -127,7 +130,10 @@ export class CreateOrdemServicoComentarioUseCase {
       linkPath: `/workspace/ordens/${os.id}`,
     });
 
-    const tecnico = await this.usuarios.findByIdInUnidade(os.idTecnico, idUnidade);
+    const tecnico = await this.usuarios.findByIdInUnidade(
+      os.idTecnico,
+      idUnidade,
+    );
     await this.sendTecnicoComentarioEmail({
       tecnico,
       os,
@@ -148,15 +154,26 @@ export class CreateOrdemServicoComentarioUseCase {
     empresaSlug: string | null;
     texto: string;
   }): Promise<void> {
-    const { tecnico, os, comentario, unidadeNome, idUnidade, empresaSlug, texto } =
-      input;
+    const {
+      tecnico,
+      os,
+      comentario,
+      unidadeNome,
+      idUnidade,
+      empresaSlug,
+      texto,
+    } = input;
     if (!tecnico?.email || !this.emailPort.isConfigured()) {
       return;
     }
 
     const frontendBaseUrl = resolveFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
     });
     const accessPath =
       this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||

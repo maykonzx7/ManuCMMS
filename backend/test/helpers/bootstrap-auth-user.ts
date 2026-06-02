@@ -12,7 +12,9 @@ type BootstrapAuthUserResult = {
 
 export async function bootstrapAuthUser(
   prisma: PrismaService,
-  options?: { perfil?: 'TECNICO' | 'SUPERVISOR' | 'GESTOR' | 'AUDITOR' | 'ADMIN' },
+  options?: {
+    perfil?: 'TECNICO' | 'SUPERVISOR' | 'GESTOR' | 'AUDITOR' | 'ADMIN';
+  },
 ): Promise<BootstrapAuthUserResult> {
   const suffix = randomUUID().slice(0, 8);
   const authSub = randomUUID();

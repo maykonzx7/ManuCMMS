@@ -401,7 +401,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           throw new NotFoundException(`Peça ${consumo.pecaId} não encontrada`);
         }
         if (consumo.quantidade <= 0) {
-          throw new NotFoundException('Quantidade de peça deve ser maior que zero');
+          throw new NotFoundException(
+            'Quantidade de peça deve ser maior que zero',
+          );
         }
         if (peca.quantidadeEstoque < consumo.quantidade) {
           throw new NotFoundException(
@@ -495,7 +497,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       );
     }
 
-    const antes = osParaAuditoria(await this.findById(idOrdemServico, empresaId));
+    const antes = osParaAuditoria(
+      await this.findById(idOrdemServico, empresaId),
+    );
 
     const fields: Prisma.Sql[] = [
       Prisma.sql`status = 'EM_EXECUCAO'`,
@@ -650,7 +654,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     const statusParams = statuses.map(
       (status) => Prisma.sql`${status}::"StatusOrdemServico"`,
     );
-    const rows = await this.prisma.$queryRaw<Array<{ idAtivo: string }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ idAtivo: string }>
+    >(Prisma.sql`
       SELECT os.id_ativo AS "idAtivo"
       FROM ordem_servico os
       JOIN ativo a ON a.id = os.id_ativo
@@ -673,10 +679,15 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       AND os.empresa_id = ${empresaId}::uuid
     `);
 
-    return this.toListaItem(rows[0], await this.listTransferencias(idOrdemServico));
+    return this.toListaItem(
+      rows[0],
+      await this.listTransferencias(idOrdemServico),
+    );
   }
 
-  private async listRowsWhere(whereSql: Prisma.Sql): Promise<OrdemServicoRow[]> {
+  private async listRowsWhere(
+    whereSql: Prisma.Sql,
+  ): Promise<OrdemServicoRow[]> {
     return this.prisma.$queryRaw<OrdemServicoRow[]>(Prisma.sql`
       SELECT
         os.id,
@@ -753,7 +764,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
   private async listTransferencias(
     ordemServicoId: string,
   ): Promise<OrdemServicoTransferenciaItem[]> {
-    const rows = await this.prisma.$queryRaw<OrdemTransferenciaRow[]>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      OrdemTransferenciaRow[]
+    >(Prisma.sql`
       SELECT
         t.id,
         t.de_tecnico_id AS "deTecnicoId",

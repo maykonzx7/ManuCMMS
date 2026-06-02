@@ -42,14 +42,20 @@ export class AuthorizePlatformOperatorUseCase {
       this.config.get<string>('PLATFORM_ALLOW_EMAIL_FALLBACK'),
     );
     if (!allowEmailFallback) {
-      throw new ForbiddenException('Acesso restrito ao operador da plataforma.');
+      throw new ForbiddenException(
+        'Acesso restrito ao operador da plataforma.',
+      );
     }
 
     const allowed = this.parseAllowedEmails();
     const actorEmail = normalize(user.email);
-    const isBreakGlass = actorEmail ? BREAK_GLASS_PLATFORM_EMAILS.has(actorEmail) : false;
+    const isBreakGlass = actorEmail
+      ? BREAK_GLASS_PLATFORM_EMAILS.has(actorEmail)
+      : false;
     if (!actorEmail || (!allowed.has(actorEmail) && !isBreakGlass)) {
-      throw new ForbiddenException('Acesso restrito ao operador da plataforma.');
+      throw new ForbiddenException(
+        'Acesso restrito ao operador da plataforma.',
+      );
     }
   }
 

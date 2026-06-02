@@ -27,9 +27,14 @@ export class RealtimeBroadcastService {
     this.server.to(`user:${usuarioId}`).emit('notificacao.nova', payload);
   }
 
-  emitOrdemServicoStatus(idUnidade: string, payload: OrdemServicoStatusEvent): void {
+  emitOrdemServicoStatus(
+    idUnidade: string,
+    payload: OrdemServicoStatusEvent,
+  ): void {
     if (!this.server) return;
-    this.server.to(`unidade:${idUnidade}`).emit('ordem_servico.status', payload);
+    this.server
+      .to(`unidade:${idUnidade}`)
+      .emit('ordem_servico.status', payload);
   }
 
   logMissingServer(context: string): void {

@@ -26,19 +26,23 @@ export class OrdemServicoSlaMonitorService {
   ) {}
 
   async processarAtrasos(empresaId: string, unidadeId: string): Promise<void> {
-    const atrasadas = await this.ordens.markOverdueAndCollect(empresaId, unidadeId);
+    const atrasadas = await this.ordens.markOverdueAndCollect(
+      empresaId,
+      unidadeId,
+    );
     if (atrasadas.length === 0) return;
 
     const users = await this.usuarios.listByUnidade(unidadeId);
-    const gestores = users.filter((u) => u.perfil === 'ADMIN' || u.perfil === 'SUPERVISOR');
+    const gestores = users.filter(
+      (u) => u.perfil === 'ADMIN' || u.perfil === 'SUPERVISOR',
+    );
     const markedIds: string[] = [];
 
     for (const ordem of atrasadas) {
-      const tecnico = ordem.idTecnico ? users.find((u) => u.id === ordem.idTecnico) ?? null : null;
-      const recipients = [
-        ...gestores,
-        ...(tecnico ? [tecnico] : []),
-      ];
+      const tecnico = ordem.idTecnico
+        ? (users.find((u) => u.id === ordem.idTecnico) ?? null)
+        : null;
+      const recipients = [...gestores, ...(tecnico ? [tecnico] : [])];
       const dedup = new Map(recipients.map((u) => [u.id, u]));
       const osCode = ordem.id.slice(0, 8).toUpperCase();
       const msg = `A OS ${osCode} ultrapassou o SLA e está atrasada. Ativo: ${ordem.ativoNome}.`;
@@ -54,7 +58,13 @@ export class OrdemServicoSlaMonitorService {
           mensagem: msg,
           linkPath: `/workspace/ordens/${ordem.id}`,
         });
-        await this.enviarEmailAtraso(user.email, user.nome, ordem.id, ordem.ativoNome, ordem.idTecnico === user.id);
+        await this.enviarEmailAtraso(
+          user.email,
+          user.nome,
+          ordem.id,
+          ordem.ativoNome,
+          ordem.idTecnico === user.id,
+        );
       }
 
       markedIds.push(ordem.id);
@@ -73,12 +83,22 @@ export class OrdemServicoSlaMonitorService {
     if (!email || !this.emailPort.isConfigured()) return;
 
     const frontendBaseUrl = resolveFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
     });
-    const accessPath = this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() || '/workspace/acesso';
-    const query = new URLSearchParams({ redirect: `/workspace/ordens/${ordemId}` }).toString();
-    const link = frontendBaseUrl ? `${frontendBaseUrl}${accessPath}?${query}` : null;
+    const accessPath =
+      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
+      '/workspace/acesso';
+    const query = new URLSearchParams({
+      redirect: `/workspace/ordens/${ordemId}`,
+    }).toString();
+    const link = frontendBaseUrl
+      ? `${frontendBaseUrl}${accessPath}?${query}`
+      : null;
 
     const subject = `SLA atrasado na OS ${ordemId.slice(0, 8).toUpperCase()}`;
     const perfilTexto = isTecnico ? 'responsável técnico' : 'admin responsável';
@@ -88,7 +108,9 @@ export class OrdemServicoSlaMonitorService {
       `A OS ${ordemId} do ativo ${ativoNome} ultrapassou o SLA e foi marcada como atrasada.`,
       `Você foi notificado por ser ${perfilTexto}.`,
       link ? `Acesse: ${link}` : '',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     await this.emailPort.send({
       to: email,

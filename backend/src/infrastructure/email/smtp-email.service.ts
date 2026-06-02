@@ -14,10 +14,7 @@ export class SmtpEmailService implements IEmailPort {
     const host = this.resolveSmtpHost();
     const fromEmail = this.resolveSmtpFromEmail();
     return Boolean(
-      host &&
-        fromEmail &&
-        this.resolveSmtpUser() &&
-        this.resolveSmtpPassword(),
+      host && fromEmail && this.resolveSmtpUser() && this.resolveSmtpPassword(),
     );
   }
 
@@ -89,7 +86,9 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private resolveSmtpProvider() {
-    return (this.config.get<string>('SMTP_PROVIDER') ?? '').trim().toUpperCase();
+    return (this.config.get<string>('SMTP_PROVIDER') ?? '')
+      .trim()
+      .toUpperCase();
   }
 
   private resolveSmtpHost() {
@@ -143,7 +142,10 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private resolveSmtpFromName() {
-    return this.firstDefinedByProvider('SMTP_FROM_NAME', 'BREVO_SMTP_FROM_NAME');
+    return this.firstDefinedByProvider(
+      'SMTP_FROM_NAME',
+      'BREVO_SMTP_FROM_NAME',
+    );
   }
 
   private firstDefinedByProvider(defaultKey: string, brevoKey: string) {

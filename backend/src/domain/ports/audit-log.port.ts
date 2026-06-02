@@ -13,7 +13,14 @@ export type AuditLogConsulta = {
   unidadeId?: string;
   entidade?: string;
   idUsuario?: string;
-  acao?: 'CREATE' | 'UPDATE' | 'DELETE' | 'SETTINGS_CHANGE' | 'LOGIN' | 'LOGOUT' | 'EXPORT';
+  acao?:
+    | 'CREATE'
+    | 'UPDATE'
+    | 'DELETE'
+    | 'SETTINGS_CHANGE'
+    | 'LOGIN'
+    | 'LOGOUT'
+    | 'EXPORT';
   page?: number;
   limit?: number;
 };
@@ -21,7 +28,14 @@ export type AuditLogConsulta = {
 export type AuditLogItem = {
   idLog: string;
   idUsuario: string | null;
-  acao: 'CREATE' | 'UPDATE' | 'DELETE' | 'SETTINGS_CHANGE' | 'LOGIN' | 'LOGOUT' | 'EXPORT';
+  acao:
+    | 'CREATE'
+    | 'UPDATE'
+    | 'DELETE'
+    | 'SETTINGS_CHANGE'
+    | 'LOGIN'
+    | 'LOGOUT'
+    | 'EXPORT';
   entidadeAfetada: string;
   idRegistro: string;
   valorAnterior: Record<string, unknown>;

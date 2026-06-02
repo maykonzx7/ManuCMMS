@@ -45,7 +45,8 @@ describe('AuthorizePlatformOperatorUseCase', () => {
     const config = {
       get: jest.fn((key: string) => {
         if (key === 'PLATFORM_ALLOW_EMAIL_FALLBACK') return 'true';
-        if (key === 'PLATFORM_OWNER_EMAILS') return 'owner@manucmms.com,ops@manucmms.com';
+        if (key === 'PLATFORM_OWNER_EMAILS')
+          return 'owner@manucmms.com,ops@manucmms.com';
         return undefined;
       }),
     } as any;

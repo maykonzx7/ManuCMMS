@@ -22,7 +22,9 @@ export class AuthPublicController {
       throw new BadRequestException('Identificador de acesso é obrigatório.');
     }
 
-    const rows = await this.prisma.$queryRaw<Array<{ email: string }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ email: string }>
+    >(Prisma.sql`
       SELECT DISTINCT u.email
       FROM usuario u
       LEFT JOIN usuario_empresa ue ON ue.usuario_id = u.id
@@ -44,4 +46,3 @@ export class AuthPublicController {
     return { email };
   }
 }
-

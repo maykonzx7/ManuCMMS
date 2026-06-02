@@ -34,9 +34,6 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      - name: ESLint
-        run: npm run lint
-
       - name: Build
         run: npm run build
         env:

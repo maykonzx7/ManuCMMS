@@ -1,4 +1,7 @@
-import { ForbiddenException, InternalServerErrorException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { EnsureUsuarioLocalUseCase } from './ensure-usuario-local.use-case';
 
 function buildUsuarioLocal() {
@@ -69,7 +72,10 @@ describe('EnsureUsuarioLocalUseCase', () => {
       emailConfirmedAt: '2026-05-10T10:00:00.000Z',
     });
 
-    expect(usuarios.findByEmail).toHaveBeenCalledWith('teste@empresa.com', null);
+    expect(usuarios.findByEmail).toHaveBeenCalledWith(
+      'teste@empresa.com',
+      null,
+    );
     expect(usuarios.updateAuthSub).toHaveBeenCalledWith(local.id, 'novo-sub');
     expect(result.authSub).toBe('novo-sub');
   });

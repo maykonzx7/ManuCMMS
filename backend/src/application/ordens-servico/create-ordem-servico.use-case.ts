@@ -137,9 +137,9 @@ export class CreateOrdemServicoUseCase {
     if (idTecnico === '' || idTecnico === undefined) {
       idTecnico = undefined;
     }
-    let tecnicoSelecionado:
-      | Awaited<ReturnType<IUsuarioReadPort['findByIdInUnidade']>>
-      | null = null;
+    let tecnicoSelecionado: Awaited<
+      ReturnType<IUsuarioReadPort['findByIdInUnidade']>
+    > | null = null;
     if (idTecnico != null) {
       tecnicoSelecionado = await this.usuarios.findByIdInUnidade(
         idTecnico,
@@ -200,9 +200,16 @@ export class CreateOrdemServicoUseCase {
 
   private resolveSlaDeadline(
     tipo: OrdemServicoListaItem['tipo'],
-    unidade: { slaCorretivaHoras?: number | null; slaPreventivaHoras?: number | null; slaPreditivaHoras?: number | null },
+    unidade: {
+      slaCorretivaHoras?: number | null;
+      slaPreventivaHoras?: number | null;
+      slaPreditivaHoras?: number | null;
+    },
   ): Date {
-    const unidadeMap: Record<OrdemServicoListaItem['tipo'], number | null | undefined> = {
+    const unidadeMap: Record<
+      OrdemServicoListaItem['tipo'],
+      number | null | undefined
+    > = {
       CORRETIVA: unidade.slaCorretivaHoras,
       PREVENTIVA: unidade.slaPreventivaHoras,
       PREDITIVA: unidade.slaPreditivaHoras,
@@ -274,8 +281,12 @@ export class CreateOrdemServicoUseCase {
     }
 
     const frontendBaseUrl = resolveFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>('FRONTEND_NGROK_PUBLIC_BASE_URL'),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
     });
     const accessPath =
       this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||

@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  Param,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Param, Post, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { AcceptConviteAcessoUseCase } from '../../application/onboarding/accept-convite-acesso.use-case';
@@ -52,7 +46,10 @@ export class OnboardingController {
       scope: 'onboarding:create-empresa',
       key: this.getClientIp(req),
       maxHits: this.getNumberConfig('RATE_LIMIT_CREATE_EMPRESA_MAX_HITS', 10),
-      windowMs: this.getNumberConfig('RATE_LIMIT_CREATE_EMPRESA_WINDOW_MS', 60_000),
+      windowMs: this.getNumberConfig(
+        'RATE_LIMIT_CREATE_EMPRESA_WINDOW_MS',
+        60_000,
+      ),
       message: 'Muitas tentativas de criar empresa. Aguarde e tente novamente.',
     });
 
@@ -87,8 +84,12 @@ export class OnboardingController {
       scope: 'onboarding:accept-convite',
       key: this.getClientIp(req),
       maxHits: this.getNumberConfig('RATE_LIMIT_ACCEPT_CONVITE_MAX_HITS', 20),
-      windowMs: this.getNumberConfig('RATE_LIMIT_ACCEPT_CONVITE_WINDOW_MS', 60_000),
-      message: 'Muitas tentativas de aceite de convite. Aguarde e tente novamente.',
+      windowMs: this.getNumberConfig(
+        'RATE_LIMIT_ACCEPT_CONVITE_WINDOW_MS',
+        60_000,
+      ),
+      message:
+        'Muitas tentativas de aceite de convite. Aguarde e tente novamente.',
     });
 
     return this.acceptConviteAcesso.execute(req.user, body);

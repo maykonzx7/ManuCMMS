@@ -27,7 +27,9 @@ describe('IntegracaoParceiroController (e2e)', () => {
 
   it('GET integracao sem API key retorna 401', () => {
     return request(app.getHttpServer())
-      .get('/api/v1/integracao/unidades/00000000-0000-4000-8000-000000000001/ativos')
+      .get(
+        '/api/v1/integracao/unidades/00000000-0000-4000-8000-000000000001/ativos',
+      )
       .expect(401);
   });
 

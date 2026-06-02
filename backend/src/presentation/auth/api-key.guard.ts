@@ -1,7 +1,6 @@
 import {
   type CanActivate,
   type ExecutionContext,
-  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -43,7 +42,9 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('Header x-api-key é obrigatório.');
     }
 
-    const empresa = await this.integracao.findEmpresaByApiKey(normalized.trim());
+    const empresa = await this.integracao.findEmpresaByApiKey(
+      normalized.trim(),
+    );
     if (!empresa) {
       throw new UnauthorizedException('API key inválida.');
     }

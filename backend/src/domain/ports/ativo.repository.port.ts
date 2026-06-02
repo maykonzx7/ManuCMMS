@@ -35,7 +35,10 @@ export type UpdateAtivoInput = {
 };
 
 export interface IAtivoRepositoryPort {
-  listByUnidade(empresaId: string, idUnidade: string): Promise<AtivoListaItem[]>;
+  listByUnidade(
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<AtivoListaItem[]>;
   findByIdInUnidade(
     empresaId: string,
     idUnidade: string,

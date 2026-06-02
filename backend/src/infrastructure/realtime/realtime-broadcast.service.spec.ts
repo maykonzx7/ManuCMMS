@@ -19,7 +19,10 @@ describe('RealtimeBroadcastService', () => {
       createdAt: new Date().toISOString(),
     });
 
-    expect(emit).toHaveBeenCalledWith('notificacao.nova', expect.objectContaining({ id: 'n1' }));
+    expect(emit).toHaveBeenCalledWith(
+      'notificacao.nova',
+      expect.objectContaining({ id: 'n1' }),
+    );
   });
 
   it('emite ordem_servico.status para room da unidade', () => {

@@ -70,16 +70,18 @@ export class NotificacaoService {
   }
 
   async listByUsuario(usuarioId: string): Promise<NotificacaoView[]> {
-    const rows = await this.prisma.$queryRaw<Array<{
-      id: string;
-      tipo: string;
-      titulo: string;
-      mensagem: string;
-      fotoUrl: string | null;
-      linkPath: string | null;
-      lidaEm: Date | null;
-      createdAt: Date;
-    }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        tipo: string;
+        titulo: string;
+        mensagem: string;
+        fotoUrl: string | null;
+        linkPath: string | null;
+        lidaEm: Date | null;
+        createdAt: Date;
+      }>
+    >(Prisma.sql`
       SELECT
         id,
         tipo,

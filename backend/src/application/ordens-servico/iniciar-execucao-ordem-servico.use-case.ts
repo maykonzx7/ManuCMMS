@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,

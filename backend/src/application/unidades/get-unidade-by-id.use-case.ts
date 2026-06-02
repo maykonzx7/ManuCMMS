@@ -23,7 +23,9 @@ export class GetUnidadeByIdUseCase {
     }
     if (
       usuarioLocal.idUnidade !== unidadeId &&
-      !usuarioLocal.cargos.some((c) => c.idUnidade === unidadeId || c.idUnidade == null)
+      !usuarioLocal.cargos.some(
+        (c) => c.idUnidade === unidadeId || c.idUnidade == null,
+      )
     ) {
       throw new NotFoundException('Unidade fabril não encontrada');
     }

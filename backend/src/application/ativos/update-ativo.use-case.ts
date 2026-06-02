@@ -70,7 +70,10 @@ export class UpdateAtivoUseCase {
     }
 
     const nomeNormalizado = input.nome?.trim();
-    if (input.nome !== undefined && (!nomeNormalizado || nomeNormalizado.length > NOME_MAX)) {
+    if (
+      input.nome !== undefined &&
+      (!nomeNormalizado || nomeNormalizado.length > NOME_MAX)
+    ) {
       throw new BadRequestException(
         `nome deve ter entre 1 e ${NOME_MAX} caracteres`,
       );
@@ -114,7 +117,10 @@ export class UpdateAtivoUseCase {
     }
 
     const status = input.status as StatusAtivoPersistido | undefined;
-    if (input.status !== undefined && !STATUS_VALIDOS.includes(status as StatusAtivoPersistido)) {
+    if (
+      input.status !== undefined &&
+      !STATUS_VALIDOS.includes(status as StatusAtivoPersistido)
+    ) {
       throw new BadRequestException(
         `status deve ser um de: ${STATUS_VALIDOS.join(', ')}`,
       );
@@ -126,7 +132,11 @@ export class UpdateAtivoUseCase {
       FABRICANTE_MAX,
       'fabricante',
     );
-    const modelo = this.normalizeOptionalField(input.modelo, MODELO_MAX, 'modelo');
+    const modelo = this.normalizeOptionalField(
+      input.modelo,
+      MODELO_MAX,
+      'modelo',
+    );
     const numeroSerie = this.normalizeOptionalField(
       input.numeroSerie,
       NUMERO_SERIE_MAX,
@@ -146,11 +156,13 @@ export class UpdateAtivoUseCase {
       input.fabricante === undefined &&
       input.modelo === undefined &&
       input.numeroSerie === undefined &&
-      input.observacoes === undefined
-      && input.custoHoraParada === undefined
-      && input.custoManutencaoMensal === undefined
+      input.observacoes === undefined &&
+      input.custoHoraParada === undefined &&
+      input.custoManutencaoMensal === undefined
     ) {
-      throw new BadRequestException('Informe ao menos um campo para atualização');
+      throw new BadRequestException(
+        'Informe ao menos um campo para atualização',
+      );
     }
 
     const antes = await this.ativos.findByIdInUnidade(

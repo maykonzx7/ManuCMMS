@@ -45,7 +45,8 @@ export class UnidadesController {
   @Post()
   async create(
     @Req() req: Request,
-    @Body() body: {
+    @Body()
+    body: {
       nome: string;
       localizacao: string;
       status?: 'ATIVA' | 'INATIVA';
@@ -65,7 +66,9 @@ export class UnidadesController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     const empresaId = req.usuarioLocal?.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Empresa do usuário autenticado não encontrada.');
+      throw new BadRequestException(
+        'Empresa do usuário autenticado não encontrada.',
+      );
     }
 
     const nome = (body.nome ?? '').trim();
@@ -79,14 +82,30 @@ export class UnidadesController {
     const estado = body.estado?.trim().toUpperCase() || null;
     const complemento = body.complemento?.trim() || null;
     const referencia = body.referencia?.trim() || null;
-    const slaCorretivaHoras = this.validarSla(body.slaCorretivaHoras, 24, 'slaCorretivaHoras');
-    const slaPreventivaHoras = this.validarSla(body.slaPreventivaHoras, 168, 'slaPreventivaHoras');
-    const slaPreditivaHoras = this.validarSla(body.slaPreditivaHoras, 72, 'slaPreditivaHoras');
+    const slaCorretivaHoras = this.validarSla(
+      body.slaCorretivaHoras,
+      24,
+      'slaCorretivaHoras',
+    );
+    const slaPreventivaHoras = this.validarSla(
+      body.slaPreventivaHoras,
+      168,
+      'slaPreventivaHoras',
+    );
+    const slaPreditivaHoras = this.validarSla(
+      body.slaPreditivaHoras,
+      72,
+      'slaPreditivaHoras',
+    );
     if (!nome || nome.length > 100) {
-      throw new BadRequestException('nome inválido. Use entre 1 e 100 caracteres.');
+      throw new BadRequestException(
+        'nome inválido. Use entre 1 e 100 caracteres.',
+      );
     }
     if (!localizacao || localizacao.length > 255) {
-      throw new BadRequestException('localizacao inválida. Use entre 1 e 255 caracteres.');
+      throw new BadRequestException(
+        'localizacao inválida. Use entre 1 e 255 caracteres.',
+      );
     }
     if (status !== 'ATIVA' && status !== 'INATIVA') {
       throw new BadRequestException('status inválido. Use ATIVA ou INATIVA.');
@@ -94,7 +113,13 @@ export class UnidadesController {
 
     try {
       const created = await this.prisma.$queryRaw<
-        Array<{ id: string; nome: string; localizacao: string; status: string; empresaId: string }>
+        Array<{
+          id: string;
+          nome: string;
+          localizacao: string;
+          status: string;
+          empresaId: string;
+        }>
       >(Prisma.sql`
         INSERT INTO unidade_fabril (
           id,
@@ -162,7 +187,9 @@ export class UnidadesController {
           (error.code === 'P2010' &&
             (error.meta as { code?: string } | undefined)?.code === '23505'))
       ) {
-        throw new BadRequestException('Já existe uma unidade com esse nome nesta empresa.');
+        throw new BadRequestException(
+          'Já existe uma unidade com esse nome nesta empresa.',
+        );
       }
       throw error;
     }
@@ -172,7 +199,8 @@ export class UnidadesController {
   async update(
     @Req() req: Request,
     @Param('unidadeId') unidadeId: string,
-    @Body() body: {
+    @Body()
+    body: {
       nome?: string;
       localizacao?: string;
       status?: 'ATIVA' | 'INATIVA';
@@ -192,7 +220,9 @@ export class UnidadesController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     const empresaId = req.usuarioLocal?.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Empresa do usuário autenticado não encontrada.');
+      throw new BadRequestException(
+        'Empresa do usuário autenticado não encontrada.',
+      );
     }
 
     const nome = body.nome?.trim();
@@ -211,43 +241,85 @@ export class UnidadesController {
     const slaPreditivaHoras = body.slaPreditivaHoras;
 
     if (nome !== undefined && (!nome || nome.length > 100)) {
-      throw new BadRequestException('nome inválido. Use entre 1 e 100 caracteres.');
+      throw new BadRequestException(
+        'nome inválido. Use entre 1 e 100 caracteres.',
+      );
     }
-    if (localizacao !== undefined && (!localizacao || localizacao.length > 255)) {
-      throw new BadRequestException('localizacao inválida. Use entre 1 e 255 caracteres.');
+    if (
+      localizacao !== undefined &&
+      (!localizacao || localizacao.length > 255)
+    ) {
+      throw new BadRequestException(
+        'localizacao inválida. Use entre 1 e 255 caracteres.',
+      );
     }
     if (status !== undefined && status !== 'ATIVA' && status !== 'INATIVA') {
       throw new BadRequestException('status inválido. Use ATIVA ou INATIVA.');
     }
     if (
-      nome === undefined && localizacao === undefined && status === undefined &&
-      cep === undefined && endereco === undefined && numeroEndereco === undefined &&
-      bairro === undefined && cidade === undefined && estado === undefined &&
-      complemento === undefined && referencia === undefined &&
-      slaCorretivaHoras === undefined && slaPreventivaHoras === undefined && slaPreditivaHoras === undefined
+      nome === undefined &&
+      localizacao === undefined &&
+      status === undefined &&
+      cep === undefined &&
+      endereco === undefined &&
+      numeroEndereco === undefined &&
+      bairro === undefined &&
+      cidade === undefined &&
+      estado === undefined &&
+      complemento === undefined &&
+      referencia === undefined &&
+      slaCorretivaHoras === undefined &&
+      slaPreventivaHoras === undefined &&
+      slaPreditivaHoras === undefined
     ) {
-      throw new BadRequestException('Informe ao menos um campo para atualizar.');
+      throw new BadRequestException(
+        'Informe ao menos um campo para atualizar.',
+      );
     }
 
     const fields: Prisma.Sql[] = [];
     if (nome !== undefined) fields.push(Prisma.sql`nome = ${nome}`);
-    if (localizacao !== undefined) fields.push(Prisma.sql`localizacao = ${localizacao}`);
+    if (localizacao !== undefined)
+      fields.push(Prisma.sql`localizacao = ${localizacao}`);
     if (cep !== undefined) fields.push(Prisma.sql`cep = ${cep || null}`);
-    if (endereco !== undefined) fields.push(Prisma.sql`endereco = ${endereco || null}`);
-    if (numeroEndereco !== undefined) fields.push(Prisma.sql`numero_endereco = ${numeroEndereco || null}`);
-    if (bairro !== undefined) fields.push(Prisma.sql`bairro = ${bairro || null}`);
-    if (cidade !== undefined) fields.push(Prisma.sql`cidade = ${cidade || null}`);
-    if (estado !== undefined) fields.push(Prisma.sql`estado = ${estado || null}`);
-    if (complemento !== undefined) fields.push(Prisma.sql`complemento = ${complemento || null}`);
-    if (referencia !== undefined) fields.push(Prisma.sql`referencia = ${referencia || null}`);
-    if (slaCorretivaHoras !== undefined) fields.push(Prisma.sql`sla_corretiva_horas = ${this.validarSla(slaCorretivaHoras, 24, 'slaCorretivaHoras')}`);
-    if (slaPreventivaHoras !== undefined) fields.push(Prisma.sql`sla_preventiva_horas = ${this.validarSla(slaPreventivaHoras, 168, 'slaPreventivaHoras')}`);
-    if (slaPreditivaHoras !== undefined) fields.push(Prisma.sql`sla_preditiva_horas = ${this.validarSla(slaPreditivaHoras, 72, 'slaPreditivaHoras')}`);
-    if (status !== undefined) fields.push(Prisma.sql`status = ${status}::"StatusUnidadeFabril"`);
+    if (endereco !== undefined)
+      fields.push(Prisma.sql`endereco = ${endereco || null}`);
+    if (numeroEndereco !== undefined)
+      fields.push(Prisma.sql`numero_endereco = ${numeroEndereco || null}`);
+    if (bairro !== undefined)
+      fields.push(Prisma.sql`bairro = ${bairro || null}`);
+    if (cidade !== undefined)
+      fields.push(Prisma.sql`cidade = ${cidade || null}`);
+    if (estado !== undefined)
+      fields.push(Prisma.sql`estado = ${estado || null}`);
+    if (complemento !== undefined)
+      fields.push(Prisma.sql`complemento = ${complemento || null}`);
+    if (referencia !== undefined)
+      fields.push(Prisma.sql`referencia = ${referencia || null}`);
+    if (slaCorretivaHoras !== undefined)
+      fields.push(
+        Prisma.sql`sla_corretiva_horas = ${this.validarSla(slaCorretivaHoras, 24, 'slaCorretivaHoras')}`,
+      );
+    if (slaPreventivaHoras !== undefined)
+      fields.push(
+        Prisma.sql`sla_preventiva_horas = ${this.validarSla(slaPreventivaHoras, 168, 'slaPreventivaHoras')}`,
+      );
+    if (slaPreditivaHoras !== undefined)
+      fields.push(
+        Prisma.sql`sla_preditiva_horas = ${this.validarSla(slaPreditivaHoras, 72, 'slaPreditivaHoras')}`,
+      );
+    if (status !== undefined)
+      fields.push(Prisma.sql`status = ${status}::"StatusUnidadeFabril"`);
     fields.push(Prisma.sql`updated_at = NOW()`);
 
     const updated = await this.prisma.$queryRaw<
-      Array<{ id: string; nome: string; localizacao: string; status: string; empresaId: string }>
+      Array<{
+        id: string;
+        nome: string;
+        localizacao: string;
+        status: string;
+        empresaId: string;
+      }>
     >(Prisma.sql`
       UPDATE unidade_fabril
       SET ${Prisma.join(fields, ', ')}
@@ -284,7 +356,9 @@ export class UnidadesController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     const empresaId = req.usuarioLocal?.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Empresa do usuário autenticado não encontrada.');
+      throw new BadRequestException(
+        'Empresa do usuário autenticado não encontrada.',
+      );
     }
 
     const rows = await this.prisma.$queryRaw<
@@ -297,7 +371,9 @@ export class UnidadesController {
     const ativos = Number(rows[0]?.ativos ?? 0n);
     const usuarios = Number(rows[0]?.usuarios ?? 0n);
     if (ativos > 0 || usuarios > 0) {
-      throw new BadRequestException('Unidade possui vínculos e não pode ser removida.');
+      throw new BadRequestException(
+        'Unidade possui vínculos e não pode ser removida.',
+      );
     }
 
     const deleted = await this.prisma.$executeRaw(Prisma.sql`
@@ -310,10 +386,16 @@ export class UnidadesController {
     }
   }
 
-  private validarSla(valor: number | undefined, fallback: number, campo: string): number {
+  private validarSla(
+    valor: number | undefined,
+    fallback: number,
+    campo: string,
+  ): number {
     const resolved = valor ?? fallback;
     if (!Number.isInteger(resolved) || resolved <= 0 || resolved > 24 * 365) {
-      throw new BadRequestException(`${campo} deve ser inteiro entre 1 e 8760 horas.`);
+      throw new BadRequestException(
+        `${campo} deve ser inteiro entre 1 e 8760 horas.`,
+      );
     }
     return resolved;
   }

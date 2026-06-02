@@ -24,12 +24,14 @@ export class EnsureUsuarioLocalUseCase {
     private readonly usuarios: IUsuarioReadPort,
   ) {}
 
-  async execute(jwt: {
-    userId: string;
-    email: string | null;
-    role: string | null;
-    emailConfirmedAt: string | null;
-  }, options?: { preferredEmpresaSlug?: string | null },
+  async execute(
+    jwt: {
+      userId: string;
+      email: string | null;
+      role: string | null;
+      emailConfirmedAt: string | null;
+    },
+    options?: { preferredEmpresaSlug?: string | null },
   ): Promise<UsuarioLocalContext> {
     const preferredEmpresaSlug = options?.preferredEmpresaSlug ?? null;
     const existentePorSub = await this.usuarios.findByAuthSub(
@@ -62,7 +64,9 @@ export class EnsureUsuarioLocalUseCase {
 
     const allowAuthSubLinkByEmail =
       this.config.get<string>('ALLOW_AUTH_SUB_LINK_BY_EMAIL') === 'true';
-    const nodeEnv = this.config.get<string>('NODE_ENV')?.trim().toLowerCase() ?? 'development';
+    const nodeEnv =
+      this.config.get<string>('NODE_ENV')?.trim().toLowerCase() ??
+      'development';
     const isProduction = nodeEnv === 'production';
     if (isProduction && allowAuthSubLinkByEmail) {
       throw new InternalServerErrorException(
@@ -102,7 +106,10 @@ export class EnsureUsuarioLocalUseCase {
           return atualizado;
         }
 
-        this.assertPreferredEmpresaScope(existentePorEmail, preferredEmpresaSlug);
+        this.assertPreferredEmpresaScope(
+          existentePorEmail,
+          preferredEmpresaSlug,
+        );
         this.assertAccessIsActive(existentePorEmail);
         return existentePorEmail;
       }
@@ -134,7 +141,8 @@ export class EnsureUsuarioLocalUseCase {
       );
     }
 
-    const empresaStatus = usuarioLocal.empresa?.status?.trim().toUpperCase() ?? 'ATIVA';
+    const empresaStatus =
+      usuarioLocal.empresa?.status?.trim().toUpperCase() ?? 'ATIVA';
     if (empresaStatus !== 'ATIVA') {
       throw new ForbiddenException(
         'A conta da empresa está inativa ou suspensa. Contate o administrador responsável.',

@@ -67,17 +67,15 @@ export interface IOrdemServicoRepositoryPort {
     idUnidade: string,
   ): Promise<OrdemServicoListaItem | null>;
   create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem>;
-  updateDados(
-    input: {
-      idOrdemServico: string;
-      empresaId: string;
-      idUnidade: string;
-      descricao?: string;
-      idTecnico?: string | null;
-      transferidoPorUsuarioId?: string;
-      motivoTransferencia?: string;
-    },
-  ): Promise<OrdemServicoListaItem | null>;
+  updateDados(input: {
+    idOrdemServico: string;
+    empresaId: string;
+    idUnidade: string;
+    descricao?: string;
+    idTecnico?: string | null;
+    transferidoPorUsuarioId?: string;
+    motivoTransferencia?: string;
+  }): Promise<OrdemServicoListaItem | null>;
   findParaFechamento(
     idOrdemServico: string,
     empresaId: string,
@@ -99,16 +97,16 @@ export interface IOrdemServicoRepositoryPort {
     idUnidade: string,
   ): Promise<OrdemServicoListaItem[]>;
   markSlaNotified(ordemIds: string[]): Promise<void>;
-  cancelar(
-    input: {
-      idOrdemServico: string;
-      empresaId: string;
-      idUnidade: string;
-      observacaoCancelamento: string;
-      canceladoPorUsuarioId: string;
-    },
-  ): Promise<OrdemServicoListaItem>;
-  listComentarios(ordemServicoId: string): Promise<OrdemServicoComentarioItem[]>;
+  cancelar(input: {
+    idOrdemServico: string;
+    empresaId: string;
+    idUnidade: string;
+    observacaoCancelamento: string;
+    canceladoPorUsuarioId: string;
+  }): Promise<OrdemServicoListaItem>;
+  listComentarios(
+    ordemServicoId: string,
+  ): Promise<OrdemServicoComentarioItem[]>;
   createComentario(input: {
     ordemServicoId: string;
     usuarioId: string;

@@ -57,7 +57,9 @@ export class RealtimeGateway
         return;
       }
 
-      const authUser = await this.supabaseAuth.validateAccessToken(token.trim());
+      const authUser = await this.supabaseAuth.validateAccessToken(
+        token.trim(),
+      );
       const companySlug =
         (client.handshake.auth?.companySlug as string | undefined)?.trim() ||
         (client.handshake.query?.companySlug as string | undefined)?.trim() ||

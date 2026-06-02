@@ -193,7 +193,9 @@ export class CreateEmpresaWithInviteUseCase {
       frontendNgrokBaseUrl: this.config.get<string>(
         'FRONTEND_NGROK_PUBLIC_BASE_URL',
       ),
-      frontendPublicBaseUrl: this.config.get<string>('FRONTEND_PUBLIC_BASE_URL'),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
       nodeEnv: this.config.get<string>('NODE_ENV'),
     });
     const invitePath = normalizePortalPath(
@@ -212,7 +214,10 @@ export class CreateEmpresaWithInviteUseCase {
       timeStyle: 'short',
     }).format(expiraEm);
 
-    let entregaEmail: { status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU'; erro?: string } = {
+    let entregaEmail: {
+      status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU';
+      erro?: string;
+    } = {
       status: 'NAO_CONFIGURADO',
     };
 
@@ -237,7 +242,9 @@ export class CreateEmpresaWithInviteUseCase {
         entregaEmail = {
           status: 'FALHOU',
           erro:
-            error instanceof Error ? error.message : 'Falha ao enviar email de convite.',
+            error instanceof Error
+              ? error.message
+              : 'Falha ao enviar email de convite.',
         };
       }
     }

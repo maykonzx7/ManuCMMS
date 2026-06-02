@@ -1,4 +1,13 @@
-import { Controller, Get, Inject, NotFoundException, Param, Query, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
@@ -8,7 +17,10 @@ import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
-import { USUARIO_READ_PORT, type IUsuarioReadPort } from '../../domain/ports/usuario-read.port';
+import {
+  USUARIO_READ_PORT,
+  type IUsuarioReadPort,
+} from '../../domain/ports/usuario-read.port';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 
 @Controller('auditoria')
@@ -53,10 +65,15 @@ export class AuditoriaController {
       if (item.idUsuario) {
         byUserId[item.idUsuario] = (byUserId[item.idUsuario] ?? 0) + 1;
       }
-      byEntity[item.entidadeAfetada] = (byEntity[item.entidadeAfetada] ?? 0) + 1;
+      byEntity[item.entidadeAfetada] =
+        (byEntity[item.entidadeAfetada] ?? 0) + 1;
     }
 
-    const usuariosResumo: Array<{ idUsuario: string; nome: string; total: number }> = [];
+    const usuariosResumo: Array<{
+      idUsuario: string;
+      nome: string;
+      total: number;
+    }> = [];
     if (unidadeId?.trim()) {
       const usuarios = await this.usuarioRead.listByUnidade(unidadeId.trim());
       const nomes = new Map(usuarios.map((u) => [u.id, u.nome]));
@@ -113,16 +130,24 @@ export class AuditoriaController {
         | 'EXPORT'
         | undefined,
       page: Number.isFinite(parsedPage) ? Math.max(parsedPage, 1) : 1,
-      limit: Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 500) : 100,
+      limit: Number.isFinite(parsedLimit)
+        ? Math.min(Math.max(parsedLimit, 1), 500)
+        : 100,
     });
 
     const userIds = Array.from(
-      new Set(result.items.map((item) => item.idUsuario).filter((id): id is string => Boolean(id))),
+      new Set(
+        result.items
+          .map((item) => item.idUsuario)
+          .filter((id): id is string => Boolean(id)),
+      ),
     );
     const userNames = new Map<string, string>();
     if (userIds.length > 0) {
       const idParams = userIds.map((id) => Prisma.sql`${id}::uuid`);
-      const rows = await this.prisma.$queryRaw<Array<{ id: string; nome: string }>>(Prisma.sql`
+      const rows = await this.prisma.$queryRaw<
+        Array<{ id: string; nome: string }>
+      >(Prisma.sql`
         SELECT id, nome
         FROM usuario
         WHERE id IN (${Prisma.join(idParams)})
@@ -133,7 +158,9 @@ export class AuditoriaController {
     return {
       logs: result.items.map((item) => ({
         ...item,
-        usuarioNome: item.idUsuario ? (userNames.get(item.idUsuario) ?? null) : null,
+        usuarioNome: item.idUsuario
+          ? (userNames.get(item.idUsuario) ?? null)
+          : null,
       })),
       total: result.total,
       page: result.page,
@@ -173,7 +200,9 @@ export class AuditoriaController {
         | 'EXPORT'
         | undefined,
       page: 1,
-      limit: Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 2000) : 500,
+      limit: Number.isFinite(parsedLimit)
+        ? Math.min(Math.max(parsedLimit, 1), 2000)
+        : 500,
     });
     const items = result.items;
 
@@ -214,13 +243,23 @@ export class AuditoriaController {
       valorNovo: {
         acao: 'EXPORT',
         formato: 'csv',
-        filtros: { from, to, unidadeId, entidade, idUsuario, limit: parsedLimit },
+        filtros: {
+          from,
+          to,
+          unidadeId,
+          entidade,
+          idUsuario,
+          limit: parsedLimit,
+        },
         totalExportado: items.length,
       },
     });
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="auditoria-${timestamp}.csv"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="auditoria-${timestamp}.csv"`,
+    );
     res.send(csv);
   }
 
@@ -233,7 +272,9 @@ export class AuditoriaController {
     }
     let usuarioNome: string | null = null;
     if (item.idUsuario) {
-      const rows = await this.prisma.$queryRaw<Array<{ nome: string }>>(Prisma.sql`
+      const rows = await this.prisma.$queryRaw<
+        Array<{ nome: string }>
+      >(Prisma.sql`
         SELECT nome
         FROM usuario
         WHERE id = ${item.idUsuario}::uuid

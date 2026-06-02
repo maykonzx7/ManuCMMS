@@ -8,7 +8,9 @@ export class GetDashboardExecutivoUseCase {
 
   async execute(unidadeId: string, from?: string, to?: string) {
     const now = new Date();
-    const fromDate = from ? new Date(from) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const fromDate = from
+      ? new Date(from)
+      : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const toDate = to ? new Date(to) : now;
     if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
       throw new BadRequestException('Período inválido.');
@@ -17,13 +19,16 @@ export class GetDashboardExecutivoUseCase {
       throw new BadRequestException('from não pode ser maior que to.');
     }
 
-    const [assetStats, orderStats, recentOrders, recentAssets] = await Promise.all([
-      this.prisma.$queryRaw<Array<{
-        total: number;
-        emManutencao: number;
-        falha: number;
-        custoMensalBase: number | null;
-      }>>(Prisma.sql`
+    const [assetStats, orderStats, recentOrders, recentAssets] =
+      await Promise.all([
+        this.prisma.$queryRaw<
+          Array<{
+            total: number;
+            emManutencao: number;
+            falha: number;
+            custoMensalBase: number | null;
+          }>
+        >(Prisma.sql`
         SELECT
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE status = 'MANUTENCAO')::int AS "emManutencao",
@@ -32,20 +37,22 @@ export class GetDashboardExecutivoUseCase {
         FROM ativo
         WHERE id_unidade = ${unidadeId}::uuid
       `),
-      this.prisma.$queryRaw<Array<{
-        total: number;
-        abertas: number;
-        emExecucao: number;
-        concluidas: number;
-        canceladas: number;
-        corretivas: number;
-        preventivas: number;
-        preditivas: number;
-        mttrHoras: number | null;
-        falhasCount: number;
-        downtimeHorasConcluidas: number | null;
-        custoParada: number | null;
-      }>>(Prisma.sql`
+        this.prisma.$queryRaw<
+          Array<{
+            total: number;
+            abertas: number;
+            emExecucao: number;
+            concluidas: number;
+            canceladas: number;
+            corretivas: number;
+            preventivas: number;
+            preditivas: number;
+            mttrHoras: number | null;
+            falhasCount: number;
+            downtimeHorasConcluidas: number | null;
+            custoParada: number | null;
+          }>
+        >(Prisma.sql`
         SELECT
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE os.status = 'ABERTA')::int AS abertas,
@@ -86,17 +93,19 @@ export class GetDashboardExecutivoUseCase {
         WHERE a.id_unidade = ${unidadeId}::uuid
           AND os.data_abertura BETWEEN ${fromDate}::timestamptz AND ${toDate}::timestamptz
       `),
-      this.prisma.$queryRaw<Array<{
-        id: string;
-        idAtivo: string;
-        idTecnico: string | null;
-        ativoNome: string;
-        status: string;
-        tipo: string;
-        descricao: string;
-        dataAbertura: Date;
-        dataFechamento: Date | null;
-      }>>(Prisma.sql`
+        this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            idAtivo: string;
+            idTecnico: string | null;
+            ativoNome: string;
+            status: string;
+            tipo: string;
+            descricao: string;
+            dataAbertura: Date;
+            dataFechamento: Date | null;
+          }>
+        >(Prisma.sql`
         SELECT
           os.id,
           os.id_ativo AS "idAtivo",
@@ -113,14 +122,16 @@ export class GetDashboardExecutivoUseCase {
         ORDER BY os.data_abertura DESC
         LIMIT 8
       `),
-      this.prisma.$queryRaw<Array<{
-        id: string;
-        idUnidade: string;
-        nome: string;
-        tag: string | null;
-        status: string;
-        limiteTemp: number;
-      }>>(Prisma.sql`
+        this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            idUnidade: string;
+            nome: string;
+            tag: string | null;
+            status: string;
+            limiteTemp: number;
+          }>
+        >(Prisma.sql`
         SELECT
           id,
           id_unidade AS "idUnidade",
@@ -133,9 +144,14 @@ export class GetDashboardExecutivoUseCase {
         ORDER BY created_at DESC
         LIMIT 8
       `),
-    ]);
+      ]);
 
-    const a = assetStats[0] ?? { total: 0, emManutencao: 0, falha: 0, custoMensalBase: 0 };
+    const a = assetStats[0] ?? {
+      total: 0,
+      emManutencao: 0,
+      falha: 0,
+      custoMensalBase: 0,
+    };
     const o = orderStats[0] ?? {
       total: 0,
       abertas: 0,
@@ -151,29 +167,49 @@ export class GetDashboardExecutivoUseCase {
       custoParada: null,
     };
 
-    const periodHours = Math.max(1, (toDate.getTime() - fromDate.getTime()) / 3600000);
+    const periodHours = Math.max(
+      1,
+      (toDate.getTime() - fromDate.getTime()) / 3600000,
+    );
     const downtimeHours = Math.max(0, Number(o.downtimeHorasConcluidas ?? 0));
     const ativosCount = Math.max(1, Number(a.total ?? 0));
     const falhasCount = Math.max(0, Number(o.falhasCount ?? 0));
 
-    const disponibilidadePercent = clampPercent(((periodHours - downtimeHours) / periodHours) * 100);
-    const performancePercent = clampPercent((Number(o.concluidas ?? 0) / Math.max(1, Number(o.total ?? 0))) * 100);
-    const qualidadePercent = clampPercent(
-      (Number(o.concluidas ?? 0) / Math.max(1, Number(o.concluidas ?? 0) + Number(o.canceladas ?? 0))) * 100,
+    const disponibilidadePercent = clampPercent(
+      ((periodHours - downtimeHours) / periodHours) * 100,
     );
-    const oeePercent = clampPercent((disponibilidadePercent / 100) * (performancePercent / 100) * (qualidadePercent / 100) * 100);
+    const performancePercent = clampPercent(
+      (Number(o.concluidas ?? 0) / Math.max(1, Number(o.total ?? 0))) * 100,
+    );
+    const qualidadePercent = clampPercent(
+      (Number(o.concluidas ?? 0) /
+        Math.max(1, Number(o.concluidas ?? 0) + Number(o.canceladas ?? 0))) *
+        100,
+    );
+    const oeePercent = clampPercent(
+      (disponibilidadePercent / 100) *
+        (performancePercent / 100) *
+        (qualidadePercent / 100) *
+        100,
+    );
 
     const mttrHoras = Number(o.mttrHoras ?? 0);
     const mtbfHoras =
-      falhasCount > 0 ? (periodHours * ativosCount) / falhasCount : periodHours * ativosCount;
+      falhasCount > 0
+        ? (periodHours * ativosCount) / falhasCount
+        : periodHours * ativosCount;
 
     const percentualPreventivaCorretiva = clampPercent(
-      (Number(o.preventivas ?? 0) / Math.max(1, Number(o.preventivas ?? 0) + Number(o.corretivas ?? 0))) * 100,
+      (Number(o.preventivas ?? 0) /
+        Math.max(1, Number(o.preventivas ?? 0) + Number(o.corretivas ?? 0))) *
+        100,
     );
 
     const custoMensalBase = Number(a.custoMensalBase ?? 0);
     const custoParada = Number(o.custoParada ?? 0);
-    const custoMensalEstimado = Number((custoMensalBase + custoParada).toFixed(2));
+    const custoMensalEstimado = Number(
+      (custoMensalBase + custoParada).toFixed(2),
+    );
 
     return {
       periodo: {
@@ -221,8 +257,7 @@ export class GetDashboardExecutivoUseCase {
       notas: {
         custoMensalEstimado:
           'Estimativa baseada em custo mensal informado por ativo + custo de parada por hora em OS.',
-        oee:
-          'OEE derivado de disponibilidade, performance (concluídas/total) e qualidade (concluídas/(concluídas+canceladas)).',
+        oee: 'OEE derivado de disponibilidade, performance (concluídas/total) e qualidade (concluídas/(concluídas+canceladas)).',
       },
     };
   }

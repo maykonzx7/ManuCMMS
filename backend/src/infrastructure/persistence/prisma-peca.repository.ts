@@ -69,7 +69,11 @@ export class PrismaPecaRepository implements IPecaRepositoryPort {
         NOW()
       )
     `);
-    const created = await this.findByIdInUnidade(id, input.empresaId, input.idUnidade);
+    const created = await this.findByIdInUnidade(
+      id,
+      input.empresaId,
+      input.idUnidade,
+    );
     if (!created) {
       throw new Error('Falha ao criar peça');
     }
@@ -143,7 +147,11 @@ export class PrismaPecaRepository implements IPecaRepositoryPort {
     return Number(rows[0]?.count ?? 0);
   }
 
-  async delete(pecaId: string, empresaId: string, idUnidade: string): Promise<void> {
+  async delete(
+    pecaId: string,
+    empresaId: string,
+    idUnidade: string,
+  ): Promise<void> {
     await this.prisma.$executeRaw(Prisma.sql`
       DELETE FROM peca
       WHERE id = ${pecaId}::uuid

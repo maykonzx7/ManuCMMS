@@ -82,7 +82,12 @@ export class PlatformAdminController {
           (SELECT COUNT(*) FROM ordem_servico WHERE status IN ('ABERTA', 'EM_EXECUCAO'))::bigint AS "ordensAbertas"
       `),
       this.prisma.$queryRaw<
-        Array<{ empresaId: string; nomeEmpresa: string; slug: string; usuariosAtivos: bigint }>
+        Array<{
+          empresaId: string;
+          nomeEmpresa: string;
+          slug: string;
+          usuariosAtivos: bigint;
+        }>
       >(Prisma.sql`
         SELECT
           e.id AS "empresaId",
@@ -178,14 +183,16 @@ export class PlatformAdminController {
       JOIN usuario_empresa ue ON ue.usuario_id = u.id
       JOIN empresa e ON e.id = ue.empresa_id
       WHERE
-        ${normalizedQuery.length === 0
-          ? Prisma.sql`TRUE`
-          : Prisma.sql`(
+        ${
+          normalizedQuery.length === 0
+            ? Prisma.sql`TRUE`
+            : Prisma.sql`(
               lower(u.nome) LIKE ${`%${normalizedQuery}%`}
               OR lower(u.email) LIKE ${`%${normalizedQuery}%`}
               OR lower(e.nome_empresa) LIKE ${`%${normalizedQuery}%`}
               OR lower(e.slug) LIKE ${`%${normalizedQuery}%`}
-            )`}
+            )`
+        }
       ORDER BY u.updated_at DESC, u.created_at DESC
       LIMIT ${limit}
     `);

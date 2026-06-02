@@ -14,7 +14,10 @@ import type {
 } from '../../domain/ports/usuario-read.port';
 import { PrismaService } from './prisma.service';
 
-type PrismaExecutor = Pick<PrismaClient, '$executeRaw' | '$queryRaw' | 'usuario'>;
+type PrismaExecutor = Pick<
+  PrismaClient,
+  '$executeRaw' | '$queryRaw' | 'usuario'
+>;
 
 type UsuarioRow = {
   id: string;
@@ -57,7 +60,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     idUsuario: string,
     idUnidade: string,
   ): Promise<boolean> {
-    const rows = await this.prisma.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ exists: boolean }>
+    >(Prisma.sql`
       SELECT EXISTS (
         SELECT 1
         FROM usuario u
@@ -78,7 +83,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
   }
 
   async listByUnidade(idUnidade: string): Promise<UsuarioLocalContext[]> {
-    const usuarioIds = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const usuarioIds = await this.prisma.$queryRaw<
+      Array<{ id: string }>
+    >(Prisma.sql`
       SELECT DISTINCT u.id
       FROM usuario u
       LEFT JOIN usuario_empresa ue ON ue.usuario_id = u.id
@@ -408,7 +415,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
         `);
       }
 
-      const relacaoExiste = await executor.$queryRaw<Array<{ cargoId: string }>>(
+      const relacaoExiste = await executor.$queryRaw<
+        Array<{ cargoId: string }>
+      >(
         Prisma.sql`
           SELECT cargo_id AS "cargoId"
           FROM cargo_permissao
@@ -458,7 +467,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       where: { id: usuarioId },
       select: { perfil: true },
     });
-    const perfilAtual = (usuario?.perfil ?? '').trim().toUpperCase() as PerfilUsuarioCodigo;
+    const perfilAtual = (usuario?.perfil ?? '')
+      .trim()
+      .toUpperCase() as PerfilUsuarioCodigo;
     const perfilMaisForte = pickHighestPerfil(perfilAtual, perfilNovo);
     if (perfilMaisForte === perfilAtual) {
       return;
@@ -511,7 +522,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     const normalizedPreferredSlug =
       preferredEmpresaSlug?.trim().toLowerCase() ?? '';
     if (normalizedPreferredSlug.length > 0) {
-      const bySlug = await this.prisma.$queryRaw<UsuarioEmpresaRow[]>(Prisma.sql`
+      const bySlug = await this.prisma.$queryRaw<
+        UsuarioEmpresaRow[]
+      >(Prisma.sql`
         SELECT e.id, e.nome_empresa AS "nomeEmpresa", e.slug
              , e.status::text AS status
         FROM empresa e
@@ -555,7 +568,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       return rows[0];
     }
 
-    const fallback = await this.prisma.$queryRaw<UsuarioEmpresaRow[]>(Prisma.sql`
+    const fallback = await this.prisma.$queryRaw<
+      UsuarioEmpresaRow[]
+    >(Prisma.sql`
       SELECT e.id, e.nome_empresa AS "nomeEmpresa", e.slug, e.status::text AS status
       FROM empresa e
       JOIN unidade_fabril uf ON uf.empresa_id = e.id
@@ -630,11 +645,15 @@ function pickHighestPerfil(
   maybeCurrent: string | null | undefined,
   incoming: PerfilUsuarioCodigo,
 ): PerfilUsuarioCodigo {
-  const current = (maybeCurrent ?? '').trim().toUpperCase() as PerfilUsuarioCodigo;
+  const current = (maybeCurrent ?? '')
+    .trim()
+    .toUpperCase() as PerfilUsuarioCodigo;
   if (!(current in perfilHierarchy)) {
     return incoming;
   }
-  return perfilHierarchy[current] >= perfilHierarchy[incoming] ? current : incoming;
+  return perfilHierarchy[current] >= perfilHierarchy[incoming]
+    ? current
+    : incoming;
 }
 
 function formatPerfilLabel(perfil: PerfilUsuarioCodigo) {
@@ -725,8 +744,17 @@ const MANAGE_EMPRESA: DefaultPermission = {
   modulo: 'empresa',
 };
 
-const defaultPermissionsByPerfil: Record<PerfilUsuarioCodigo, DefaultPermission[]> = {
-  TECNICO: [READ_UNIDADES, READ_ATIVOS, READ_ORDENS, EXECUTE_ORDENS, CLOSE_ORDENS],
+const defaultPermissionsByPerfil: Record<
+  PerfilUsuarioCodigo,
+  DefaultPermission[]
+> = {
+  TECNICO: [
+    READ_UNIDADES,
+    READ_ATIVOS,
+    READ_ORDENS,
+    EXECUTE_ORDENS,
+    CLOSE_ORDENS,
+  ],
   SUPERVISOR: [
     READ_UNIDADES,
     READ_USERS,

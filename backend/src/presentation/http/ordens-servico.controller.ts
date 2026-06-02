@@ -98,14 +98,17 @@ function isImagemMimeType(mimeType: string): boolean {
 
 function fileToPublicUrl(req: Request, file: Express.Multer.File): string {
   const baseUrl = process.env.PUBLIC_BASE_URL?.trim();
-  const origin = baseUrl && baseUrl.length > 0 ? baseUrl : `${req.protocol}://${req.get('host')}`;
+  const origin =
+    baseUrl && baseUrl.length > 0
+      ? baseUrl
+      : `${req.protocol}://${req.get('host')}`;
   return `${origin}/${UPLOADS_DIR}/ordens-servico/${file.filename}`;
 }
 
 function resolveRequestIp(req: Request): string | null {
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.trim().length > 0) {
-    return xff.split(',')[0]!.trim();
+    return xff.split(',')[0].trim();
   }
   if (Array.isArray(xff) && xff[0]) {
     return xff[0];
@@ -147,10 +150,7 @@ export class OrdensServicoController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    this.authorizePermission.execute(
-      req.usuarioLocal,
-      'os.visualizar_unidade',
-    );
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     const filters = parseListFilters({
       status,
@@ -199,7 +199,11 @@ export class OrdensServicoController {
         'Content-Disposition',
         `attachment; filename="ordens_${unidadeId}_${Date.now()}.json"`,
       );
-      res.send({ geradoEm: new Date().toISOString(), total: scoped.length, ordens: scoped });
+      res.send({
+        geradoEm: new Date().toISOString(),
+        total: scoped.length,
+        ordens: scoped,
+      });
       return;
     }
     if (fmt === 'pdf') {
@@ -341,24 +345,24 @@ export class OrdensServicoController {
 
   @Patch(':ordemServicoId/iniciar')
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [{ name: 'fotoProblema', maxCount: 1 }],
-      {
-        storage: diskStorage({
-          destination: (_req, _file, cb) => cb(null, fotoUploadDir),
-          filename: (_req, file, cb) =>
-            cb(null, `${randomUUID()}${extname(file.originalname || '')}`),
-        }),
-        limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
-        fileFilter: (_req, file, cb) => {
-          if (!isImagemMimeType(file.mimetype)) {
-            cb(new BadRequestException('Apenas arquivos de imagem são permitidos'), false);
-            return;
-          }
-          cb(null, true);
-        },
+    FileFieldsInterceptor([{ name: 'fotoProblema', maxCount: 1 }], {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, fotoUploadDir),
+        filename: (_req, file, cb) =>
+          cb(null, `${randomUUID()}${extname(file.originalname || '')}`),
+      }),
+      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!isImagemMimeType(file.mimetype)) {
+          cb(
+            new BadRequestException('Apenas arquivos de imagem são permitidos'),
+            false,
+          );
+          return;
+        }
+        cb(null, true);
       },
-    ),
+    }),
   )
   async iniciar(
     @Param('unidadeId') unidadeId: string,
@@ -438,7 +442,12 @@ export class OrdensServicoController {
         limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
         fileFilter: (_req, file, cb) => {
           if (!isImagemMimeType(file.mimetype)) {
-            cb(new BadRequestException('Apenas arquivos de imagem são permitidos'), false);
+            cb(
+              new BadRequestException(
+                'Apenas arquivos de imagem são permitidos',
+              ),
+              false,
+            );
             return;
           }
           cb(null, true);
@@ -472,21 +481,26 @@ export class OrdensServicoController {
         })
       : null;
 
-    return this.fecharOrdem.execute(unidadeId, ordemServicoId, {
-      fotoAnexo: files.fotoAnexo?.[0]
-        ? fileToPublicUrl(req, files.fotoAnexo[0])
-        : body.fotoAnexo,
-      fotoProblema: files.fotoProblema?.[0]
-        ? fileToPublicUrl(req, files.fotoProblema[0])
-        : body.fotoProblema,
-      descricaoProblema: body.descricaoProblema,
-      fotoSolucao: files.fotoSolucao?.[0]
-        ? fileToPublicUrl(req, files.fotoSolucao[0])
-        : body.fotoSolucao,
-      descricaoSolucao: body.descricaoSolucao,
-      assinaturaDigital: assinaturaPayload,
-      pecasConsumidas: parsePecasConsumidas(body.pecasConsumidas),
-    }, req.usuarioLocal!.id);
+    return this.fecharOrdem.execute(
+      unidadeId,
+      ordemServicoId,
+      {
+        fotoAnexo: files.fotoAnexo?.[0]
+          ? fileToPublicUrl(req, files.fotoAnexo[0])
+          : body.fotoAnexo,
+        fotoProblema: files.fotoProblema?.[0]
+          ? fileToPublicUrl(req, files.fotoProblema[0])
+          : body.fotoProblema,
+        descricaoProblema: body.descricaoProblema,
+        fotoSolucao: files.fotoSolucao?.[0]
+          ? fileToPublicUrl(req, files.fotoSolucao[0])
+          : body.fotoSolucao,
+        descricaoSolucao: body.descricaoSolucao,
+        assinaturaDigital: assinaturaPayload,
+        pecasConsumidas: parsePecasConsumidas(body.pecasConsumidas),
+      },
+      req.usuarioLocal!.id,
+    );
   }
 
   private isTecnico(req: Request): boolean {
@@ -541,13 +555,19 @@ function parseListFilters(input: {
   const filters: ListOrdensServicoFilters = {};
 
   if (input.status?.trim()) {
-    filters.status = input.status.trim().toUpperCase() as ListOrdensServicoFilters['status'];
+    filters.status = input.status
+      .trim()
+      .toUpperCase() as ListOrdensServicoFilters['status'];
   }
   if (input.tipo?.trim()) {
-    filters.tipo = input.tipo.trim().toUpperCase() as ListOrdensServicoFilters['tipo'];
+    filters.tipo = input.tipo
+      .trim()
+      .toUpperCase() as ListOrdensServicoFilters['tipo'];
   }
   if (input.prioridade?.trim()) {
-    filters.prioridade = input.prioridade.trim().toUpperCase() as ListOrdensServicoFilters['prioridade'];
+    filters.prioridade = input.prioridade
+      .trim()
+      .toUpperCase() as ListOrdensServicoFilters['prioridade'];
   }
   if (input.idTecnico?.trim()) {
     filters.idTecnico = input.idTecnico.trim();

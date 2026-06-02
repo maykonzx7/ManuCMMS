@@ -57,7 +57,8 @@ export class IntegracoesController {
     } catch (error) {
       return {
         ok: false,
-        message: error instanceof Error ? error.message : 'RabbitMQ indisponivel.',
+        message:
+          error instanceof Error ? error.message : 'RabbitMQ indisponivel.',
       };
     }
   }
@@ -69,7 +70,8 @@ export class IntegracoesController {
     } catch (error) {
       return {
         ok: false,
-        message: error instanceof Error ? error.message : 'MongoDB indisponivel.',
+        message:
+          error instanceof Error ? error.message : 'MongoDB indisponivel.',
       };
     }
   }
@@ -99,7 +101,8 @@ export class IntegracoesController {
     } catch (error) {
       return {
         ok: false,
-        message: error instanceof Error ? error.message : 'Falha ao validar SMTP.',
+        message:
+          error instanceof Error ? error.message : 'Falha ao validar SMTP.',
       };
     }
   }
@@ -136,7 +139,8 @@ export class IntegracoesController {
     } catch (error) {
       return {
         ok: false,
-        message: error instanceof Error ? error.message : 'Gateway IoT indisponivel.',
+        message:
+          error instanceof Error ? error.message : 'Gateway IoT indisponivel.',
       };
     } finally {
       clearTimeout(timeout);

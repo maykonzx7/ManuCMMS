@@ -33,7 +33,10 @@ export class UsuariosController {
     @Param('usuarioId') usuarioId: string,
     @Req() req: Request,
   ) {
-    this.authorizePermission.execute(req.usuarioLocal, 'usuario.visualizar_unidade');
+    this.authorizePermission.execute(
+      req.usuarioLocal,
+      'usuario.visualizar_unidade',
+    );
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.getUsuarioByIdInUnidade.execute(unidadeId, usuarioId);
   }

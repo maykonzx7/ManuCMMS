@@ -27,7 +27,10 @@ export class ListUnidadesUseCase {
       usuarioLocal.perfil?.toUpperCase?.() ?? '',
     );
 
-    if ((temEscopoCorporativo || perfilComVisaoEmpresa) && usuarioLocal.empresa?.id) {
+    if (
+      (temEscopoCorporativo || perfilComVisaoEmpresa) &&
+      usuarioLocal.empresa?.id
+    ) {
       return this.unidades.listByEmpresa(usuarioLocal.empresa.id);
     }
 

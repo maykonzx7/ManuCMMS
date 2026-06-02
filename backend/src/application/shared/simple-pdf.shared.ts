@@ -45,7 +45,10 @@ function normalizePdfLine(line: string): string {
 }
 
 function escapePdfText(line: string): string {
-  return line.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
+  return line
+    .replaceAll('\\', '\\\\')
+    .replaceAll('(', '\\(')
+    .replaceAll(')', '\\)');
 }
 
 export function wrapPdfText(text: string, max = 88): string[] {
@@ -178,7 +181,9 @@ function textOp(
   return `BT /${font} ${size} Tf ${r} ${g} ${b} rg ${x} ${y} Td (${escapePdfText(normalizePdfLine(text))}) Tj ET`;
 }
 
-function renderBanner(block: Extract<LayoutBlock, { kind: 'banner' }>): string[] {
+function renderBanner(
+  block: Extract<LayoutBlock, { kind: 'banner' }>,
+): string[] {
   return [
     'q 0.12 0.23 0.37 rg 0 794 595 48 re f Q',
     textOp(block.brand, MARGIN_X, 822, 'F2', 11, [1, 1, 1]),
@@ -189,7 +194,10 @@ function renderBanner(block: Extract<LayoutBlock, { kind: 'banner' }>): string[]
   ];
 }
 
-function renderSectionTitle(title: string, y: number): { ops: string[]; nextY: number } {
+function renderSectionTitle(
+  title: string,
+  y: number,
+): { ops: string[]; nextY: number } {
   return {
     ops: [
       textOp(title.toUpperCase(), MARGIN_X, y, 'F2', 10, [0.12, 0.23, 0.37]),
@@ -231,7 +239,9 @@ function renderPage(
         break;
       }
       case 'kv':
-        ops.push(textOp(block.label, MARGIN_X + 8, y, 'F2', 9, [0.25, 0.27, 0.31]));
+        ops.push(
+          textOp(block.label, MARGIN_X + 8, y, 'F2', 9, [0.25, 0.27, 0.31]),
+        );
         ops.push(textOp(block.value, MARGIN_X + 150, y, 'F1', 9));
         y -= LINE_HEIGHT_KV;
         break;
@@ -251,7 +261,9 @@ function renderPage(
         break;
       case 'rule':
         ops.push('q 0.88 0.9 0.92 rg');
-        ops.push(`${MARGIN_X} ${y - 4} m ${PAGE_WIDTH - MARGIN_X} ${y - 4} l S`);
+        ops.push(
+          `${MARGIN_X} ${y - 4} m ${PAGE_WIDTH - MARGIN_X} ${y - 4} l S`,
+        );
         ops.push('Q');
         y -= 10;
         break;
@@ -269,7 +281,9 @@ function renderPage(
   return ops.join('\n');
 }
 
-export function buildProfessionalPdfDocument(input: ProfessionalPdfInput): Buffer {
+export function buildProfessionalPdfDocument(
+  input: ProfessionalPdfInput,
+): Buffer {
   const blocks = flattenInput(input);
   const pageGroups = paginateBlocks(blocks);
   const brand = input.brand ?? 'ManuCMMS';

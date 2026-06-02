@@ -34,7 +34,10 @@ export class AuditLogService
   }): AuditLogItem['acao'] {
     const before = doc.valor_anterior ?? {};
     const after = doc.valor_novo ?? {};
-    const explicitAction = String(after.acao ?? '').trim().toUpperCase();
+    const acaoRaw = after.acao;
+    const explicitAction = (typeof acaoRaw === 'string' ? acaoRaw : '')
+      .trim()
+      .toUpperCase();
     if (
       explicitAction === 'CREATE' ||
       explicitAction === 'UPDATE' ||
@@ -44,10 +47,11 @@ export class AuditLogService
       explicitAction === 'LOGOUT' ||
       explicitAction === 'EXPORT'
     ) {
-      return explicitAction as AuditLogItem['acao'];
+      return explicitAction;
     }
     if (Object.keys(before).length === 0) return 'CREATE';
-    const statusAfter = String(after.status ?? '');
+    const statusRaw = after.status;
+    const statusAfter = typeof statusRaw === 'string' ? statusRaw : '';
     if (statusAfter === 'CANCELADA') return 'DELETE';
     if (statusAfter === 'CONCLUIDA') return 'SETTINGS_CHANGE';
     return 'UPDATE';
@@ -144,10 +148,7 @@ export class AuditLogService
     const skip = (page - 1) * limit;
 
     const collection = this.client.db().collection('log_auditoria');
-    const docs = await collection
-      .find(query)
-      .sort({ data_hora: -1 })
-      .toArray();
+    const docs = await collection.find(query).sort({ data_hora: -1 }).toArray();
 
     const mapped = docs.map((doc) => ({
       idLog: String(doc.id_log ?? ''),
@@ -167,7 +168,15 @@ export class AuditLogService
     const actionFilter = filtro.acao?.trim().toUpperCase();
     const filtered =
       actionFilter &&
-      ['CREATE', 'UPDATE', 'DELETE', 'SETTINGS_CHANGE', 'LOGIN', 'LOGOUT', 'EXPORT'].includes(actionFilter)
+      [
+        'CREATE',
+        'UPDATE',
+        'DELETE',
+        'SETTINGS_CHANGE',
+        'LOGIN',
+        'LOGOUT',
+        'EXPORT',
+      ].includes(actionFilter)
         ? mapped.filter((item) => item.acao === actionFilter)
         : mapped;
     const total = filtered.length;

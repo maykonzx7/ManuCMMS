@@ -134,7 +134,12 @@ describe('OrdensServicoController (e2e)', () => {
         .expect(201);
       const osId = (criar.body as { id: string }).id;
 
-      const fechar = await fecharOsRequest(app, unidadeId, osId, auth.token).expect(200);
+      const fechar = await fecharOsRequest(
+        app,
+        unidadeId,
+        osId,
+        auth.token,
+      ).expect(200);
 
       const fechada = fechar.body as { status: string; dataFechamento: string };
       expect(fechada.status).toBe('CONCLUIDA');
@@ -167,50 +172,47 @@ describe('OrdensServicoController (e2e)', () => {
     },
   );
 
-  (runComDb ? it : it.skip)(
-    'detail + update de OS aberta',
-    async () => {
-      const auth = await bootstrapAuthUser(prisma);
-      const unidadesRes = await request(app.getHttpServer())
-        .get('/unidades')
-        .set('Authorization', `Bearer ${auth.token}`)
-        .expect(200);
-      const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
+  (runComDb ? it : it.skip)('detail + update de OS aberta', async () => {
+    const auth = await bootstrapAuthUser(prisma);
+    const unidadesRes = await request(app.getHttpServer())
+      .get('/unidades')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .expect(200);
+    const unidadeId = (unidadesRes.body as Array<{ id: string }>)[0].id;
 
-      const ativo = await request(app.getHttpServer())
-        .post(`/unidades/${unidadeId}/ativos`)
-        .set('Authorization', `Bearer ${auth.token}`)
-        .send({ nome: `Ativo OS CRUD ${Date.now()}` })
-        .expect(201);
-      const idAtivo = (ativo.body as { id: string }).id;
+    const ativo = await request(app.getHttpServer())
+      .post(`/unidades/${unidadeId}/ativos`)
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({ nome: `Ativo OS CRUD ${Date.now()}` })
+      .expect(201);
+    const idAtivo = (ativo.body as { id: string }).id;
 
-      const os = await request(app.getHttpServer())
-        .post(`/unidades/${unidadeId}/ordens-servico`)
-        .set('Authorization', `Bearer ${auth.token}`)
-        .send({
-          idAtivo,
-          tipo: 'PREVENTIVA',
-          descricao: `descricao inicial ${Date.now()}`,
-        })
-        .expect(201);
-      const osId = (os.body as { id: string }).id;
+    const os = await request(app.getHttpServer())
+      .post(`/unidades/${unidadeId}/ordens-servico`)
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        idAtivo,
+        tipo: 'PREVENTIVA',
+        descricao: `descricao inicial ${Date.now()}`,
+      })
+      .expect(201);
+    const osId = (os.body as { id: string }).id;
 
-      await request(app.getHttpServer())
-        .get(`/unidades/${unidadeId}/ordens-servico/${osId}`)
-        .set('Authorization', `Bearer ${auth.token}`)
-        .expect(200);
+    await request(app.getHttpServer())
+      .get(`/unidades/${unidadeId}/ordens-servico/${osId}`)
+      .set('Authorization', `Bearer ${auth.token}`)
+      .expect(200);
 
-      const updated = await request(app.getHttpServer())
-        .patch(`/unidades/${unidadeId}/ordens-servico/${osId}`)
-        .set('Authorization', `Bearer ${auth.token}`)
-        .send({ descricao: 'descricao atualizada' })
-        .expect(200);
+    const updated = await request(app.getHttpServer())
+      .patch(`/unidades/${unidadeId}/ordens-servico/${osId}`)
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({ descricao: 'descricao atualizada' })
+      .expect(200);
 
-      expect((updated.body as { descricao: string }).descricao).toBe(
-        'descricao atualizada',
-      );
-    },
-  );
+    expect((updated.body as { descricao: string }).descricao).toBe(
+      'descricao atualizada',
+    );
+  });
 
   (runComDb ? it : it.skip)(
     'PATCH OS concluida: ADMIN pode editar descricao (RN-15)',

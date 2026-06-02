@@ -119,10 +119,12 @@ export class RelatoriosController {
         },
         {
           title: 'Ordens no periodo',
-          bullets: rows.slice(0, 120).map(
-            (row, index) =>
-              `${index + 1}. ${row.ativoNome} · ${row.tipo} · ${row.status} · Tec ${row.tecnicoNome ?? 'N/D'} · ${row.dataAbertura.toISOString().slice(0, 10)}`,
-          ),
+          bullets: rows
+            .slice(0, 120)
+            .map(
+              (row, index) =>
+                `${index + 1}. ${row.ativoNome} · ${row.tipo} · ${row.status} · Tec ${row.tecnicoNome ?? 'N/D'} · ${row.dataAbertura.toISOString().slice(0, 10)}`,
+            ),
         },
       ],
     });
@@ -135,7 +137,9 @@ export class RelatoriosController {
   }
 
   private resolvePeriod(from?: string, to?: string) {
-    const fromDate = from ? new Date(from) : new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
+    const fromDate = from
+      ? new Date(from)
+      : new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
     const toDate = to ? new Date(to) : new Date();
 
     if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
@@ -166,7 +170,8 @@ export class RelatoriosController {
     ]
       .map((line) => line.map((v) => `"${v}"`).join(','))
       .join('\n');
-    const header = 'id,ativo,tipo,status,descricao,descricao_solucao,tecnico,criado_por,iniciado_por,finalizado_por,data_abertura,data_fechamento,foto_problema,foto_solucao,foto_anexo';
+    const header =
+      'id,ativo,tipo,status,descricao,descricao_solucao,tecnico,criado_por,iniciado_por,finalizado_por,data_abertura,data_fechamento,foto_problema,foto_solucao,foto_anexo';
     const data = rows.map((row) =>
       [
         row.id,

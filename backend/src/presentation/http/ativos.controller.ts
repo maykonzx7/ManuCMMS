@@ -113,7 +113,12 @@ export class AtivosController {
     this.assertTecnicoCannotMutateAssets(req);
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.updateAtivo.execute(unidadeId, ativoId, body, req.usuarioLocal!.id);
+    return this.updateAtivo.execute(
+      unidadeId,
+      ativoId,
+      body,
+      req.usuarioLocal!.id,
+    );
   }
 
   @Delete(':ativoId')

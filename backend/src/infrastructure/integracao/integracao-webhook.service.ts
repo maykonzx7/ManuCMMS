@@ -127,7 +127,9 @@ export class IntegracaoWebhookService {
     }
   }
 
-  async testWebhook(empresaId: string): Promise<{ ok: boolean; message: string }> {
+  async testWebhook(
+    empresaId: string,
+  ): Promise<{ ok: boolean; message: string }> {
     const empresa = await this.findEmpresaIntegracao(empresaId);
     if (!empresa?.webhookUrl?.trim()) {
       return { ok: false, message: 'Configure webhookUrl antes de testar.' };
@@ -225,7 +227,10 @@ export class IntegracaoWebhookService {
     return apiKey;
   }
 
-  async updateWebhookUrl(empresaId: string, webhookUrl: string | null): Promise<void> {
+  async updateWebhookUrl(
+    empresaId: string,
+    webhookUrl: string | null,
+  ): Promise<void> {
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE empresa
       SET
@@ -235,7 +240,9 @@ export class IntegracaoWebhookService {
     `);
   }
 
-  async findEmpresaByApiKey(apiKey: string): Promise<EmpresaIntegracaoRow | null> {
+  async findEmpresaByApiKey(
+    apiKey: string,
+  ): Promise<EmpresaIntegracaoRow | null> {
     const rows = await this.prisma.$queryRaw<EmpresaIntegracaoRow[]>(Prisma.sql`
       SELECT
         id,

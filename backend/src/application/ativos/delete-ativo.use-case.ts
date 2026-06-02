@@ -55,7 +55,9 @@ export class DeleteAtivoUseCase {
         idAtivo,
       );
       if (!removed) {
-        throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
+        throw new NotFoundException(
+          'Ativo não encontrado nesta unidade fabril',
+        );
       }
 
       await this.auditLog.append({

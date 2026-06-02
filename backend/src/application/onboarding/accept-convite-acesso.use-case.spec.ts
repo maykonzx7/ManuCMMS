@@ -41,4 +41,3 @@ describe('AcceptConviteAcessoUseCase', () => {
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 });
-

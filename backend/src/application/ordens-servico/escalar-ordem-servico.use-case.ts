@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,
@@ -38,7 +43,10 @@ export class EscalarOrdemServicoUseCase {
   async execute(
     idUnidade: string,
     idOrdemServico: string,
-    body: { motivo: string; statusAtivoSugerido?: 'MANUTENCAO' | 'FALHA' | null },
+    body: {
+      motivo: string;
+      statusAtivoSugerido?: 'MANUTENCAO' | 'FALHA' | null;
+    },
     solicitanteUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
     const motivo = (body.motivo ?? '').trim();
@@ -66,13 +74,18 @@ export class EscalarOrdemServicoUseCase {
     }
 
     const usuarios = await this.usuarios.listByUnidade(idUnidade);
-    const superiores = usuarios.filter((u) =>
-      u.perfil === 'SUPERVISOR' || u.perfil === 'GESTOR' || u.perfil === 'ADMIN',
+    const superiores = usuarios.filter(
+      (u) =>
+        u.perfil === 'SUPERVISOR' ||
+        u.perfil === 'GESTOR' ||
+        u.perfil === 'ADMIN',
     );
     const solicitante = usuarios.find((u) => u.id === solicitanteUsuarioId);
     const nomeSolicitante = solicitante?.nome ?? 'Técnico';
     const osCurta = ordem.id.slice(0, 8).toUpperCase();
-    const sugestao = body.statusAtivoSugerido ? ` Sugestão de status do ativo: ${body.statusAtivoSugerido}.` : '';
+    const sugestao = body.statusAtivoSugerido
+      ? ` Sugestão de status do ativo: ${body.statusAtivoSugerido}.`
+      : '';
     const mensagem =
       `Escalonamento da OS ${osCurta} (${ordem.ativoNome}). ${nomeSolicitante} informou que não conseguiu concluir a intervenção.` +
       ` Motivo: ${motivo}.${sugestao}`;

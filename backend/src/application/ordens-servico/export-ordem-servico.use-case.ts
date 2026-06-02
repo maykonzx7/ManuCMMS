@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type {
   OrdemServicoComentarioItem,
   OrdemServicoListaItem,
@@ -140,7 +140,10 @@ export class ExportOrdemServicoUseCase {
         title: 'Datas e responsaveis',
         keyValues: [
           { label: 'Abertura', value: formatIsoDateTime(ordem.dataAbertura) },
-          { label: 'Fechamento', value: formatIsoDateTime(ordem.dataFechamento) },
+          {
+            label: 'Fechamento',
+            value: formatIsoDateTime(ordem.dataFechamento),
+          },
           { label: 'Criado por', value: ordem.criadoPorNome ?? '-' },
           { label: 'Iniciado por', value: ordem.iniciadoPorNome ?? '-' },
           { label: 'Finalizado por', value: ordem.finalizadoPorNome ?? '-' },
@@ -285,7 +288,9 @@ function formatIsoDateTime(value: Date | string | null | undefined): string {
   return date.toISOString().replace('T', ' ').slice(0, 19);
 }
 
-function parseConfirmacaoConclusao(raw: string | null | undefined): string | null {
+function parseConfirmacaoConclusao(
+  raw: string | null | undefined,
+): string | null {
   if (!raw?.trim()) return null;
   try {
     const parsed = JSON.parse(raw) as {
