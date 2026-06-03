@@ -49,13 +49,17 @@ Detalhamento completo: [15-VERCEL-FRONTEND-DEPLOY-KEYS.md](15-VERCEL-FRONTEND-DE
 
 ### Erro comum: `failed to read dockerfile: open Dockerfile: no such file or directory`
 
-O Render está buildando na **raiz do repo**, mas o Dockerfile só existe em `backend/`.
+O Render builda na **raiz do repo** por padrão. O repositório inclui um **`Dockerfile` na raiz** que monta a API a partir de `backend/` — faça **push** desse arquivo e redeploy.
 
-**Correção no painel:** *Settings → Build & Deploy → Root Directory* = `backend` → **Save Changes** → **Manual Deploy**.
+**Se ainda falhar no painel:**
 
-Alternativa sem mudar root: *Dockerfile Path* = `backend/Dockerfile` e *Docker Context* = `backend`.
+| Campo | Valor |
+|-------|--------|
+| Root Directory | *(vazio ou `.`)* |
+| Dockerfile Path | `Dockerfile` |
+| Docker Context | `.` |
 
-Ou importar o blueprint [`render.yaml`](../render.yaml) na raiz do repositório.
+**Alternativa:** Root Directory = `backend` e Dockerfile = `Dockerfile` (usa `backend/Dockerfile` direto).
 
 WebSocket: `wss://<servico>.onrender.com/realtime` (Socket.IO)
 

@@ -1,14 +1,13 @@
 # Blueprint Render — ManuCMMS API
 # https://render.com/docs/blueprint-spec
 #
-# Monorepo: o Dockerfile fica em backend/. Sem rootDir, o Render procura
-# Dockerfile na raiz e falha com "no such file or directory".
+# Build na raiz do monorepo (Dockerfile na raiz copia backend/).
+# Alternativa no painel: Root Directory = backend + Dockerfile em backend/.
 
 services:
   - type: web
     name: manucmms-api
     runtime: docker
-    rootDir: backend
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /health

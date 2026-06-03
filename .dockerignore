@@ -1,0 +1,19 @@
+# Contexto Docker na raiz — excluir o que não entra na API
+frontend
+docs
+scripts
+.git
+.github
+*.md
+.env
+.env.*
+docker-compose*.yml
+ManuCMMS
+
+backend/node_modules
+backend/dist
+backend/coverage
+backend/.env
+backend/.env.*
+backend/npm-debug.log*
+backend/*.log
