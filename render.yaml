@@ -15,6 +15,23 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # --- Obrigatórias (preencher no painel Render; não usar localhost) ---
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: PUBLIC_BASE_URL
+        value: https://manucmms.onrender.com
       - key: FRONTEND_PUBLIC_BASE_URL
         value: https://manucmms.vercel.app
       - key: CORS_ALLOWED_ORIGINS

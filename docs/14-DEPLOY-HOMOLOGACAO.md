@@ -61,6 +61,27 @@ O Render builda na **raiz do repo** por padrão. O repositório inclui um **`Doc
 
 **Alternativa:** Root Directory = `backend` e Dockerfile = `Dockerfile` (usa `backend/Dockerfile` direto).
 
+### Erro: `P1001: Can't reach database server at localhost:5432`
+
+A **`DATABASE_URL` no Render está com valor de dev local** (ex.: copiada do `backend/.env.example`). No cloud não existe Postgres em `localhost`.
+
+**Correção** — Supabase → *Project Settings* → *Database* → *Connection string* → **URI**:
+
+```text
+postgresql://postgres.[ref]:[SENHA]@....pooler.supabase.com:6543/postgres?sslmode=require
+```
+
+No Render → *Environment*: **substitua** `DATABASE_URL` pela URI do Supabase (senha = *Database password*).
+
+**Alternativa** (remova `DATABASE_URL` e use):
+
+| Variável | Valor |
+|----------|--------|
+| `SUPABASE_DB_HOST` | `db.SEU_PROJECT_REF.supabase.co` |
+| `SUPABASE_DB_PASSWORD` | senha Postgres do Supabase |
+
+Também configure serviços cloud (não `localhost`): `MONGODB_URI`, `RABBITMQ_URL`, `REDIS_URL`.
+
 WebSocket: `wss://<servico>.onrender.com/realtime` (Socket.IO)
 
 **Stack Docker local** (evidências / testes antes do cloud):

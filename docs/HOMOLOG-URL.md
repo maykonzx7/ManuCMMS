@@ -3,13 +3,13 @@
 | Ambiente | URL | Status |
 |----------|-----|--------|
 | Frontend | `https://manucmms.vercel.app` | Deploy ok |
-| API + WebSocket (Render) | `https://____________.onrender.com` | Pendente |
-| Health | `https://____________.onrender.com/health` | Pendente |
+| API + WebSocket (Render) | `https://manucmms.onrender.com` | Deploy ok |
+| Health | `https://manucmms.onrender.com/health` | Validar após wake-up |
 
 ## Validação
 
 ```bash
-export API_BASE_URL=https://SUA-API
+export API_BASE_URL=https://manucmms.onrender.com
 export FRONTEND_BASE_URL=https://manucmms.vercel.app
 chmod +x scripts/homolog/check-homolog.sh
 ./scripts/homolog/check-homolog.sh

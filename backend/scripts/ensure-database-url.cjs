@@ -20,3 +20,18 @@ if (!process.env.DATABASE_URL?.trim()) {
       : `${base}?sslmode=require`;
   }
 }
+
+const databaseUrl = process.env.DATABASE_URL?.trim() ?? '';
+if (
+  process.env.NODE_ENV === 'production' &&
+  databaseUrl &&
+  /@(?:localhost|127\.0\.0\.1|postgres)(?::|\/)/i.test(databaseUrl)
+) {
+  console.error(
+    '[database] DATABASE_URL aponta para host local/docker ("localhost", "127.0.0.1" ou "postgres").',
+  );
+  console.error(
+    '[database] No Render, use a connection string do Supabase (Dashboard → Database → URI) ou defina SUPABASE_DB_HOST + SUPABASE_DB_PASSWORD.',
+  );
+  process.exit(1);
+}
