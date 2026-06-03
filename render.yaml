@@ -38,3 +38,7 @@ services:
         value: https://manucmms.vercel.app
       - key: CORS_ALLOWED_ORIGIN_SUFFIXES
         value: .vercel.app
+      - key: PLATFORM_ALLOW_EMAIL_FALLBACK
+        value: "true"
+      - key: PLATFORM_OWNER_EMAILS
+        value: maykon011games@gmail.com
