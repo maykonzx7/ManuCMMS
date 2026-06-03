@@ -73,6 +73,9 @@ export class SmtpEmailService implements IEmailPort {
       port,
       secure,
       auth: { user, pass },
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 10_000,
     });
 
     return this.transporter;

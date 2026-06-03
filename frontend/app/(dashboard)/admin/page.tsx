@@ -19,6 +19,12 @@ import { apiRequest } from '@/lib/api'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { toast } from 'sonner'
+import {
+  ConvitesPanel,
+  InviteLinkDialog,
+  type ConviteActionResponse,
+  type ConviteEmailStatus,
+} from '@/components/convites/convites-panel'
 
 type PainelResponse = {
   empresa: {
@@ -109,6 +115,12 @@ export default function AdminPage() {
   })
   const [cepBaseLoading, setCepBaseLoading] = useState(false)
   const [cepEmpresaLoading, setCepEmpresaLoading] = useState(false)
+  const [convitesRefreshKey, setConvitesRefreshKey] = useState(0)
+  const [inviteLinkDialog, setInviteLinkDialog] = useState<{
+    emailDestino: string
+    link: string
+    emailStatus?: ConviteEmailStatus
+  } | null>(null)
 
   const empresaId = company?.id ?? session?.empresa?.id ?? null
 
@@ -167,7 +179,7 @@ export default function AdminPage() {
     }
 
     try {
-      await apiRequest(`/empresas/${empresaId}/convites`, {
+      const response = await apiRequest<ConviteActionResponse>(`/empresas/${empresaId}/convites`, {
         method: 'POST',
         accessToken,
         body: {
@@ -177,9 +189,17 @@ export default function AdminPage() {
           idUnidadeDestino: idUnidadeDestino || undefined,
         },
       })
-      toast.success('Convite enviado com sucesso.')
+      toast.success('Convite registrado com sucesso.')
+      if (response.links?.convite) {
+        setInviteLinkDialog({
+          emailDestino: emailDestino.trim().toLowerCase(),
+          link: response.links.convite,
+          emailStatus: response.entregaEmail?.status,
+        })
+      }
       setEmailDestino('')
       setNomeDestino('')
+      setConvitesRefreshKey((value) => value + 1)
       await carregarTudo()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao enviar convite')
@@ -419,7 +439,9 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle>Convidar Usuário para Base</CardTitle>
-              <CardDescription>Envio de convite com cargo e base de destino.</CardDescription>
+              <CardDescription>
+                O convite é criado na hora. Se o e-mail não estiver configurado, copie o link gerado e envie manualmente.
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2"><Label>Email destino</Label><Input value={emailDestino} onChange={(e) => setEmailDestino(e.target.value)} placeholder="usuario@empresa.com" /></div>
@@ -453,6 +475,14 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+
+          {empresaId && accessToken ? (
+            <ConvitesPanel
+              empresaId={empresaId}
+              accessToken={accessToken}
+              refreshKey={convitesRefreshKey}
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent value="usuarios" className="space-y-4">
@@ -534,6 +564,14 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <InviteLinkDialog
+        open={Boolean(inviteLinkDialog)}
+        onOpenChange={(open) => !open && setInviteLinkDialog(null)}
+        emailDestino={inviteLinkDialog?.emailDestino ?? ''}
+        link={inviteLinkDialog?.link ?? ''}
+        emailStatus={inviteLinkDialog?.emailStatus}
+      />
     </div>
   )
 }

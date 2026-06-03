@@ -1,9 +1,12 @@
-import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { AcceptConviteAcessoUseCase } from '../../application/onboarding/accept-convite-acesso.use-case';
+import { CancelConviteAcessoUseCase } from '../../application/onboarding/cancel-convite-acesso.use-case';
 import { CreateConviteAcessoUseCase } from '../../application/onboarding/create-convite-acesso.use-case';
 import { CreateEmpresaWithInviteUseCase } from '../../application/onboarding/create-empresa-with-invite.use-case';
+import { ListConvitesAcessoUseCase } from '../../application/onboarding/list-convites-acesso.use-case';
+import { ResendConviteAcessoUseCase } from '../../application/onboarding/resend-convite-acesso.use-case';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import type { AuthUserContext } from '../auth/auth-user.types';
@@ -18,6 +21,9 @@ export class OnboardingController {
     private readonly config: ConfigService,
     private readonly createEmpresaWithInvite: CreateEmpresaWithInviteUseCase,
     private readonly createConviteAcesso: CreateConviteAcessoUseCase,
+    private readonly listConvitesAcesso: ListConvitesAcessoUseCase,
+    private readonly cancelConviteAcesso: CancelConviteAcessoUseCase,
+    private readonly resendConviteAcesso: ResendConviteAcessoUseCase,
     private readonly acceptConviteAcesso: AcceptConviteAcessoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
@@ -58,6 +64,12 @@ export class OnboardingController {
     return this.createEmpresaWithInvite.execute(body);
   }
 
+  @Get('empresas/:empresaId/convites')
+  listConvites(@Param('empresaId') empresaId: string, @Req() req: Request) {
+    this.authorizePermission.execute(req.usuarioLocal, 'usuario.convidar');
+    return this.listConvitesAcesso.execute(req.usuarioLocal, empresaId);
+  }
+
   @Post('empresas/:empresaId/convites')
   createConvite(
     @Param('empresaId') empresaId: string,
@@ -72,6 +84,34 @@ export class OnboardingController {
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'usuario.convidar');
     return this.createConviteAcesso.execute(req.usuarioLocal, empresaId, body);
+  }
+
+  @Patch('empresas/:empresaId/convites/:conviteId/cancelar')
+  cancelConvite(
+    @Param('empresaId') empresaId: string,
+    @Param('conviteId') conviteId: string,
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'usuario.convidar');
+    return this.cancelConviteAcesso.execute(
+      req.usuarioLocal,
+      empresaId,
+      conviteId,
+    );
+  }
+
+  @Post('empresas/:empresaId/convites/:conviteId/reenviar')
+  resendConvite(
+    @Param('empresaId') empresaId: string,
+    @Param('conviteId') conviteId: string,
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'usuario.convidar');
+    return this.resendConviteAcesso.execute(
+      req.usuarioLocal,
+      empresaId,
+      conviteId,
+    );
   }
 
   @Post('convites/aceitar')

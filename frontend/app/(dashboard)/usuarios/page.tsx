@@ -59,6 +59,12 @@ import type { UserRole } from '@/types'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiUsuarioToUser, type ApiUsuario } from '@/lib/backend-mappers'
+import {
+  ConvitesPanel,
+  InviteLinkDialog,
+  type ConviteActionResponse,
+  type ConviteEmailStatus,
+} from '@/components/convites/convites-panel'
 
 type GestaoPainelResponse = {
   usuarios: Array<{
@@ -86,6 +92,12 @@ export default function UsersPage() {
   const [unidadesConvite, setUnidadesConvite] = useState<Array<{ id: string; nome: string }>>([])
   const [idUnidadeDestino, setIdUnidadeDestino] = useState('__CURRENT__')
   const [usersError, setUsersError] = useState<string | null>(null)
+  const [convitesRefreshKey, setConvitesRefreshKey] = useState(0)
+  const [inviteLinkDialog, setInviteLinkDialog] = useState<{
+    emailDestino: string
+    link: string
+    emailStatus?: ConviteEmailStatus
+  } | null>(null)
 
   const { canManageUsers, isAdmin } = usePermissions()
   const { accessToken } = useAuth()
@@ -188,7 +200,7 @@ export default function UsersPage() {
 
     setIsSubmittingInvite(true)
     try {
-      await apiRequest(`/empresas/${company.id}/convites`, {
+      const response = await apiRequest<ConviteActionResponse>(`/empresas/${company.id}/convites`, {
         method: 'POST',
         accessToken,
         body: {
@@ -198,11 +210,19 @@ export default function UsersPage() {
           idUnidadeDestino: idUnidadeDestino === '__CURRENT__' ? unit?.id ?? null : idUnidadeDestino,
         },
       })
-      toast.success('Convite enviado com sucesso')
+      toast.success('Convite registrado com sucesso')
+      if (response.links?.convite) {
+        setInviteLinkDialog({
+          emailDestino: inviteEmail.trim().toLowerCase(),
+          link: response.links.convite,
+          emailStatus: response.entregaEmail?.status,
+        })
+      }
       setInviteEmail('')
       setInviteNome('')
       setIdUnidadeDestino('__CURRENT__')
       setIsInviteOpen(false)
+      setConvitesRefreshKey((value) => value + 1)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao enviar convite')
     } finally {
@@ -228,7 +248,9 @@ export default function UsersPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Convidar Usuário</DialogTitle>
-                <DialogDescription>Envie um convite real usando o endpoint de onboarding.</DialogDescription>
+                <DialogDescription>
+                  O convite é criado na hora. Se o e-mail não estiver configurado no servidor, copie o link gerado e envie manualmente.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -277,6 +299,22 @@ export default function UsersPage() {
           </Dialog>
         )}
       </div>
+
+      {canManageUsers && company?.id && accessToken ? (
+        <ConvitesPanel
+          empresaId={company.id}
+          accessToken={accessToken}
+          refreshKey={convitesRefreshKey}
+        />
+      ) : null}
+
+      <InviteLinkDialog
+        open={Boolean(inviteLinkDialog)}
+        onOpenChange={(open) => !open && setInviteLinkDialog(null)}
+        emailDestino={inviteLinkDialog?.emailDestino ?? ''}
+        link={inviteLinkDialog?.link ?? ''}
+        emailStatus={inviteLinkDialog?.emailStatus}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle><UsersIcon className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent></Card>

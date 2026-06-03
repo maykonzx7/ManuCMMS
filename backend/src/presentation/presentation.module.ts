@@ -13,8 +13,11 @@ import { EnforceUnidadeScopeUseCase } from '../application/iam/enforce-unidade-s
 import { GetUsuarioByIdInUnidadeUseCase } from '../application/iam/get-usuario-by-id-in-unidade.use-case';
 import { ListUsuariosByUnidadeUseCase } from '../application/iam/list-usuarios-by-unidade.use-case';
 import { AcceptConviteAcessoUseCase } from '../application/onboarding/accept-convite-acesso.use-case';
+import { CancelConviteAcessoUseCase } from '../application/onboarding/cancel-convite-acesso.use-case';
 import { CreateConviteAcessoUseCase } from '../application/onboarding/create-convite-acesso.use-case';
 import { CreateEmpresaWithInviteUseCase } from '../application/onboarding/create-empresa-with-invite.use-case';
+import { ListConvitesAcessoUseCase } from '../application/onboarding/list-convites-acesso.use-case';
+import { ResendConviteAcessoUseCase } from '../application/onboarding/resend-convite-acesso.use-case';
 import { NotificacaoService } from '../application/notificacoes/notificacao.service';
 import { CreateOrdemServicoComentarioUseCase } from '../application/ordens-servico/create-ordem-servico-comentario.use-case';
 import { ExportOrdemServicoUseCase } from '../application/ordens-servico/export-ordem-servico.use-case';
@@ -98,6 +101,9 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     EnforceUnidadeScopeUseCase,
     CreateEmpresaWithInviteUseCase,
     CreateConviteAcessoUseCase,
+    ListConvitesAcessoUseCase,
+    CancelConviteAcessoUseCase,
+    ResendConviteAcessoUseCase,
     AcceptConviteAcessoUseCase,
     NotificacaoService,
     ListAtivosByUnidadeUseCase,

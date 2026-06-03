@@ -3,10 +3,11 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 import {
@@ -21,16 +22,20 @@ import {
   resolvePerfilFromCargo,
 } from './convite-cargo.shared';
 import {
-  buildInviteEmailTemplate,
-  buildInviteLink,
+  buildInviteAccessLink,
+  createInviteToken,
+  queueInviteEmail,
+  resolveInviteEmailDeliveryStatus,
+} from './invite-delivery.shared';
+import {
   normalizeDisplayName,
   normalizeEmail,
-  normalizePortalPath,
-  resolveInviteFrontendBaseUrl,
 } from './onboarding.shared';
 
 @Injectable()
 export class CreateConviteAcessoUseCase {
+  private readonly logger = new Logger(CreateConviteAcessoUseCase.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -146,8 +151,7 @@ export class CreateConviteAcessoUseCase {
     }
 
     const conviteId = randomUUID();
-    const token = randomBytes(24).toString('hex');
-    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const { token, tokenHash } = createInviteToken();
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 24 * 2);
 
     await this.prisma.$executeRaw(Prisma.sql`
@@ -197,66 +201,29 @@ export class CreateConviteAcessoUseCase {
     });
 
     const isProd = this.config.get<string>('NODE_ENV') === 'production';
-    const frontendBaseUrl = resolveInviteFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>(
-        'FRONTEND_NGROK_PUBLIC_BASE_URL',
-      ),
-      frontendPublicBaseUrl: this.config.get<string>(
-        'FRONTEND_PUBLIC_BASE_URL',
-      ),
-      nodeEnv: this.config.get<string>('NODE_ENV'),
-    });
-    const invitePath = normalizePortalPath(
-      this.config.get<string>('FRONTEND_INVITE_PORTAL_PATH'),
-      '/convite',
-    );
-    const inviteLink = buildInviteLink({
-      baseUrl: frontendBaseUrl,
-      invitePath,
-      token,
+    const inviteLink = buildInviteAccessLink(this.config, {
       emailDestino,
       empresaSlug: empresa.slug,
+      token,
     });
-    const dataExpiracao = new Intl.DateTimeFormat('pt-BR', {
-      dateStyle: 'full',
-      timeStyle: 'short',
-    }).format(expiraEm);
+    const entregaEmail = resolveInviteEmailDeliveryStatus(this.emailPort);
 
-    let entregaEmail: {
-      status: 'ENVIADO' | 'NAO_CONFIGURADO' | 'FALHOU';
-      erro?: string;
-    } = {
-      status: 'NAO_CONFIGURADO',
-    };
-
-    if (this.emailPort.isConfigured()) {
-      try {
-        const template = buildInviteEmailTemplate({
-          nomeDestinatario: nomeDestino,
-          nomeEmpresa: empresa.nomeEmpresa,
-          linkConvite: inviteLink,
-          dataExpiracao,
-          cargoCodigo: conviteCargoCodigo,
-          cargoExibicao,
-          nomeUnidadeDestino: unidadeDestinoNome,
-        });
-        await this.emailPort.send({
-          to: emailDestino,
-          subject: template.subject,
-          text: template.text,
-          html: template.html,
-        });
-        entregaEmail = { status: 'ENVIADO' };
-      } catch (error) {
-        entregaEmail = {
-          status: 'FALHOU',
-          erro:
-            error instanceof Error
-              ? error.message
-              : 'Falha ao enviar email de convite.',
-        };
-      }
-    }
+    queueInviteEmail(
+      this.emailPort,
+      this.logger,
+      {
+        emailDestino,
+        nomeDestino,
+        nomeEmpresa: empresa.nomeEmpresa,
+        empresaSlug: empresa.slug,
+        token,
+        expiraEm,
+        conviteCargoCodigo,
+        cargoExibicao,
+        unidadeDestinoNome,
+      },
+      inviteLink,
+    );
 
     return {
       convite: {
