@@ -46,7 +46,7 @@ export function buildInviteAccessLink(
   });
   const invitePath = normalizePortalPath(
     config.get<string>('FRONTEND_INVITE_PORTAL_PATH'),
-    '/convite',
+    '/workspace/convite',
   );
 
   return buildInviteLink({
@@ -80,16 +80,17 @@ export async function sendInviteEmail(
     return 'NAO_CONFIGURADO';
   }
 
+  const template = buildInviteEmailTemplate({
+    nomeDestinatario: payload.nomeDestino,
+    nomeEmpresa: payload.nomeEmpresa,
+    linkConvite: inviteLink,
+    dataExpiracao: formatInviteExpiration(payload.expiraEm),
+    cargoCodigo: payload.conviteCargoCodigo,
+    cargoExibicao: payload.cargoExibicao,
+    nomeUnidadeDestino: payload.unidadeDestinoNome,
+  });
+
   try {
-    const template = buildInviteEmailTemplate({
-      nomeDestinatario: payload.nomeDestino,
-      nomeEmpresa: payload.nomeEmpresa,
-      linkConvite: inviteLink,
-      dataExpiracao: formatInviteExpiration(payload.expiraEm),
-      cargoCodigo: payload.conviteCargoCodigo,
-      cargoExibicao: payload.cargoExibicao,
-      nomeUnidadeDestino: payload.unidadeDestinoNome,
-    });
     await emailPort.send({
       to: payload.emailDestino,
       subject: template.subject,
@@ -104,15 +105,32 @@ export async function sendInviteEmail(
 
 export function queueInviteEmail(
   emailPort: IEmailPort,
-  logger: { warn: (message: string) => void },
+  logger: {
+    warn: (message: string) => void;
+    log?: (message: string) => void;
+  },
   payload: InviteEmailPayload,
   inviteLink: string,
 ) {
-  void sendInviteEmail(emailPort, payload, inviteLink).then((status) => {
-    if (status === 'FALHOU') {
+  void sendInviteEmail(emailPort, payload, inviteLink)
+    .then((status) => {
+      if (status === 'ENVIADO') {
+        logger.log?.(
+          `Email de convite enviado para ${payload.emailDestino}.`,
+        );
+        return;
+      }
+      if (status === 'FALHOU') {
+        logger.warn(
+          `Falha ao enviar email de convite para ${payload.emailDestino}.`,
+        );
+      }
+    })
+    .catch((error) => {
+      const detail =
+        error instanceof Error ? error.message : 'erro desconhecido';
       logger.warn(
-        `Falha ao enviar email de convite para ${payload.emailDestino}.`,
+        `Falha ao enviar email de convite para ${payload.emailDestino}: ${detail}`,
       );
-    }
-  });
+    });
 }

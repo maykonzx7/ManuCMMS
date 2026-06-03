@@ -74,13 +74,13 @@ function formatDateTime(value: string) {
 function emailStatusMessage(status: ConviteEmailStatus | undefined) {
   switch (status) {
     case 'ENVIANDO':
-      return 'O e-mail está sendo enviado em segundo plano. Se não chegar em alguns minutos, copie o link abaixo e envie manualmente.'
+      return 'O Brevo está enviando o e-mail em segundo plano (pode levar 1–2 min). Verifique também a caixa de spam. Se não chegar, copie o link abaixo ou use Reenviar na lista de convites. Em Configurações → Integrações, confira se SMTP aparece como conectado.'
     case 'ENVIADO':
-      return 'E-mail enviado. O convidado também pode usar o link abaixo.'
+      return 'E-mail enviado pelo Brevo. O convidado também pode usar o link abaixo. Se não encontrar, peça para verificar spam.'
     case 'FALHOU':
-      return 'Não foi possível enviar o e-mail. Copie o link abaixo e envie manualmente ao convidado.'
+      return 'O Brevo rejeitou ou falhou no envio. Confira no painel Brevo (Transactional → Logs) se o remetente está validado e copie o link abaixo para enviar manualmente.'
     default:
-      return 'O servidor de e-mail não está configurado. Copie o link abaixo e envie manualmente ao convidado.'
+      return 'A API não detectou SMTP/Brevo configurado no Render. Copie o link abaixo e envie manualmente, ou confira as variáveis BREVO_SMTP_* no Render.'
   }
 }
 

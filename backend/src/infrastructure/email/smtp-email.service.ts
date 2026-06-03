@@ -94,13 +94,28 @@ export class SmtpEmailService implements IEmailPort {
       .toUpperCase();
   }
 
+  private usesBrevoProvider() {
+    const explicit = this.resolveSmtpProvider();
+    if (explicit === 'BREVO') {
+      return true;
+    }
+    if (explicit && explicit !== 'BREVO') {
+      return false;
+    }
+
+    return Boolean(
+      this.config.get<string>('BREVO_SMTP_LOGIN')?.trim() &&
+        this.config.get<string>('BREVO_SMTP_KEY')?.trim(),
+    );
+  }
+
   private resolveSmtpHost() {
     const host = this.firstDefinedByProvider('SMTP_HOST', 'BREVO_SMTP_HOST');
     if (host) {
       return host;
     }
 
-    if (this.resolveSmtpProvider() === 'BREVO') {
+    if (this.usesBrevoProvider()) {
       return 'smtp-relay.brevo.com';
     }
 
@@ -109,7 +124,7 @@ export class SmtpEmailService implements IEmailPort {
 
   private resolveSmtpPort() {
     const portRaw = this.firstDefinedByProvider('SMTP_PORT', 'BREVO_SMTP_PORT');
-    if (!portRaw && this.resolveSmtpProvider() === 'BREVO') {
+    if (!portRaw && this.usesBrevoProvider()) {
       return 587;
     }
 
@@ -122,7 +137,7 @@ export class SmtpEmailService implements IEmailPort {
       'SMTP_SECURE',
       'BREVO_SMTP_SECURE',
     );
-    if (!secureRaw && this.resolveSmtpProvider() === 'BREVO') {
+    if (!secureRaw && this.usesBrevoProvider()) {
       return false;
     }
 
@@ -152,7 +167,7 @@ export class SmtpEmailService implements IEmailPort {
   }
 
   private firstDefinedByProvider(defaultKey: string, brevoKey: string) {
-    if (this.resolveSmtpProvider() === 'BREVO') {
+    if (this.usesBrevoProvider()) {
       return this.firstDefined(brevoKey, defaultKey);
     }
 
