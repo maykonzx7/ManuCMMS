@@ -28,8 +28,22 @@ export class RequestRateLimitService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    if (
+      (process.env.NODE_ENV ?? '').trim().toLowerCase() === 'production' &&
+      /\/\/(?:localhost|127\.0\.0\.1|redis)(?::|\/|$)/i.test(redisUrl)
+    ) {
+      this.redisEnabled = false;
+      return;
+    }
+
     try {
-      this.redisClient = createClient({ url: redisUrl });
+      this.redisClient = createClient({
+        url: redisUrl,
+        socket: {
+          connectTimeout: 2_000,
+          reconnectStrategy: () => false,
+        },
+      });
       this.redisClient.on('error', () => undefined);
       await this.redisClient.connect();
       this.redisEnabled = true;

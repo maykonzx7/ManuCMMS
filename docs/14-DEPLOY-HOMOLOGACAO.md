@@ -104,6 +104,8 @@ No Render → *Environment*: **substitua** `DATABASE_URL` pela URI do Supabase (
 
 Também configure serviços cloud (não `localhost`): `MONGODB_URI`, `RABBITMQ_URL`, `REDIS_URL`.
 
+**Render trava com “No open ports detected”:** se `REDIS_URL`, `MONGODB_URI` ou `RABBITMQ_URL` apontarem para `localhost` / `redis` / `mongo`, remova essas variáveis no painel (a API sobe; auditoria/rate-limit usam fallback) ou use URLs cloud (Atlas, Upstash, CloudAMQP).
+
 WebSocket: `wss://<servico>.onrender.com/realtime` (Socket.IO)
 
 **Stack Docker local** (evidências / testes antes do cloud):
