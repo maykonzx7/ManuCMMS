@@ -2,7 +2,7 @@ import { Controller, Get, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
-import { SmtpEmailService } from '../../infrastructure/email/smtp-email.service';
+import { EmailDeliveryService } from '../../infrastructure/email/email-delivery.service';
 import { MongoHealthIndicator } from '../../infrastructure/health/mongo-health.indicator';
 import { RabbitmqHealthIndicator } from '../../infrastructure/health/rabbitmq-health.indicator';
 import { RedisHealthIndicator } from '../../infrastructure/health/redis-health.indicator';
@@ -19,7 +19,7 @@ export class IntegracoesController {
     private readonly rabbitmqHealth: RabbitmqHealthIndicator,
     private readonly mongoHealth: MongoHealthIndicator,
     private readonly redisHealth: RedisHealthIndicator,
-    private readonly smtpService: SmtpEmailService,
+    private readonly emailDelivery: EmailDeliveryService,
     private readonly config: ConfigService,
   ) {}
 
@@ -89,20 +89,40 @@ export class IntegracoesController {
   }
 
   private async checkSmtp(): Promise<IntegrationStatus> {
-    if (!this.smtpService.isConfigured()) {
-      return { ok: false, message: 'SMTP nao configurado.' };
+    if (!this.emailDelivery.isConfigured()) {
+      return {
+        ok: false,
+        message:
+          'Email nao configurado. No Render free use BREVO_API_KEY (nao SMTP).',
+      };
     }
 
     try {
-      const result = await this.smtpService.verifyConnection();
-      return result.ok
-        ? { ok: true, message: 'SMTP conectado.' }
-        : { ok: false, message: result.message };
+      const transport = this.emailDelivery.activeTransport();
+      const result = await this.emailDelivery.verifyConnection();
+      if (result.ok) {
+        return {
+          ok: true,
+          message:
+            transport === 'brevo-api'
+              ? 'Brevo API conectada (HTTPS).'
+              : 'SMTP conectado.',
+        };
+      }
+
+      if (transport === 'smtp') {
+        return {
+          ok: false,
+          message: `${result.message} No Render free, SMTP (587) e bloqueado — use BREVO_API_KEY.`,
+        };
+      }
+
+      return { ok: false, message: result.message };
     } catch (error) {
       return {
         ok: false,
         message:
-          error instanceof Error ? error.message : 'Falha ao validar SMTP.',
+          error instanceof Error ? error.message : 'Falha ao validar email.',
       };
     }
   }

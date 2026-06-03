@@ -47,7 +47,7 @@ const labels: Record<keyof IntegracoesStatusResponse['integrations'], string> = 
   rabbitmq: 'RabbitMQ',
   mongodb: 'MongoDB (Auditoria)',
   redis: 'Redis',
-  smtp: 'SMTP (Email)',
+  smtp: 'Email (Brevo API / SMTP)',
   iot: 'Gateway IoT',
 }
 
