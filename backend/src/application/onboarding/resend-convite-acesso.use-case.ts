@@ -10,13 +10,15 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
+import { EmailDeliveryService } from '../../infrastructure/email/email-delivery.service';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 import { isPerfilConvite } from './convite-cargo.shared';
 import {
   buildInviteAccessLink,
   createInviteToken,
   queueInviteEmail,
-  resolveInviteEmailDeliveryStatus,
+  sendInviteEmail,
+  type InviteEmailDeliveryStatus,
 } from './invite-delivery.shared';
 
 @Injectable()
@@ -27,6 +29,7 @@ export class ResendConviteAcessoUseCase {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Inject(EMAIL_PORT) private readonly emailPort: IEmailPort,
+    private readonly emailDelivery: EmailDeliveryService,
   ) {}
 
   async execute(
@@ -129,24 +132,31 @@ export class ResendConviteAcessoUseCase {
       empresaSlug: empresa.slug,
       token,
     });
-    const entregaEmail = resolveInviteEmailDeliveryStatus(this.emailPort);
+    const emailPayload = {
+      emailDestino: convite.emailDestino,
+      nomeDestino: convite.emailDestino.split('@')[0] || 'Colaborador',
+      nomeEmpresa: empresa.nomeEmpresa,
+      empresaSlug: empresa.slug,
+      token,
+      expiraEm,
+      conviteCargoCodigo: convite.cargoCodigo,
+      cargoExibicao,
+      unidadeDestinoNome: convite.unidadeNome,
+    };
 
-    queueInviteEmail(
-      this.emailPort,
-      this.logger,
-      {
-        emailDestino: convite.emailDestino,
-        nomeDestino: convite.emailDestino.split('@')[0] || 'Colaborador',
-        nomeEmpresa: empresa.nomeEmpresa,
-        empresaSlug: empresa.slug,
-        token,
-        expiraEm,
-        conviteCargoCodigo: convite.cargoCodigo,
-        cargoExibicao,
-        unidadeDestinoNome: convite.unidadeNome,
-      },
-      inviteLink,
-    );
+    let entregaEmail: InviteEmailDeliveryStatus = 'NAO_CONFIGURADO';
+    if (this.emailPort.isConfigured()) {
+      if (this.emailDelivery.activeTransport() === 'brevo-api') {
+        entregaEmail = await sendInviteEmail(
+          this.emailPort,
+          emailPayload,
+          inviteLink,
+        );
+      } else {
+        queueInviteEmail(this.emailPort, this.logger, emailPayload, inviteLink);
+        entregaEmail = 'ENVIANDO';
+      }
+    }
 
     return {
       convite: {

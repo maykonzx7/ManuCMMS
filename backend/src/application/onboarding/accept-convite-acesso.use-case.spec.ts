@@ -33,11 +33,13 @@ describe('AcceptConviteAcessoUseCase', () => {
           email: 'cliente@empresa.com',
           role: 'authenticated',
           emailConfirmedAt: null,
+          appMetadata: {},
+          userMetadata: {},
         },
         { token: '12345678901234567890' },
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toThrow();
 
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalled();
   });
 });

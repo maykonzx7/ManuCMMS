@@ -210,7 +210,11 @@ export default function UsersPage() {
           idUnidadeDestino: idUnidadeDestino === '__CURRENT__' ? unit?.id ?? null : idUnidadeDestino,
         },
       })
-      toast.success('Convite registrado com sucesso')
+      toast.success(
+        response.entregaEmail?.status === 'ENVIADO'
+          ? 'Convite enviado por e-mail'
+          : 'Convite registrado — confira o link abaixo',
+      )
       if (response.links?.convite) {
         setInviteLinkDialog({
           emailDestino: inviteEmail.trim().toLowerCase(),
