@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
 import { LoginForm } from '@/components/auth'
+import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, loginWithGoogle, requestPasswordReset, isLoading, isAuthenticated } = useAuth()
-  const redirectPath = searchParams.get('redirect') || '/workspace'
+  const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {

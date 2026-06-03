@@ -39,7 +39,13 @@ function resolveRealtimeUrl(): string {
     return apiBase.replace(/\/$/, '')
   }
 
-  return 'http://localhost:3000'
+  if (typeof window !== 'undefined') {
+    console.warn(
+      '[realtime] NEXT_PUBLIC_API_BASE_URL ausente; WebSocket requer URL absoluta da API (ex.: https://manucmms.onrender.com).',
+    )
+  }
+
+  return ''
 }
 
 export function useRealtimeConnection(
