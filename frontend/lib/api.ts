@@ -61,14 +61,16 @@ type ApiRequestOptions = {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, headers, cache = 'no-store' } = options
+  const { method = 'GET', body, headers, cache = 'no-store', accessToken } = options
   const isFormDataBody = typeof FormData !== 'undefined' && body instanceof FormData
   const mergedHeaders: Record<string, string> = {
     ...(headers ?? {}),
   }
 
-  // Sessões autenticadas usam cookie HttpOnly; Bearer deve ser enviado apenas
-  // quando explicitamente passado em headers para casos específicos.
+  const token = accessToken?.trim()
+  if (token && !mergedHeaders.Authorization) {
+    mergedHeaders.Authorization = `Bearer ${token}`
+  }
   if (!mergedHeaders['x-company-slug']) {
     const companySlug = resolveApiCompanySlug()
     if (companySlug) {
@@ -122,6 +124,10 @@ export async function downloadApiFile(
   options: ApiDownloadOptions = {},
 ): Promise<void> {
   const mergedHeaders: Record<string, string> = { ...(options.headers ?? {}) }
+  const token = options.accessToken?.trim()
+  if (token && !mergedHeaders.Authorization) {
+    mergedHeaders.Authorization = `Bearer ${token}`
+  }
   if (!mergedHeaders['x-company-slug']) {
     const companySlug = resolveApiCompanySlug()
     if (companySlug) mergedHeaders['x-company-slug'] = companySlug
