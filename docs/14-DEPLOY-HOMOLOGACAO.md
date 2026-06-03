@@ -61,6 +61,28 @@ O Render builda na **raiz do repo** por padrão. O repositório inclui um **`Doc
 
 **Alternativa:** Root Directory = `backend` e Dockerfile = `Dockerfile` (usa `backend/Dockerfile` direto).
 
+### Erro: `P1001` em `db.*.supabase.co:5432` (Render / cloud)
+
+A `DATABASE_URL` aponta para o Supabase, mas a **conexão direta** (`db.xxx.supabase.co:5432`) costuma falhar em provedores como Render (IPv6/rede).
+
+**Correção** — Supabase → *Project Settings* → *Database* → **Connection string** → aba **Connection pooling** → mode **Session** (porta **5432**):
+
+```text
+postgresql://postgres.gjyhuthlfqvqdvqisdba:[SENHA]@aws-0-XX-XXXX.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+Diferenças em relação à URI direta:
+
+| Item | Direta (falha no Render) | Pooler Session (usar) |
+|------|--------------------------|------------------------|
+| Host | `db.xxx.supabase.co` | `aws-0-....pooler.supabase.com` |
+| Usuário | `postgres` | `postgres.gjyhuthlfqvqdvqisdba` |
+| Porta | 5432 | 5432 |
+
+Também confira no Supabase se o projeto **não está pausado** (free tier inativo).
+
+Para `prisma migrate deploy` no boot, prefira **Session** (5432). Evite Transaction (6543) no entrypoint.
+
 ### Erro: `P1001: Can't reach database server at localhost:5432`
 
 A **`DATABASE_URL` no Render está com valor de dev local** (ex.: copiada do `backend/.env.example`). No cloud não existe Postgres em `localhost`.
