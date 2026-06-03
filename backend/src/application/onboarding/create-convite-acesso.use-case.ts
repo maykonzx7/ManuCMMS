@@ -14,8 +14,12 @@ import {
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
-import type { PerfilUsuarioCodigo } from '../../domain/ports/usuario-read.port';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
+import {
+  isPerfilConvite,
+  PERFIS_CONVITE,
+  resolvePerfilFromCargo,
+} from './convite-cargo.shared';
 import {
   buildInviteEmailTemplate,
   buildInviteLink,
@@ -24,14 +28,6 @@ import {
   normalizePortalPath,
   resolveInviteFrontendBaseUrl,
 } from './onboarding.shared';
-
-const PERFIS_CONVITE: PerfilUsuarioCodigo[] = [
-  'TECNICO',
-  'SUPERVISOR',
-  'GESTOR',
-  'AUDITOR',
-  'ADMIN',
-];
 
 @Injectable()
 export class CreateConviteAcessoUseCase {
@@ -74,13 +70,43 @@ export class CreateConviteAcessoUseCase {
       input.nomeDestino,
       emailDestino.split('@')[0] || 'Colaborador',
     );
-    const cargoCodigo = input.cargoCodigo
-      ?.trim()
-      .toUpperCase() as PerfilUsuarioCodigo;
-    if (!PERFIS_CONVITE.includes(cargoCodigo)) {
-      throw new BadRequestException(
-        `cargoCodigo invalido; use um de: ${PERFIS_CONVITE.join(', ')}.`,
+    const cargoCodigo = input.cargoCodigo?.trim().toUpperCase() ?? '';
+    if (!cargoCodigo) {
+      throw new BadRequestException('cargoCodigo e obrigatorio.');
+    }
+
+    let cargoExibicao = cargoCodigo;
+    let conviteCargoCodigo = cargoCodigo;
+
+    if (!isPerfilConvite(cargoCodigo)) {
+      const empresaCargoRows = await this.prisma.$queryRaw<
+        Array<{
+          codigo: string;
+          nome: string;
+          nivelHierarquico: number;
+        }>
+      >(
+        Prisma.sql`
+          SELECT
+            codigo,
+            nome,
+            nivel_hierarquico AS "nivelHierarquico"
+          FROM cargo
+          WHERE empresa_id = ${empresaId}::uuid
+            AND codigo = ${cargoCodigo}
+          LIMIT 1
+        `,
       );
+      const empresaCargo = empresaCargoRows[0];
+      if (!empresaCargo) {
+        throw new BadRequestException(
+          `cargoCodigo invalido; use um perfil (${PERFIS_CONVITE.join(', ')}) ou um codigo de cargo cadastrado na empresa.`,
+        );
+      }
+
+      resolvePerfilFromCargo(cargoCodigo, empresaCargo);
+      conviteCargoCodigo = empresaCargo.codigo;
+      cargoExibicao = empresaCargo.nome;
     }
     const idUnidadeDestino = input.idUnidadeDestino?.trim() || null;
 
@@ -143,7 +169,7 @@ export class CreateConviteAcessoUseCase {
         ${conviteId}::uuid,
         ${empresaId}::uuid,
         ${emailDestino},
-        ${cargoCodigo},
+        ${conviteCargoCodigo},
         ${idUnidadeDestino}::uuid,
         ${tokenHash},
         'PENDENTE',
@@ -164,7 +190,7 @@ export class CreateConviteAcessoUseCase {
         empresaId,
         emailDestino,
         nomeDestino,
-        cargoCodigo,
+        cargoCodigo: conviteCargoCodigo,
         idUnidadeDestino,
         expiraEm: expiraEm.toISOString(),
       },
@@ -210,7 +236,8 @@ export class CreateConviteAcessoUseCase {
           nomeEmpresa: empresa.nomeEmpresa,
           linkConvite: inviteLink,
           dataExpiracao,
-          cargoCodigo,
+          cargoCodigo: conviteCargoCodigo,
+          cargoExibicao,
           nomeUnidadeDestino: unidadeDestinoNome,
         });
         await this.emailPort.send({
@@ -237,7 +264,7 @@ export class CreateConviteAcessoUseCase {
         empresaId,
         emailDestino,
         nomeDestino,
-        cargoCodigo,
+        cargoCodigo: conviteCargoCodigo,
         idUnidadeDestino,
         expiraEm: expiraEm.toISOString(),
         token: isProd ? undefined : token,

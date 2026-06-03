@@ -21,6 +21,10 @@ import {
   type PerfilUsuarioCodigo,
 } from '../../domain/ports/usuario-read.port';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
+import {
+  isPerfilConvite,
+  resolvePerfilFromCargo,
+} from './convite-cargo.shared';
 import { normalizeDisplayName, normalizeEmail } from './onboarding.shared';
 
 @Injectable()
@@ -61,7 +65,7 @@ export class AcceptConviteAcessoUseCase {
         id: string;
         empresaId: string;
         emailDestino: string;
-        cargoCodigo: PerfilUsuarioCodigo;
+        cargoCodigo: string;
         idUnidadeDestino: string | null;
         status: string;
         expiraEm: Date;
@@ -107,7 +111,13 @@ export class AcceptConviteAcessoUseCase {
         'Empresa do convite nao possui unidade fabril inicial.',
       );
     }
-    const perfil = convite.cargoCodigo;
+    const perfil = await this.resolveConvitePerfil(
+      convite.empresaId,
+      convite.cargoCodigo,
+    );
+    const cargoCodigoEmpresa = isPerfilConvite(convite.cargoCodigo)
+      ? null
+      : convite.cargoCodigo;
     const idUnidadeCargo = convite.idUnidadeDestino;
 
     const nome = normalizeDisplayName(
@@ -125,6 +135,7 @@ export class AcceptConviteAcessoUseCase {
         idUnidadeCargo,
         empresaId: convite.empresaId,
         perfil,
+        cargoCodigoEmpresa,
       });
     } else {
       await this.usuarios.ensureAccessContext({
@@ -133,6 +144,7 @@ export class AcceptConviteAcessoUseCase {
         idUnidadeCargo,
         empresaId: convite.empresaId,
         perfil,
+        cargoCodigoEmpresa,
       });
       usuarioLocal =
         (await this.usuarios.findByAuthSub(authUser.userId)) ?? usuarioLocal;
@@ -173,5 +185,41 @@ export class AcceptConviteAcessoUseCase {
       },
       usuario: usuarioLocal,
     };
+  }
+
+  private async resolveConvitePerfil(
+    empresaId: string,
+    cargoCodigo: string,
+  ): Promise<PerfilUsuarioCodigo> {
+    const normalized = cargoCodigo.trim().toUpperCase();
+    if (isPerfilConvite(normalized)) {
+      return normalized;
+    }
+
+    const empresaCargoRows = await this.prisma.$queryRaw<
+      Array<{
+        codigo: string;
+        nome: string;
+        nivelHierarquico: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        codigo,
+        nome,
+        nivel_hierarquico AS "nivelHierarquico"
+      FROM cargo
+      WHERE empresa_id = ${empresaId}::uuid
+        AND codigo = ${normalized}
+      LIMIT 1
+    `);
+
+    const empresaCargo = empresaCargoRows[0];
+    if (!empresaCargo) {
+      throw new BadRequestException(
+        'Convite possui cargo invalido ou removido da empresa.',
+      );
+    }
+
+    return resolvePerfilFromCargo(normalized, empresaCargo);
   }
 }

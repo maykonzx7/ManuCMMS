@@ -196,6 +196,7 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       idUnidadeCargo: input.idUnidadeCargo ?? input.idUnidade,
       empresaId: input.empresaId,
       perfil: input.perfil,
+      cargoCodigoEmpresa: input.cargoCodigoEmpresa,
     });
   }
 
@@ -278,7 +279,20 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       `);
     }
 
-    let cargoId = await this.findCargoId(executor, empresaId, input.perfil);
+    const cargoEmpresaCodigo = input.cargoCodigoEmpresa?.trim().toUpperCase() ?? '';
+    let cargoId: string | null = null;
+    let usingCustomCargo = false;
+    if (cargoEmpresaCodigo) {
+      cargoId = await this.findCargoIdByCodigo(
+        executor,
+        empresaId,
+        cargoEmpresaCodigo,
+      );
+      usingCustomCargo = Boolean(cargoId);
+    }
+    if (!cargoId) {
+      cargoId = await this.findCargoId(executor, empresaId, input.perfil);
+    }
     if (!cargoId) {
       cargoId = randomUUID();
       await executor.$executeRaw(Prisma.sql`
@@ -303,7 +317,7 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
           NOW()
         )
       `);
-    } else {
+    } else if (!usingCustomCargo) {
       await executor.$executeRaw(Prisma.sql`
         UPDATE cargo
         SET
@@ -315,7 +329,9 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       `);
     }
 
-    await this.ensureDefaultPermissions(executor, cargoId, input.perfil);
+    if (!usingCustomCargo) {
+      await this.ensureDefaultPermissions(executor, cargoId, input.perfil);
+    }
 
     const usuarioCargoExiste = await executor.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`
@@ -363,6 +379,22 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       FROM usuario_empresa
       WHERE usuario_id = ${usuarioId}::uuid
         AND empresa_id = ${empresaId}::uuid
+      LIMIT 1
+    `);
+
+    return rows[0]?.id ?? null;
+  }
+
+  private async findCargoIdByCodigo(
+    executor: PrismaExecutor,
+    empresaId: string,
+    codigo: string,
+  ) {
+    const rows = await executor.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id
+      FROM cargo
+      WHERE empresa_id = ${empresaId}::uuid
+        AND codigo = ${codigo}
       LIMIT 1
     `);
 

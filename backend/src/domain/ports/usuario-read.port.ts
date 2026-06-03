@@ -17,6 +17,7 @@ export type CreateUsuarioBootstrapInput = {
   idUnidadeCargo?: string | null;
   empresaId?: string | null;
   perfil: PerfilUsuarioCodigo;
+  cargoCodigoEmpresa?: string | null;
 };
 
 export type EnsureUsuarioEmpresaAccessInput = {
@@ -25,6 +26,7 @@ export type EnsureUsuarioEmpresaAccessInput = {
   idUnidadeCargo?: string | null;
   empresaId?: string | null;
   perfil: PerfilUsuarioCodigo;
+  cargoCodigoEmpresa?: string | null;
 };
 
 /** Leituras mínimas para validar vínculos (ex.: técnico na mesma unidade). */
