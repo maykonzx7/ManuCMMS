@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import { Toaster } from '@/components/ui/sonner'
 import { PwaInstallPrompt } from '@/components/pwa/install-prompt'
 import { SerwistProvider } from '@/components/pwa/serwist-provider'
-import { AuthProvider } from '@/lib/auth'
 import './globals.css'
 
 const APP_NAME = 'ManuCMMS'
@@ -20,13 +19,7 @@ export const metadata: Metadata = {
   keywords: ['CMMS', 'manutenção', 'industrial', 'gestão', 'ativos', 'ordens de serviço'],
   authors: [{ name: 'ManuCMMS' }],
   manifest: '/manifest.webmanifest',
-  icons: {
-    icon: [
-      { url: '/icon.svg', type: 'image/svg+xml' },
-      { url: '/icon-dark-32x32.png', sizes: '32x32', type: 'image/png' },
-    ],
-    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
-  },
+  icons: '/icon.svg',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -53,11 +46,9 @@ export default function RootLayout({
     <html lang="pt-BR" className="bg-background">
       <body className="font-sans antialiased">
         <SerwistProvider swUrl="/serwist/sw.js">
-          <AuthProvider>
-            {children}
-            <PwaInstallPrompt />
-            <Toaster richColors position="top-right" />
-          </AuthProvider>
+          {children}
+          <PwaInstallPrompt />
+          <Toaster richColors position="top-right" />
         </SerwistProvider>
       </body>
     </html>

@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
+import { AuthShell } from '@/components/auth/auth-shell'
+
+export const dynamic = 'force-dynamic'
+
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
+    <AuthShell>
     <div className="flex min-h-screen">
       {/* Painel esquerdo - Branding */}
       <div className="relative hidden lg:flex lg:w-1/2 flex-col justify-center bg-gradient-to-br from-primary/20 via-background to-background p-12">
@@ -45,5 +50,6 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
     </div>
+    </AuthShell>
   )
 }

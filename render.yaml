@@ -51,6 +51,8 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: avatars
       - key: SMTP_PROVIDER
         sync: false
       - key: BREVO_SMTP_LOGIN
