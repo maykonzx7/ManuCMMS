@@ -120,7 +120,9 @@ export default function NewOrderPage() {
       toast.success('Ordem de serviço criada com sucesso!')
       router.push('/ordens')
     } catch (error) {
-      toast.error('Erro ao criar ordem de serviço')
+      toast.error(
+        error instanceof Error ? error.message : 'Erro ao criar ordem de serviço',
+      )
     } finally {
       setIsLoading(false)
     }
@@ -241,20 +243,43 @@ export default function NewOrderPage() {
                     <SelectValue placeholder="Selecione o ativo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {assets.map((asset) => (
-                      <SelectItem key={asset.id} value={asset.id}>
-                        <div className="flex flex-col">
-                          <span>{asset.nome}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {asset.codigo} - {asset.localizacao}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {assets.map((asset) => {
+                      const emManutencao = asset.status === 'EM_MANUTENCAO'
+                      return (
+                        <SelectItem
+                          key={asset.id}
+                          value={asset.id}
+                          disabled={emManutencao}
+                        >
+                          <div className="flex flex-col">
+                            <span>
+                              {asset.nome}
+                              {emManutencao ? ' (em manutenção)' : ''}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {asset.codigo}
+                              {asset.localizacao ? ` - ${asset.localizacao}` : ''}
+                              {emManutencao
+                                ? ' — encerre a OS atual antes de abrir outra'
+                                : ''}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 {errors.ativoId && (
                   <p className="text-sm text-destructive">{errors.ativoId.message}</p>
+                )}
+                {assets.some((asset) => asset.status === 'EM_MANUTENCAO') && (
+                  <p className="text-xs text-muted-foreground">
+                    Ativos em manutenção já possuem OS aberta — conclua ou cancele-a em{' '}
+                    <Link href="/ordens" className="underline underline-offset-2">
+                      Ordens de Serviço
+                    </Link>
+                    .
+                  </p>
                 )}
               </div>
 

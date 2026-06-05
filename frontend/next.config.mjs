@@ -1,7 +1,10 @@
+import { withSerwist } from '@serwist/turbopack'
+
 /** @type {import('next').NextConfig} */
 const configuredApiBaseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 const nextConfig = {
+  serverExternalPackages: ['esbuild'],
   allowedDevOrigins: ['whelked-bess-promiscuously.ngrok-free.dev'],
   typescript: {
     ignoreBuildErrors: true,
@@ -39,4 +42,4 @@ const nextConfig = {
   },
 }
 
-export default nextConfig
+export default withSerwist(nextConfig)

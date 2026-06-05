@@ -1,26 +1,39 @@
 import type { Metadata, Viewport } from 'next'
 import { Toaster } from '@/components/ui/sonner'
+import { PwaInstallPrompt } from '@/components/pwa/install-prompt'
+import { SerwistProvider } from '@/components/pwa/serwist-provider'
 import { AuthProvider } from '@/lib/auth'
 import './globals.css'
 
+const APP_NAME = 'ManuCMMS'
+const APP_DEFAULT_TITLE = 'ManuCMMS - Sistema de Gestão de Manutenção'
+const APP_DESCRIPTION =
+  'Sistema CMMS industrial para gerenciamento completo de manutenção de ativos, ordens de serviço e equipes técnicas.'
+
 export const metadata: Metadata = {
+  applicationName: APP_NAME,
   title: {
-    default: 'ManuCMMS - Sistema de Gestão de Manutenção',
+    default: APP_DEFAULT_TITLE,
     template: '%s | ManuCMMS',
   },
-  description: 'Sistema CMMS industrial para gerenciamento completo de manutenção de ativos, ordens de serviço e equipes técnicas.',
+  description: APP_DESCRIPTION,
   keywords: ['CMMS', 'manutenção', 'industrial', 'gestão', 'ativos', 'ordens de serviço'],
   authors: [{ name: 'ManuCMMS' }],
-  icons: {
-    icon: '/manucmms-icon-oficial.png',
-    shortcut: '/manucmms-icon-oficial.png',
-    apple: '/manucmms-icon-oficial.png',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: APP_NAME,
+  },
+  formatDetection: {
+    telephone: false,
   },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
   themeColor: '#1a1a2e',
 }
 
@@ -32,10 +45,13 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="bg-background">
       <body className="font-sans antialiased">
-        <AuthProvider>
-          {children}
-          <Toaster richColors position="top-right" />
-        </AuthProvider>
+        <SerwistProvider swUrl="/serwist/sw.js">
+          <AuthProvider>
+            {children}
+            <PwaInstallPrompt />
+            <Toaster richColors position="top-right" />
+          </AuthProvider>
+        </SerwistProvider>
       </body>
     </html>
   )

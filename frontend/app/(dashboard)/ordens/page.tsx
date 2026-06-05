@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
   Plus, 
   Search, 
@@ -54,6 +55,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
 import { useAuth, useCurrentCompany, useCurrentUnit, useCurrentUser } from '@/lib/auth'
+import { OsAtivasPainel } from '@/components/ordens/os-ativas-painel'
 import {
   OsIniciarWizard,
   OsConcluirWizard,
@@ -81,6 +83,7 @@ type ApiUsuario = {
 }
 
 export default function OrdersPage() {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ATRASADA' | 'all'>('all')
   const [orders, setOrders] = useState<Array<ReturnType<typeof mapApiOrdemToServiceOrder> & {
@@ -491,6 +494,13 @@ export default function OrdersPage() {
         </Select>
       </div>
 
+      <OsAtivasPainel
+        orders={orders}
+        canManageOrderStatus={canManageOrderStatus}
+        onIniciar={openIniciarWizard}
+        onConcluir={openConcluirWizard}
+      />
+
       {/* Table */}
       {filteredOrders.length === 0 ? (
         <EmptyState
@@ -515,18 +525,24 @@ export default function OrdersPage() {
                 <TableHead>Prioridade</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Data</TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-[180px] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
+                <TableRow
+                  key={order.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/ordens/${order.id}`)}
+                >
                   <TableCell className="font-mono text-sm">
                     {order.numero}
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium truncate max-w-[200px]">{order.titulo}</p>
+                      <p className="font-medium truncate max-w-[200px]">
+                        {order.titulo}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {order.ativo?.nome}
                       </p>
@@ -561,46 +577,95 @@ export default function OrdersPage() {
                   <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
                     {formatDate(order.dataAbertura)}
                   </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Ações</span>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hidden h-8 sm:inline-flex"
+                        asChild
+                      >
+                        <Link href={`/ordens/${order.id}`}>
+                          <Eye className="mr-1.5 h-3.5 w-3.5" />
+                          Abrir
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 sm:hidden"
+                        asChild
+                      >
+                        <Link href={`/ordens/${order.id}`}>
+                          <Eye className="h-4 w-4" />
+                          <span className="sr-only">Abrir OS</span>
+                        </Link>
+                      </Button>
+                      {canManageOrderStatus && order.status === 'ABERTA' ? (
+                        <Button
+                          size="sm"
+                          className="hidden h-8 md:inline-flex"
+                          onClick={() => openIniciarWizard(order.id)}
+                        >
+                          <Play className="mr-1.5 h-3.5 w-3.5" />
+                          Iniciar
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/ordens/${order.id}`}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            Visualizar
-                          </Link>
-                        </DropdownMenuItem>
-                        {canManageOrderStatus && order.status === 'ABERTA' && (
-                          <DropdownMenuItem onClick={() => openIniciarWizard(order.id)}>
-                            <Play className="mr-2 h-4 w-4" />
-                            Iniciar
+                      ) : null}
+                      {canManageOrderStatus && order.status === 'EM_ANDAMENTO' ? (
+                        <Button
+                          size="sm"
+                          className="hidden h-8 md:inline-flex"
+                          onClick={() => void openConcluirWizard(order.id)}
+                        >
+                          <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
+                          Concluir
+                        </Button>
+                      ) : null}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Mais ações</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/ordens/${order.id}`}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Visualizar
+                            </Link>
                           </DropdownMenuItem>
-                        )}
-                        {canManageOrderStatus && order.status === 'EM_ANDAMENTO' && (
-                          <DropdownMenuItem onClick={() => void openConcluirWizard(order.id)}>
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Concluir
+                          {canManageOrderStatus && order.status === 'ABERTA' ? (
+                            <DropdownMenuItem onClick={() => openIniciarWizard(order.id)}>
+                              <Play className="mr-2 h-4 w-4" />
+                              Iniciar
+                            </DropdownMenuItem>
+                          ) : null}
+                          {canManageOrderStatus && order.status === 'EM_ANDAMENTO' ? (
+                            <DropdownMenuItem onClick={() => void openConcluirWizard(order.id)}>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Concluir
+                            </DropdownMenuItem>
+                          ) : null}
+                          <DropdownMenuItem onClick={() => openTransfer(order.id, order.responsavelId)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Transferir
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => openTransfer(order.id, order.responsavelId)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Transferir
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {canManageOrderStatus && order.status !== 'CONCLUIDA' && order.status !== 'CANCELADA' && (
-                          <DropdownMenuItem className="text-destructive" onClick={() => void onCancelar(order.id)}>
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Cancelar
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuSeparator />
+                          {canManageOrderStatus &&
+                          order.status !== 'CONCLUIDA' &&
+                          order.status !== 'CANCELADA' ? (
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => void onCancelar(order.id)}
+                            >
+                              <XCircle className="mr-2 h-4 w-4" />
+                              Cancelar
+                            </DropdownMenuItem>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
