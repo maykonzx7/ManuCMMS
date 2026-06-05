@@ -10,7 +10,7 @@ import {
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
-import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
+import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
 @Injectable()
 export class OrdemServicoSlaMonitorService {
@@ -82,23 +82,15 @@ export class OrdemServicoSlaMonitorService {
   ): Promise<void> {
     if (!email || !this.emailPort.isConfigured()) return;
 
-    const frontendBaseUrl = resolveFrontendBaseUrl({
+    const link = resolveOrdemServicoEmailLink({
       frontendNgrokBaseUrl: this.config.get<string>(
         'FRONTEND_NGROK_PUBLIC_BASE_URL',
       ),
       frontendPublicBaseUrl: this.config.get<string>(
         'FRONTEND_PUBLIC_BASE_URL',
       ),
+      ordemId,
     });
-    const accessPath =
-      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
-      '/workspace/acesso';
-    const query = new URLSearchParams({
-      redirect: `/workspace/ordens/${ordemId}`,
-    }).toString();
-    const link = frontendBaseUrl
-      ? `${frontendBaseUrl}${accessPath}?${query}`
-      : null;
 
     const subject = `SLA atrasado na OS ${ordemId.slice(0, 8).toUpperCase()}`;
     const perfilTexto = isTecnico ? 'responsável técnico' : 'admin responsável';

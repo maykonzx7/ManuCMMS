@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar, AppHeader } from '@/components/layout'
 import { AuthLoadingScreen } from '@/components/auth'
 import { useAuth } from '@/lib/auth'
+import { buildLoginRedirectUrl, resolveReturnPathFromBrowser } from '@/lib/safe-redirect'
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
@@ -13,7 +14,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace('/workspace/acesso')
+      router.replace(buildLoginRedirectUrl(resolveReturnPathFromBrowser()))
     }
   }, [isAuthenticated, isLoading, router])
 

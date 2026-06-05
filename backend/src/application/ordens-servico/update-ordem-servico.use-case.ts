@@ -21,7 +21,7 @@ import {
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
-import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
+import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
 const DESCRICAO_MAX = 32_000;
 
@@ -209,34 +209,20 @@ export class UpdateOrdemServicoUseCase {
     idUnidade: string;
     empresaSlug: string | null;
   }): Promise<void> {
-    const { tecnico, ordem, unidadeNome, idUnidade, empresaSlug } = input;
+    const { tecnico, ordem, unidadeNome } = input;
     if (!tecnico?.email || !this.emailPort.isConfigured()) {
       return;
     }
 
-    const frontendBaseUrl = resolveFrontendBaseUrl({
+    const osLink = resolveOrdemServicoEmailLink({
       frontendNgrokBaseUrl: this.config.get<string>(
         'FRONTEND_NGROK_PUBLIC_BASE_URL',
       ),
       frontendPublicBaseUrl: this.config.get<string>(
         'FRONTEND_PUBLIC_BASE_URL',
       ),
+      ordemId: ordem.id,
     });
-    const accessPath =
-      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
-      '/workspace/acesso';
-    const query = new URLSearchParams({
-      redirect: `/workspace/ordens/${ordem.id}`,
-      osId: ordem.id,
-      unidadeId: idUnidade,
-    });
-    const normalizedEmpresaSlug = empresaSlug?.trim().toLowerCase() ?? '';
-    const accessPathWithScope = normalizedEmpresaSlug
-      ? `${accessPath.replace(/\/+$/, '')}/${normalizedEmpresaSlug}`
-      : accessPath;
-    const osLink = frontendBaseUrl
-      ? `${frontendBaseUrl}${accessPathWithScope}?${query.toString()}`
-      : null;
 
     const subject = `OS atribuida a voce: ${ordem.ativoNome} (${ordem.tipo})`;
     const text = [

@@ -23,7 +23,7 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
-import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
+import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
 @Injectable()
 export class CreateOrdemServicoComentarioUseCase {
@@ -154,42 +154,20 @@ export class CreateOrdemServicoComentarioUseCase {
     empresaSlug: string | null;
     texto: string;
   }): Promise<void> {
-    const {
-      tecnico,
-      os,
-      comentario,
-      unidadeNome,
-      idUnidade,
-      empresaSlug,
-      texto,
-    } = input;
+    const { tecnico, os, comentario, unidadeNome, texto } = input;
     if (!tecnico?.email || !this.emailPort.isConfigured()) {
       return;
     }
 
-    const frontendBaseUrl = resolveFrontendBaseUrl({
+    const osLink = resolveOrdemServicoEmailLink({
       frontendNgrokBaseUrl: this.config.get<string>(
         'FRONTEND_NGROK_PUBLIC_BASE_URL',
       ),
       frontendPublicBaseUrl: this.config.get<string>(
         'FRONTEND_PUBLIC_BASE_URL',
       ),
+      ordemId: os.id,
     });
-    const accessPath =
-      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
-      '/workspace/acesso';
-    const query = new URLSearchParams({
-      redirect: `/workspace/ordens/${os.id}`,
-      osId: os.id,
-      unidadeId: idUnidade,
-    });
-    const normalizedEmpresaSlug = empresaSlug?.trim().toLowerCase() ?? '';
-    const accessPathWithScope = normalizedEmpresaSlug
-      ? `${accessPath.replace(/\/+$/, '')}/${normalizedEmpresaSlug}`
-      : accessPath;
-    const osLink = frontendBaseUrl
-      ? `${frontendBaseUrl}${accessPathWithScope}?${query.toString()}`
-      : null;
 
     const osCurta = os.id.slice(0, 8).toUpperCase();
     const subject = `Novo comentario na OS ${osCurta}: ${os.ativoNome}`;
