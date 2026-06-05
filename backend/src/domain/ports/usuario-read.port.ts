@@ -50,4 +50,5 @@ export interface IUsuarioReadPort {
   createBootstrap(
     input: CreateUsuarioBootstrapInput,
   ): Promise<UsuarioLocalContext>;
+  updateFotoUrl(idUsuario: string, fotoUrl: string | null): Promise<void>;
 }

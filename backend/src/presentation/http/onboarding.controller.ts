@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
+import { ActivateConviteAcessoUseCase } from '../../application/onboarding/activate-convite-acesso.use-case';
 import { AcceptConviteAcessoUseCase } from '../../application/onboarding/accept-convite-acesso.use-case';
 import { CancelConviteAcessoUseCase } from '../../application/onboarding/cancel-convite-acesso.use-case';
 import { CreateConviteAcessoUseCase } from '../../application/onboarding/create-convite-acesso.use-case';
@@ -11,6 +12,7 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import type { AuthUserContext } from '../auth/auth-user.types';
 import { AllowPendingUser } from '../auth/allow-pending-user.decorator';
+import { Public } from '../auth/public.decorator';
 import { RequestRateLimitService } from './request-rate-limit.service';
 
 type RequestWithUser = Request & { user: AuthUserContext };
@@ -25,6 +27,7 @@ export class OnboardingController {
     private readonly cancelConviteAcesso: CancelConviteAcessoUseCase,
     private readonly resendConviteAcesso: ResendConviteAcessoUseCase,
     private readonly acceptConviteAcesso: AcceptConviteAcessoUseCase,
+    private readonly activateConviteAcesso: ActivateConviteAcessoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
     private readonly rateLimit: RequestRateLimitService,
@@ -112,6 +115,27 @@ export class OnboardingController {
       empresaId,
       conviteId,
     );
+  }
+
+  @Public()
+  @Post('convites/ativar')
+  async activateConvite(
+    @Body() body: { token: string; nome: string; senha: string },
+    @Req() req: Request,
+  ) {
+    await this.rateLimit.enforce({
+      scope: 'onboarding:activate-convite',
+      key: this.getClientIp(req),
+      maxHits: this.getNumberConfig('RATE_LIMIT_ACCEPT_CONVITE_MAX_HITS', 20),
+      windowMs: this.getNumberConfig(
+        'RATE_LIMIT_ACCEPT_CONVITE_WINDOW_MS',
+        60_000,
+      ),
+      message:
+        'Muitas tentativas de ativacao de convite. Aguarde e tente novamente.',
+    });
+
+    return this.activateConviteAcesso.execute(body);
   }
 
   @Post('convites/aceitar')

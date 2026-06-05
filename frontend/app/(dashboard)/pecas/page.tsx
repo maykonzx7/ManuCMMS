@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { toast } from 'sonner'
+import { PageDataLoading } from '@/components/shared'
 
 type ApiPeca = {
   id: string
@@ -49,7 +50,7 @@ export default function PecasPage() {
   const unit = useCurrentUnit()
   const [pecas, setPecas] = useState<ApiPeca[]>([])
   const [movimentacoes, setMovimentacoes] = useState<ApiMovimentacao[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ApiPeca | null>(null)
   const [codigo, setCodigo] = useState('')
@@ -153,6 +154,10 @@ export default function PecasPage() {
     }
   }
 
+  if (loading) {
+    return <PageDataLoading variant="table" message="Carregando peças e estoque..." />
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -181,9 +186,7 @@ export default function PecasPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? (
-                <p className="text-sm text-muted-foreground">Carregando...</p>
-              ) : pecas.length === 0 ? (
+              {pecas.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma peça cadastrada nesta unidade.</p>
               ) : (
                 <Table>

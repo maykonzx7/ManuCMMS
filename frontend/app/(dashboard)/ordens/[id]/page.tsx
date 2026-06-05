@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_COLORS,
@@ -29,6 +29,7 @@ import {
   PRIORITY_COLORS,
   MAINTENANCE_TYPE_LABELS,
   MAINTENANCE_TYPE_COLORS,
+  USER_ROLE_LABELS,
 } from '@/lib/constants'
 import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
@@ -51,7 +52,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
+import { OsFlowProgress } from '@/components/ordens/os-flow-progress'
+import {
+  OsIniciarWizard,
+  OsConcluirWizard,
+  OsFluxoContinuoPrompt,
+} from '@/components/ordens/os-execution-wizard'
+import { OsProximoPassoBanner } from '@/components/ordens/os-proximo-passo-banner'
+import { PageDataLoading } from '@/components/shared'
+import { getPodeConcluirOrdem } from '@/lib/os-flow-utils'
+import type { UserRole } from '@/types'
 
 type ApiUsuario = {
   id?: string
@@ -80,17 +90,17 @@ export default function OrderDetailPage() {
   const [transferTecnicoId, setTransferTecnicoId] = useState('')
   const [transferMotivo, setTransferMotivo] = useState('')
   const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
-  const [closeOpen, setCloseOpen] = useState(false)
-  const [confirmacaoConclusao, setConfirmacaoConclusao] = useState(false)
-  const [descricaoSolucao, setDescricaoSolucao] = useState('')
-  const [fotoSolucaoFile, setFotoSolucaoFile] = useState<File | null>(null)
+  const [iniciarWizardOpen, setIniciarWizardOpen] = useState(false)
+  const [concluirWizardOpen, setConcluirWizardOpen] = useState(false)
+  const [fluxoContinuoOpen, setFluxoContinuoOpen] = useState(false)
+  const [wizardSubmitting, setWizardSubmitting] = useState(false)
   const [pecasCatalog, setPecasCatalog] = useState<ApiPeca[]>([])
-  const [pecasConsumo, setPecasConsumo] = useState<Record<string, number>>({})
   const [comentarios, setComentarios] = useState<ApiOrdemComentario[]>([])
   const [novoComentario, setNovoComentario] = useState('')
   const [salvandoComentario, setSalvandoComentario] = useState(false)
   const [exportando, setExportando] = useState(false)
   const [photoPreview, setPhotoPreview] = useState<{ url: string; label: string } | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
 
   const confirmacaoFechamento = useMemo(() => {
     if (!rawOrder?.assinaturaDigital) return null
@@ -98,6 +108,9 @@ export default function OrderDetailPage() {
       const parsed = JSON.parse(rawOrder.assinaturaDigital) as {
         tipo?: string
         usuarioNome?: string | null
+        usuarioFotoUrl?: string | null
+        usuarioCargo?: string | null
+        usuarioPerfil?: string | null
         nomeAssinante?: string | null
         confirmadoEm?: string
         dataHora?: string
@@ -106,6 +119,9 @@ export default function OrderDetailPage() {
       if (parsed.tipo === 'confirmacao') {
         return {
           nome: parsed.usuarioNome ?? rawOrder.finalizadoPorNome ?? 'Técnico',
+          fotoUrl: parsed.usuarioFotoUrl ?? null,
+          cargo: parsed.usuarioCargo ?? null,
+          perfil: parsed.usuarioPerfil ?? null,
           data: parsed.confirmadoEm ?? parsed.dataHora ?? rawOrder.dataFechamento,
           legacyCanvas: null as string | null,
         }
@@ -113,6 +129,9 @@ export default function OrderDetailPage() {
       if (parsed.tipo === 'canvas' && parsed.dataUrl) {
         return {
           nome: parsed.nomeAssinante ?? parsed.usuarioNome ?? rawOrder.finalizadoPorNome,
+          fotoUrl: null as string | null,
+          cargo: null as string | null,
+          perfil: null as string | null,
           data: parsed.dataHora ?? rawOrder.dataFechamento,
           legacyCanvas: parsed.dataUrl,
         }
@@ -121,6 +140,9 @@ export default function OrderDetailPage() {
       if (rawOrder.assinaturaDigital.startsWith('data:image')) {
         return {
           nome: rawOrder.finalizadoPorNome,
+          fotoUrl: null as string | null,
+          cargo: null as string | null,
+          perfil: null as string | null,
           data: rawOrder.dataFechamento,
           legacyCanvas: rawOrder.assinaturaDigital,
         }
@@ -131,15 +153,20 @@ export default function OrderDetailPage() {
 
   const loadOrder = async () => {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
-    await apiRequest<ApiOrdem>(`/unidades/${unit.id}/ordens-servico/${params.id}`, { accessToken })
-      .then((res) => {
-        setRawOrder(res)
-        setOrder(mapApiOrdemToServiceOrder(res, unit.id))
-      })
-      .catch(() => {
-        setRawOrder(null)
-        setOrder(null)
-      })
+    setIsPageLoading(true)
+    try {
+      const res = await apiRequest<ApiOrdem>(
+        `/unidades/${unit.id}/ordens-servico/${params.id}`,
+        { accessToken },
+      )
+      setRawOrder(res)
+      setOrder(mapApiOrdemToServiceOrder(res, unit.id))
+    } catch {
+      setRawOrder(null)
+      setOrder(null)
+    } finally {
+      setIsPageLoading(false)
+    }
   }
 
   const loadComentarios = async () => {
@@ -203,11 +230,11 @@ export default function OrderDetailPage() {
   }
 
   useEffect(() => {
-    if (!closeOpen || !accessToken || !unit?.id) return
+    if (!concluirWizardOpen || !accessToken || !unit?.id) return
     void apiRequest<ApiPeca[]>(`/unidades/${unit.id}/pecas`, { accessToken })
       .then((res) => setPecasCatalog(res))
       .catch(() => setPecasCatalog([]))
-  }, [closeOpen, accessToken, unit?.id])
+  }, [concluirWizardOpen, accessToken, unit?.id])
 
   useEffect(() => {
     if (!accessToken || !unit?.id || !canEditOrder) return
@@ -226,73 +253,111 @@ export default function OrderDetailPage() {
       .catch(() => setTecnicos([]))
   }, [accessToken, unit?.id, canEditOrder])
 
-  async function iniciarOrdem() {
+  const podeConcluir = useMemo(
+    () =>
+      order
+        ? getPodeConcluirOrdem({
+            status: order.status,
+            tipo: order.tipo,
+            fotoProblema: rawOrder?.fotoProblema,
+            descricaoProblema: rawOrder?.descricaoProblema,
+          })
+        : { ok: false, motivo: null },
+    [order, rawOrder?.fotoProblema, rawOrder?.descricaoProblema],
+  )
+
+  const tecnicoContext = useMemo(
+    () => ({
+      nome: currentUser?.nome ?? order?.responsavel?.nome ?? 'Técnico',
+      avatar: currentUser?.avatar ?? null,
+      perfil: currentUser?.perfil,
+      cargo: currentUser?.cargoNome ?? null,
+    }),
+    [currentUser, order?.responsavel?.nome],
+  )
+
+  async function openConcluirWizard() {
+    if (!podeConcluir.ok) {
+      toast.error(podeConcluir.motivo ?? 'Não é possível concluir esta OS agora.')
+      return
+    }
+    if (accessToken && unit?.id) {
+      try {
+        const res = await apiRequest<ApiPeca[]>(`/unidades/${unit.id}/pecas`, { accessToken })
+        setPecasCatalog(res)
+      } catch {
+        setPecasCatalog([])
+      }
+    }
+    setConcluirWizardOpen(true)
+  }
+
+  async function handleIniciarWizard(data: { fotoProblema?: File; descricaoProblema?: string }) {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
-    if (order?.tipo === 'CORRETIVA') {
-      const fotoProblema = await requestInterventionPhotoFile('Selecione a foto do problema')
-      if (!fotoProblema) {
-        toast.error('Para iniciar OS corretiva, envie a foto do problema.')
-        return
+    setWizardSubmitting(true)
+    try {
+      if (order?.tipo === 'CORRETIVA') {
+        const formData = new FormData()
+        formData.append('fotoProblema', data.fotoProblema!)
+        formData.append('descricaoProblema', data.descricaoProblema!)
+        await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/iniciar`, {
+          method: 'PATCH',
+          accessToken,
+          body: formData,
+        })
+      } else {
+        await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/iniciar`, {
+          method: 'PATCH',
+          accessToken,
+        })
       }
-      const descricaoProblema = window.prompt('Descreva o problema identificado:')
-      const descricaoProblemaNormalizada = descricaoProblema?.trim()
-      if (!descricaoProblemaNormalizada) {
-        toast.error('Descrição do problema é obrigatória para iniciar OS corretiva.')
-        return
-      }
+      toast.success('Ordem iniciada.')
+      setIniciarWizardOpen(false)
+      await loadOrder()
+      setFluxoContinuoOpen(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao iniciar ordem')
+    } finally {
+      setWizardSubmitting(false)
+    }
+  }
+
+  async function handleConcluirWizard(data: {
+    descricaoSolucao: string
+    fotoSolucao?: File
+    fotoAnexo?: File
+    confirmacaoConclusao: boolean
+    pecasConsumidas: Array<{ pecaId: string; quantidade: number }>
+  }) {
+    if (!accessToken || !unit?.id || typeof params.id !== 'string') return
+    setWizardSubmitting(true)
+    try {
       const formData = new FormData()
-      formData.append('fotoProblema', fotoProblema)
-      formData.append('descricaoProblema', descricaoProblemaNormalizada)
-      await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/iniciar`, {
+      formData.append('descricaoSolucao', data.descricaoSolucao)
+      formData.append('confirmacaoConclusao', 'true')
+      if (data.fotoSolucao) {
+        formData.append('fotoSolucao', data.fotoSolucao)
+        if (rawOrder?.descricaoProblema?.trim()) {
+          formData.append('descricaoProblema', rawOrder.descricaoProblema.trim())
+        }
+      }
+      if (data.fotoAnexo) formData.append('fotoAnexo', data.fotoAnexo)
+      if (data.pecasConsumidas.length > 0) {
+        formData.append('pecasConsumidas', JSON.stringify(data.pecasConsumidas))
+      }
+      await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/fechar`, {
         method: 'PATCH',
         accessToken,
         body: formData,
       })
-    } else {
-      await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/iniciar`, {
-        method: 'PATCH',
-        accessToken,
-      })
+      toast.success('Ordem concluída.')
+      setConcluirWizardOpen(false)
+      await loadOrder()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao concluir ordem')
+    } finally {
+      setWizardSubmitting(false)
     }
-    await loadOrder()
-  }
-
-  async function concluirOrdem() {
-    if (!accessToken || !unit?.id || typeof params.id !== 'string') return
-    const isCorretiva = order?.tipo === 'CORRETIVA'
-    const formData = new FormData()
-    const descricaoSolucaoNormalizada = descricaoSolucao.trim()
-    if (!descricaoSolucaoNormalizada) {
-      toast.error('Descrição da solução é obrigatória para concluir a OS.')
-      return
-    }
-    formData.append('descricaoSolucao', descricaoSolucaoNormalizada)
-    formData.append('confirmacaoConclusao', 'true')
-    if (isCorretiva) {
-      const fotoSolucao = fotoSolucaoFile
-      if (!fotoSolucao) {
-        toast.error('OS corretiva exige foto da solução para concluir.')
-        return
-      }
-      formData.append('fotoSolucao', fotoSolucao)
-    } else {
-      const fotoAnexo = await requestInterventionPhotoFile('Selecione a foto da intervenção')
-      if (!fotoAnexo) {
-        toast.error('É obrigatório anexar a foto da intervenção para concluir a OS')
-        return
-      }
-      formData.append('fotoAnexo', fotoAnexo)
-    }
-    await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/fechar`, {
-      method: 'PATCH',
-      accessToken,
-      body: formData,
-    })
-    await loadOrder()
-    setCloseOpen(false)
-    setDescricaoSolucao('')
-    setFotoSolucaoFile(null)
-    setConfirmacaoConclusao(false)
   }
 
   async function cancelarOrdem() {
@@ -406,21 +471,9 @@ export default function OrderDetailPage() {
     )
   }, [order])
 
-  const requestInterventionPhotoFile = (title?: string) =>
-    new Promise<File | null>((resolve) => {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = 'image/*'
-      if (title) {
-        input.setAttribute('aria-label', title)
-      }
-      input.onchange = () => {
-        const file = input.files?.[0] ?? null
-        resolve(file)
-      }
-      input.oncancel = () => resolve(null)
-      input.click()
-    })
+  if (isPageLoading) {
+    return <PageDataLoading variant="detail" message="Carregando ordem de serviço..." />
+  }
 
   if (!order) {
     return (
@@ -480,16 +533,17 @@ export default function OrderDetailPage() {
             PDF
           </Button>
           {canManageOrderStatus && order.status === 'ABERTA' && (
-            <Button onClick={() => void iniciarOrdem()}>
+            <Button onClick={() => setIniciarWizardOpen(true)}>
               <Play className="mr-2 h-4 w-4" />
               Iniciar
             </Button>
           )}
           {canManageOrderStatus && order.status === 'EM_ANDAMENTO' && (
-            <Button onClick={() => {
-              setConfirmacaoConclusao(false)
-              setCloseOpen(true)
-            }}>
+            <Button
+              disabled={!podeConcluir.ok}
+              title={podeConcluir.motivo ?? undefined}
+              onClick={() => void openConcluirWizard()}
+            >
               <CheckCircle className="mr-2 h-4 w-4" />
               Concluir
             </Button>
@@ -522,6 +576,28 @@ export default function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      {canManageOrderStatus && !['CONCLUIDA', 'CANCELADA'].includes(order.status) ? (
+        <>
+          <OsProximoPassoBanner
+            status={order.status}
+            tipo={order.tipo}
+            fotoProblema={rawOrder?.fotoProblema}
+            descricaoProblema={rawOrder?.descricaoProblema}
+            onIniciar={() => setIniciarWizardOpen(true)}
+            onConcluir={() => void openConcluirWizard()}
+          />
+          <OsFlowProgress
+            status={order.status}
+            tipo={order.tipo}
+            hasFotoProblema={Boolean(rawOrder?.fotoProblema)}
+            hasDescricaoProblema={Boolean(rawOrder?.descricaoProblema?.trim())}
+            hasDescricaoSolucao={Boolean(rawOrder?.descricaoSolucao?.trim())}
+            hasFotoSolucao={Boolean(rawOrder?.fotoSolucao || rawOrder?.fotoAnexo)}
+            hasConfirmacao={Boolean(confirmacaoFechamento)}
+          />
+        </>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
@@ -650,13 +726,31 @@ export default function OrderDetailPage() {
                       className="mt-2 max-h-32 rounded-md border bg-white"
                     />
                   ) : (
-                    <p className="mt-1 text-sm">
-                      {confirmacaoFechamento.nome ?? 'Técnico'}
-                      {confirmacaoFechamento.data
-                        ? ` · ${formatDate(confirmacaoFechamento.data)}`
-                        : ''}
-                      {' · confirmação eletrônica'}
-                    </p>
+                    <div className="mt-2 flex items-center gap-3 rounded-md border p-3">
+                      <Avatar className="h-10 w-10 rounded-lg">
+                        <AvatarImage src={confirmacaoFechamento.fotoUrl ?? undefined} alt={confirmacaoFechamento.nome ?? ''} />
+                        <AvatarFallback className="rounded-lg">
+                          {(confirmacaoFechamento.nome ?? 'T').slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{confirmacaoFechamento.nome ?? 'Técnico'}</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {confirmacaoFechamento.perfil && confirmacaoFechamento.perfil in USER_ROLE_LABELS ? (
+                            <Badge variant="outline" className="text-xs">
+                              {USER_ROLE_LABELS[confirmacaoFechamento.perfil as UserRole]}
+                            </Badge>
+                          ) : null}
+                          {confirmacaoFechamento.cargo ? (
+                            <Badge variant="secondary" className="text-xs">{confirmacaoFechamento.cargo}</Badge>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {confirmacaoFechamento.data ? formatDate(confirmacaoFechamento.data) : ''}
+                          {' · confirmação eletrônica'}
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -932,141 +1026,30 @@ export default function OrderDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={closeOpen} onOpenChange={(open) => {
-        setCloseOpen(open)
-        if (!open) setConfirmacaoConclusao(false)
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Concluir ordem de serviço</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {order.tipo === 'CORRETIVA' && (
-              <div className="space-y-2">
-                <Label>Foto da solução (obrigatória)</Label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setFotoSolucaoFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Descrição da solução (obrigatória)</Label>
-              <Textarea
-                rows={3}
-                value={descricaoSolucao}
-                onChange={(e) => setDescricaoSolucao(e.target.value)}
-                placeholder="Descreva o que foi feito..."
-              />
-            </div>
-            {pecasCatalog.length > 0 ? (
-              <div className="space-y-2">
-                <Label>Peças consumidas (opcional)</Label>
-                <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
-                  {pecasCatalog.map((peca) => (
-                    <div key={peca.id} className="flex items-center justify-between gap-3 text-sm">
-                      <div>
-                        <p className="font-medium">{peca.codigo} — {peca.nome}</p>
-                        <p className="text-xs text-muted-foreground">Estoque: {peca.quantidadeEstoque}</p>
-                      </div>
-                      <input
-                        type="number"
-                        min={0}
-                        max={peca.quantidadeEstoque}
-                        className="w-20 rounded-md border px-2 py-1"
-                        value={pecasConsumo[peca.id] ?? 0}
-                        onChange={(e) => {
-                          const qty = Math.max(0, Number(e.target.value) || 0)
-                          setPecasConsumo((prev) => ({ ...prev, [peca.id]: qty }))
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="flex items-start gap-3 rounded-md border p-3">
-              <Checkbox
-                id="confirmacao-conclusao"
-                checked={confirmacaoConclusao}
-                onCheckedChange={(checked) => setConfirmacaoConclusao(checked === true)}
-              />
-              <div className="space-y-1">
-                <Label htmlFor="confirmacao-conclusao" className="leading-snug">
-                  Confirmo que concluí esta intervenção conforme descrito
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Técnico: {currentUser?.nome ?? order.responsavel?.nome ?? 'Usuário logado'}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setCloseOpen(false)}>Cancelar</Button>
-              <Button
-                disabled={!confirmacaoConclusao}
-                onClick={async () => {
-                  if (!confirmacaoConclusao) {
-                    toast.error('Marque a confirmação para concluir a OS.')
-                    return
-                  }
-                  const formData = new FormData()
-                  formData.append('confirmacaoConclusao', 'true')
-                  if (order.tipo === 'CORRETIVA') {
-                    if (!fotoSolucaoFile) {
-                      toast.error('Foto da solução é obrigatória para OS corretiva.')
-                      return
-                    }
-                    const descricaoProblemaAtual = rawOrder?.descricaoProblema?.trim()
-                    if (!descricaoProblemaAtual) {
-                      toast.error('Descrição do problema é obrigatória na OS corretiva.')
-                      return
-                    }
-                    if (!descricaoSolucao.trim()) {
-                      toast.error('Descrição da solução é obrigatória para concluir a OS.')
-                      return
-                    }
-                    formData.append('fotoSolucao', fotoSolucaoFile)
-                    formData.append('descricaoProblema', descricaoProblemaAtual)
-                    formData.append('descricaoSolucao', descricaoSolucao.trim())
-                  } else {
-                    const fotoAnexo = await requestInterventionPhotoFile('Selecione a foto da intervenção')
-                    if (!fotoAnexo) {
-                      toast.error('É obrigatório anexar a foto da intervenção para concluir a OS')
-                      return
-                    }
-                    if (!descricaoSolucao.trim()) {
-                      toast.error('Descrição da solução é obrigatória para concluir a OS.')
-                      return
-                    }
-                    formData.append('fotoAnexo', fotoAnexo)
-                    formData.append('descricaoSolucao', descricaoSolucao.trim())
-                  }
-                  const consumo = Object.entries(pecasConsumo)
-                    .filter(([, qty]) => qty > 0)
-                    .map(([pecaId, quantidade]) => ({ pecaId, quantidade }))
-                  if (consumo.length > 0) {
-                    formData.append('pecasConsumidas', JSON.stringify(consumo))
-                  }
-                  if (!accessToken || !unit?.id || typeof params.id !== 'string') return
-                  await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}/fechar`, {
-                    method: 'PATCH',
-                    accessToken,
-                    body: formData,
-                  })
-                  toast.success('Ordem concluída.')
-                  await loadOrder()
-                  setCloseOpen(false)
-                  setPecasConsumo({})
-                  setConfirmacaoConclusao(false)
-                }}
-              >
-                Confirmar conclusão
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <OsIniciarWizard
+        open={iniciarWizardOpen}
+        onOpenChange={setIniciarWizardOpen}
+        orderNumero={order.numero}
+        orderTipo={order.tipo}
+        submitting={wizardSubmitting}
+        onConfirm={handleIniciarWizard}
+      />
+      <OsFluxoContinuoPrompt
+        open={fluxoContinuoOpen}
+        onOpenChange={setFluxoContinuoOpen}
+        orderNumero={order.numero}
+        onConcluirAgora={() => void openConcluirWizard()}
+      />
+      <OsConcluirWizard
+        open={concluirWizardOpen}
+        onOpenChange={setConcluirWizardOpen}
+        orderNumero={order.numero}
+        orderTipo={order.tipo}
+        tecnico={tecnicoContext}
+        pecasCatalog={pecasCatalog}
+        submitting={wizardSubmitting}
+        onConfirm={handleConcluirWizard}
+      />
 
       <Dialog open={photoPreview != null} onOpenChange={(open) => { if (!open) setPhotoPreview(null) }}>
         <DialogContent className="max-w-4xl">

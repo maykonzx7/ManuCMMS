@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
+import { PageDataLoading } from '@/components/shared'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,7 @@ const NO_RESPONSAVEL_VALUE = '__NO_RESPONSAVEL__'
 export default function NewOrderPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const [assets, setAssets] = useState<ReturnType<typeof mapApiAtivoToAsset>[]>([])
   const [users, setUsers] = useState<ReturnType<typeof mapApiUsuarioToUser>[]>([])
   const { accessToken, session } = useAuth()
@@ -75,6 +77,7 @@ export default function NewOrderPage() {
 
   useEffect(() => {
     if (!accessToken || !unit?.id || !session?.empresa?.id) return
+    setIsPageLoading(true)
     void Promise.all([
       apiRequest<ApiAtivo[]>(`/unidades/${unit.id}/ativos`, { accessToken }),
       apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, { accessToken }),
@@ -87,6 +90,7 @@ export default function NewOrderPage() {
         setAssets([])
         setUsers([])
       })
+      .finally(() => setIsPageLoading(false))
   }, [accessToken, session?.empresa?.id, unit?.id])
 
   const tecnicos = users.filter((u) => u.perfil === 'TECNICO')
@@ -120,6 +124,10 @@ export default function NewOrderPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="form" message="Carregando formulário de ordem..." />
   }
 
   return (

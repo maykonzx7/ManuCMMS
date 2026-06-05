@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { EmptyState } from '@/components/shared'
+import { EmptyState, PageDataLoading } from '@/components/shared'
 import { 
   ASSET_STATUS_LABELS, 
   ASSET_STATUS_COLORS,
@@ -58,12 +58,14 @@ export default function AssetsPage() {
   const [statusFilter, setStatusFilter] = useState<AssetStatus | 'all'>('all')
   const [assets, setAssets] = useState<ReturnType<typeof mapApiAtivoToAsset>[]>([])
   const [assetsError, setAssetsError] = useState<string | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const { canManageAssets } = usePermissions()
   const { accessToken } = useAuth()
   const currentUnit = useCurrentUnit()
 
   const loadAssets = async () => {
     if (!accessToken || !currentUnit?.id) return
+    setIsPageLoading(true)
     try {
       const res = await apiRequest<ApiAtivo[]>(`/unidades/${currentUnit.id}/ativos`, { accessToken })
       setAssets(res.map((item) => mapApiAtivoToAsset(item, currentUnit.id)))
@@ -71,6 +73,8 @@ export default function AssetsPage() {
     } catch (error) {
       setAssets([])
       setAssetsError(error instanceof Error ? error.message : 'Falha ao carregar ativos')
+    } finally {
+      setIsPageLoading(false)
     }
   }
 
@@ -109,6 +113,10 @@ export default function AssetsPage() {
     }),
     [assets],
   )
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="table" message="Carregando ativos..." />
+  }
 
   return (
     <div className="space-y-6">

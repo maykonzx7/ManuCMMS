@@ -53,6 +53,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiUnidadeToUnit, type ApiUnidade } from '@/lib/backend-mappers'
+import { PageDataLoading } from '@/components/shared'
 
 type UnidadeStatus = 'ATIVA' | 'INATIVA'
 
@@ -60,7 +61,7 @@ export default function UnitsPage() {
   const [search, setSearch] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [units, setUnits] = useState<ReturnType<typeof mapApiUnidadeToUnit>[]>([])
 
@@ -185,6 +186,10 @@ export default function UnitsPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao remover unidade')
     }
+  }
+
+  if (isLoading && units.length === 0) {
+    return <PageDataLoading variant="table" message="Carregando unidades..." />
   }
 
   return (

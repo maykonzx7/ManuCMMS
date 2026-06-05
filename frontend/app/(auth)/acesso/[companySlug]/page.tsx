@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
-import { LoginForm } from '@/components/auth'
+import { AuthLoadingScreen, LoginForm } from '@/components/auth'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 export default function CompanyLoginPage() {
@@ -38,6 +38,10 @@ export default function CompanyLoginPage() {
     } catch {
       toast.error('Nao foi possivel iniciar login com Google')
     }
+  }
+
+  if (isLoading && !isAuthenticated) {
+    return <AuthLoadingScreen layout="embedded" message="Verificando sua sessão..." />
   }
 
   return (

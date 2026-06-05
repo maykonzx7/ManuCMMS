@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { PageDataLoading } from '@/components/shared'
 
 type ApiAtivo = {
   idAtivo: string
@@ -30,7 +31,7 @@ export default function IotPage() {
   const [ativos, setAtivos] = useState<ApiAtivo[]>([])
   const [iotOk, setIotOk] = useState<boolean | null>(null)
   const [iotMessage, setIotMessage] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const load = async () => {
@@ -63,6 +64,10 @@ export default function IotPage() {
     () => ativos.filter((item) => (item.status ?? '').toUpperCase() === 'MANUTENCAO').length,
     [ativos],
   )
+
+  if (isLoading && ativos.length === 0 && iotOk === null) {
+    return <PageDataLoading variant="cards" message="Carregando monitoramento IoT..." />
+  }
 
   return (
     <div className="space-y-6">

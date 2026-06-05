@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useAuth, useCurrentUser } from '@/lib/auth'
 import { USER_ROLE_LABELS } from '@/lib/constants'
+import { ROUTES } from '@/lib/routes'
 
 export function UserNav() {
   const router = useRouter()
@@ -91,7 +92,7 @@ export function UserNav() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(ROUTES.perfil)}>
                 <User className="mr-2 h-4 w-4" />
                 Meu Perfil
               </DropdownMenuItem>

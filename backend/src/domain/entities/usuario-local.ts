@@ -20,6 +20,7 @@ export type UsuarioLocalContext = {
   authSub: string;
   idUnidade: string;
   nome: string;
+  fotoUrl?: string | null;
   email: string;
   /** Valor do enum Prisma `PerfilUsuario` (evita acoplar domínio ao client). */
   perfil: string;

@@ -49,6 +49,8 @@ services:
       # SMTP (Brevo) — portas 587 bloqueadas no Render FREE; use BREVO_API_KEY
       - key: BREVO_API_KEY
         sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: SMTP_PROVIDER
         sync: false
       - key: BREVO_SMTP_LOGIN

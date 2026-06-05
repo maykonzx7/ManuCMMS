@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { PageDataLoading } from '@/components/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,6 +50,7 @@ export default function SettingsPage() {
   const { hasPermission } = usePermissions()
   const canManageSettings = hasPermission('configuracoes')
   const [isLoading, setIsLoading] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const [empresaNome, setEmpresaNome] = useState(company?.nome || '')
   const [empresaSlug, setEmpresaSlug] = useState(company?.slug || '')
   const [empresaCnpj, setEmpresaCnpj] = useState('')
@@ -74,51 +76,54 @@ export default function SettingsPage() {
   }, [canManageSettings, router])
 
   useEffect(() => {
-    if (!canManageSettings || !accessToken || !company?.id) return
-    void apiRequest<{ empresa: {
-      nomeEmpresa: string; slug: string; status: 'ATIVA' | 'INATIVA' | 'SUSPENSA';
-      cnpj?: string | null; cep?: string | null; endereco?: string | null; numeroEndereco?: string | null;
-      bairro?: string | null; cidade?: string | null; estado?: string | null;
-      contatoNome?: string | null; contatoEmail?: string | null; contatoTelefone?: string | null;
-    } }>(
-      `/empresas/${company.id}/gestao/painel`,
-      { accessToken },
-    )
-      .then((res) => {
-        setEmpresaNome(res.empresa.nomeEmpresa)
-        setEmpresaSlug(res.empresa.slug)
-        setEmpresaStatus(res.empresa.status)
-        setEmpresaCnpj(res.empresa.cnpj ?? '')
-        setEmpresaCep(res.empresa.cep ?? '')
-        setEmpresaEndereco(res.empresa.endereco ?? '')
-        setEmpresaNumero(res.empresa.numeroEndereco ?? '')
-        setEmpresaBairro(res.empresa.bairro ?? '')
-        setEmpresaCidade(res.empresa.cidade ?? '')
-        setEmpresaEstado(res.empresa.estado ?? '')
-        setContatoNome(res.empresa.contatoNome ?? '')
-        setContatoEmail(res.empresa.contatoEmail ?? '')
-        setContatoTelefone(res.empresa.contatoTelefone ?? '')
+    if (!canManageSettings || !accessToken || !company?.id) {
+      setIsPageLoading(false)
+      return
+    }
+    setIsPageLoading(true)
+    void Promise.allSettled([
+      apiRequest<{ empresa: {
+        nomeEmpresa: string; slug: string; status: 'ATIVA' | 'INATIVA' | 'SUSPENSA';
+        cnpj?: string | null; cep?: string | null; endereco?: string | null; numeroEndereco?: string | null;
+        bairro?: string | null; cidade?: string | null; estado?: string | null;
+        contatoNome?: string | null; contatoEmail?: string | null; contatoTelefone?: string | null;
+      } }>(`/empresas/${company.id}/gestao/painel`, { accessToken }),
+      currentUnit?.id
+        ? apiRequest<{
+            slaCorretivaHoras?: number
+            slaPreventivaHoras?: number
+            slaPreditivaHoras?: number
+          }>(`/unidades/${currentUnit.id}`, { accessToken })
+        : Promise.resolve(null),
+    ])
+      .then(([empresaResult, slaResult]) => {
+        if (empresaResult.status === 'fulfilled') {
+          const res = empresaResult.value
+          setEmpresaNome(res.empresa.nomeEmpresa)
+          setEmpresaSlug(res.empresa.slug)
+          setEmpresaStatus(res.empresa.status)
+          setEmpresaCnpj(res.empresa.cnpj ?? '')
+          setEmpresaCep(res.empresa.cep ?? '')
+          setEmpresaEndereco(res.empresa.endereco ?? '')
+          setEmpresaNumero(res.empresa.numeroEndereco ?? '')
+          setEmpresaBairro(res.empresa.bairro ?? '')
+          setEmpresaCidade(res.empresa.cidade ?? '')
+          setEmpresaEstado(res.empresa.estado ?? '')
+          setContatoNome(res.empresa.contatoNome ?? '')
+          setContatoEmail(res.empresa.contatoEmail ?? '')
+          setContatoTelefone(res.empresa.contatoTelefone ?? '')
+        } else {
+          setEmpresaNome(company.nome)
+          setEmpresaSlug(company.slug)
+        }
+        if (slaResult.status === 'fulfilled' && slaResult.value) {
+          setSlaCorretivaHoras(Number(slaResult.value.slaCorretivaHoras ?? 24))
+          setSlaPreventivaHoras(Number(slaResult.value.slaPreventivaHoras ?? 168))
+          setSlaPreditivaHoras(Number(slaResult.value.slaPreditivaHoras ?? 72))
+        }
       })
-      .catch(() => {
-        setEmpresaNome(company.nome)
-        setEmpresaSlug(company.slug)
-      })
-  }, [canManageSettings, accessToken, company?.id, company?.nome, company?.slug])
-
-  useEffect(() => {
-    if (!canManageSettings || !accessToken || !currentUnit?.id) return
-    void apiRequest<{
-      slaCorretivaHoras?: number
-      slaPreventivaHoras?: number
-      slaPreditivaHoras?: number
-    }>(`/unidades/${currentUnit.id}`, { accessToken })
-      .then((res) => {
-        setSlaCorretivaHoras(Number(res.slaCorretivaHoras ?? 24))
-        setSlaPreventivaHoras(Number(res.slaPreventivaHoras ?? 168))
-        setSlaPreditivaHoras(Number(res.slaPreditivaHoras ?? 72))
-      })
-      .catch(() => undefined)
-  }, [canManageSettings, accessToken, currentUnit?.id])
+      .finally(() => setIsPageLoading(false))
+  }, [canManageSettings, accessToken, company?.id, company?.nome, company?.slug, currentUnit?.id])
 
   const handleSave = async () => {
     if (!canManageSettings) {
@@ -184,6 +189,10 @@ export default function SettingsPage() {
     setEmpresaCidade((prev) => prev || result.localidade)
     setEmpresaEstado((prev) => prev || result.uf)
     setCepLoading(false)
+  }
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="form" message="Carregando configurações..." />
   }
 
   return (

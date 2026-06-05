@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar, AppHeader } from '@/components/layout'
+import { AuthLoadingScreen } from '@/components/auth'
 import { useAuth } from '@/lib/auth'
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -16,8 +17,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, isLoading, router])
 
-  if (isLoading || !isAuthenticated) {
-    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Carregando sessão...</div>
+  if (isLoading) {
+    return <AuthLoadingScreen message="Verificando sua sessão..." />
+  }
+
+  if (!isAuthenticated) {
+    return <AuthLoadingScreen message="Redirecionando para o login..." />
   }
 
   return (

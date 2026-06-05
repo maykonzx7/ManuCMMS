@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { AuditModule } from './infrastructure/audit/audit.module';
 import { EmailModule } from './infrastructure/email/email.module';
+import { SupabaseAdminService } from './infrastructure/auth/supabase-admin.service';
 import { PrismaModule } from './infrastructure/persistence/prisma.module';
 import { IntegracaoModule } from './infrastructure/integracao/integracao.module';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module';

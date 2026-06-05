@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { EmptyState } from '@/components/shared'
+import { EmptyState, PageDataLoading } from '@/components/shared'
 import { 
   ORDER_STATUS_LABELS, 
   ORDER_STATUS_COLORS,
@@ -53,7 +53,13 @@ import {
 import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
-import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
+import { useAuth, useCurrentCompany, useCurrentUnit, useCurrentUser } from '@/lib/auth'
+import {
+  OsIniciarWizard,
+  OsConcluirWizard,
+  OsFluxoContinuoPrompt,
+} from '@/components/ordens/os-execution-wizard'
+import { getPodeConcluirOrdem } from '@/lib/os-flow-utils'
 import { apiRequest, downloadApiFile } from '@/lib/api'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
 import { useRealtimeConnection } from '@/hooks/use-realtime'
@@ -77,32 +83,50 @@ type ApiUsuario = {
 export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ATRASADA' | 'all'>('all')
-  const [orders, setOrders] = useState<Array<ReturnType<typeof mapApiOrdemToServiceOrder> & { statusSla?: string; dataLimiteSla?: string | null }>>([])
+  const [orders, setOrders] = useState<Array<ReturnType<typeof mapApiOrdemToServiceOrder> & {
+    statusSla?: string
+    dataLimiteSla?: string | null
+    fotoProblema?: string | null
+    descricaoProblema?: string | null
+  }>>([])
   const [ordersError, setOrdersError] = useState<string | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferOrderId, setTransferOrderId] = useState('')
   const [transferTecnicoId, setTransferTecnicoId] = useState('')
   const [transferMotivo, setTransferMotivo] = useState('')
   const [exportandoLista, setExportandoLista] = useState(false)
+  const [iniciarWizardOpen, setIniciarWizardOpen] = useState(false)
+  const [concluirWizardOpen, setConcluirWizardOpen] = useState(false)
+  const [fluxoContinuoOpen, setFluxoContinuoOpen] = useState(false)
+  const [wizardOrderId, setWizardOrderId] = useState('')
+  const [pecasCatalog, setPecasCatalog] = useState<Array<{ id: string; codigo: string; nome: string; quantidadeEstoque: number; quantidadeMinima: number }>>([])
+  const [wizardSubmitting, setWizardSubmitting] = useState(false)
   const { canCreateOrder, canManageOrderStatus, canEditOrder } = usePermissions()
   const { accessToken } = useAuth()
   const company = useCurrentCompany()
   const currentUnit = useCurrentUnit()
+  const currentUser = useCurrentUser()
 
   const loadOrders = async () => {
     if (!accessToken || !currentUnit?.id) return
+    setIsPageLoading(true)
     try {
       const res = await apiRequest<ApiOrdem[]>(`/unidades/${currentUnit.id}/ordens-servico`, { accessToken })
       setOrders(res.map((item) => ({
         ...mapApiOrdemToServiceOrder(item, currentUnit.id),
         statusSla: item.statusSla,
         dataLimiteSla: item.dataLimiteSla ?? null,
+        fotoProblema: item.fotoProblema ?? null,
+        descricaoProblema: item.descricaoProblema ?? null,
       })))
       setOrdersError(null)
     } catch (error) {
       setOrders([])
       setOrdersError(error instanceof Error ? error.message : 'Falha ao carregar ordens')
+    } finally {
+      setIsPageLoading(false)
     }
   }
 
@@ -141,98 +165,104 @@ export default function OrdersPage() {
       .catch(() => setTecnicos([]))
   }, [accessToken, currentUnit?.id, canEditOrder])
 
-  const onIniciar = async (orderId: string) => {
-    if (!accessToken || !currentUnit?.id) return
-    const selectedOrder = orders.find((order) => order.id === orderId)
+  const wizardOrder = orders.find((o) => o.id === wizardOrderId)
+
+  const openIniciarWizard = (orderId: string) => {
+    setWizardOrderId(orderId)
+    setIniciarWizardOpen(true)
+  }
+
+  const openConcluirWizard = async (orderId: string) => {
+    const selected = orders.find((o) => o.id === orderId)
+    const bloqueio = selected
+      ? getPodeConcluirOrdem({
+          status: selected.status,
+          tipo: selected.tipo,
+          fotoProblema: selected.fotoProblema,
+          descricaoProblema: selected.descricaoProblema,
+        })
+      : { ok: true, motivo: null }
+    if (!bloqueio.ok) {
+      toast.error(bloqueio.motivo ?? 'Não é possível concluir esta OS agora.')
+      return
+    }
+    setWizardOrderId(orderId)
+    if (accessToken && currentUnit?.id) {
+      try {
+        const res = await apiRequest<Array<{ id: string; codigo: string; nome: string; quantidadeEstoque: number; quantidadeMinima: number }>>(
+          `/unidades/${currentUnit.id}/pecas`,
+          { accessToken },
+        )
+        setPecasCatalog(res)
+      } catch {
+        setPecasCatalog([])
+      }
+    }
+    setConcluirWizardOpen(true)
+  }
+
+  const handleIniciarWizard = async (data: { fotoProblema?: File; descricaoProblema?: string }) => {
+    if (!accessToken || !currentUnit?.id || !wizardOrderId) return
+    setWizardSubmitting(true)
     try {
-      if (selectedOrder?.tipo === 'CORRETIVA') {
-        const fotoProblema = await requestInterventionPhotoFile('Selecione a foto do problema')
-        if (!fotoProblema) {
-          toast.error('Para iniciar OS corretiva, envie a foto do problema.')
-          return
-        }
-        const descricaoProblema = window.prompt('Descreva o problema identificado:')
-        const descricaoProblemaNormalizada = descricaoProblema?.trim()
-        if (!descricaoProblemaNormalizada) {
-          toast.error('Descrição do problema é obrigatória para iniciar OS corretiva.')
-          return
-        }
+      if (wizardOrder?.tipo === 'CORRETIVA') {
         const formData = new FormData()
-        formData.append('fotoProblema', fotoProblema)
-        formData.append('descricaoProblema', descricaoProblemaNormalizada)
-        await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/iniciar`, {
+        formData.append('fotoProblema', data.fotoProblema!)
+        formData.append('descricaoProblema', data.descricaoProblema!)
+        await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${wizardOrderId}/iniciar`, {
           method: 'PATCH',
           accessToken,
           body: formData,
         })
       } else {
-        await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/iniciar`, {
+        await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${wizardOrderId}/iniciar`, {
           method: 'PATCH',
           accessToken,
         })
       }
       toast.success('Ordem iniciada com sucesso')
+      setIniciarWizardOpen(false)
       await loadOrders()
+      setFluxoContinuoOpen(true)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao iniciar ordem')
+    } finally {
+      setWizardSubmitting(false)
     }
   }
 
-  const onConcluir = async (orderId: string) => {
-    if (!accessToken || !currentUnit?.id) return
-    const selectedOrder = orders.find((order) => order.id === orderId)
-    const isCorretiva = selectedOrder?.tipo === 'CORRETIVA'
+  const handleConcluirWizard = async (data: {
+    descricaoSolucao: string
+    fotoSolucao?: File
+    fotoAnexo?: File
+    confirmacaoConclusao: boolean
+    pecasConsumidas: Array<{ pecaId: string; quantidade: number }>
+  }) => {
+    if (!accessToken || !currentUnit?.id || !wizardOrderId) return
+    setWizardSubmitting(true)
     try {
       const formData = new FormData()
-      const descricaoSolucao = window.prompt('Descreva a solução aplicada para concluir a OS:')
-      const descricaoSolucaoNormalizada = descricaoSolucao?.trim()
-      if (!descricaoSolucaoNormalizada) {
-        toast.error('Descrição da solução é obrigatória para concluir a OS.')
-        return
+      formData.append('descricaoSolucao', data.descricaoSolucao)
+      formData.append('confirmacaoConclusao', 'true')
+      if (data.fotoSolucao) formData.append('fotoSolucao', data.fotoSolucao)
+      if (data.fotoAnexo) formData.append('fotoAnexo', data.fotoAnexo)
+      if (data.pecasConsumidas.length > 0) {
+        formData.append('pecasConsumidas', JSON.stringify(data.pecasConsumidas))
       }
-      formData.append('descricaoSolucao', descricaoSolucaoNormalizada)
-      if (isCorretiva) {
-        const fotoSolucao = await requestInterventionPhotoFile('Selecione a foto da solução')
-        if (!fotoSolucao) {
-          toast.error('OS corretiva exige foto da solução para concluir.')
-          return
-        }
-        formData.append('fotoSolucao', fotoSolucao)
-      } else {
-        const fotoAnexo = await requestInterventionPhotoFile('Selecione a foto da intervenção')
-        if (!fotoAnexo) {
-          toast.error('É obrigatório anexar a foto da intervenção para concluir a OS')
-          return
-        }
-        formData.append('fotoAnexo', fotoAnexo)
-      }
-      await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${orderId}/fechar`, {
+      await apiRequest(`/unidades/${currentUnit.id}/ordens-servico/${wizardOrderId}/fechar`, {
         method: 'PATCH',
         accessToken,
         body: formData,
       })
       toast.success('Ordem concluída com sucesso')
+      setConcluirWizardOpen(false)
       await loadOrders()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao concluir ordem')
+    } finally {
+      setWizardSubmitting(false)
     }
   }
-
-  const requestInterventionPhotoFile = (title?: string) =>
-    new Promise<File | null>((resolve) => {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = 'image/*'
-      if (title) {
-        input.setAttribute('aria-label', title)
-      }
-      input.onchange = () => {
-        const file = input.files?.[0] ?? null
-        resolve(file)
-      }
-      input.oncancel = () => resolve(null)
-      input.click()
-    })
 
   const onCancelar = async (orderId: string) => {
     if (!accessToken || !currentUnit?.id) return
@@ -341,6 +371,10 @@ export default function OrdersPage() {
     } finally {
       setExportandoLista(false)
     }
+  }
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="table" message="Carregando ordens de serviço..." />
   }
 
   return (
@@ -543,13 +577,13 @@ export default function OrdersPage() {
                           </Link>
                         </DropdownMenuItem>
                         {canManageOrderStatus && order.status === 'ABERTA' && (
-                          <DropdownMenuItem onClick={() => void onIniciar(order.id)}>
+                          <DropdownMenuItem onClick={() => openIniciarWizard(order.id)}>
                             <Play className="mr-2 h-4 w-4" />
                             Iniciar
                           </DropdownMenuItem>
                         )}
                         {canManageOrderStatus && order.status === 'EM_ANDAMENTO' && (
-                          <DropdownMenuItem onClick={() => void onConcluir(order.id)}>
+                          <DropdownMenuItem onClick={() => void openConcluirWizard(order.id)}>
                             <CheckCircle className="mr-2 h-4 w-4" />
                             Concluir
                           </DropdownMenuItem>
@@ -622,6 +656,40 @@ export default function OrdersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {wizardOrder ? (
+        <>
+          <OsIniciarWizard
+            open={iniciarWizardOpen}
+            onOpenChange={setIniciarWizardOpen}
+            orderNumero={wizardOrder.numero}
+            orderTipo={wizardOrder.tipo}
+            submitting={wizardSubmitting}
+            onConfirm={handleIniciarWizard}
+          />
+          <OsFluxoContinuoPrompt
+            open={fluxoContinuoOpen}
+            onOpenChange={setFluxoContinuoOpen}
+            orderNumero={wizardOrder.numero}
+            onConcluirAgora={() => void openConcluirWizard(wizardOrder.id)}
+          />
+          <OsConcluirWizard
+            open={concluirWizardOpen}
+            onOpenChange={setConcluirWizardOpen}
+            orderNumero={wizardOrder.numero}
+            orderTipo={wizardOrder.tipo}
+            tecnico={{
+              nome: currentUser?.nome ?? wizardOrder.responsavel?.nome ?? 'Técnico',
+              avatar: currentUser?.avatar ?? null,
+              perfil: currentUser?.perfil,
+              cargo: currentUser?.cargoNome ?? null,
+            }}
+            pecasCatalog={pecasCatalog}
+            submitting={wizardSubmitting}
+            onConfirm={handleConcluirWizard}
+          />
+        </>
+      ) : null}
     </div>
   )
 }

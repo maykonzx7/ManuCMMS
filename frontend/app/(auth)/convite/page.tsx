@@ -22,43 +22,24 @@ async function syncBackendSession(session: Session, empresaSlug: string | null) 
   })
 }
 
-async function resolveAuthSession(email: string, senha: string): Promise<Session> {
+async function signInAfterActivation(email: string, senha: string): Promise<Session> {
   if (!supabase) {
     throw new Error('Autenticação não configurada. Contate o suporte.')
   }
 
-  const normalizedEmail = normalizeEmail(email)
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-    email: normalizedEmail,
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizeEmail(email),
     password: senha,
   })
 
-  if (!signUpError && signUpData.session?.access_token) {
-    return signUpData.session
-  }
-
-  const alreadyExists =
-    signUpError?.message?.toLowerCase().includes('already') ||
-    signUpError?.message?.toLowerCase().includes('registered') ||
-    signUpError?.message?.toLowerCase().includes('exists')
-
-  if (signUpError && !alreadyExists) {
-    throw new Error(signUpError.message)
-  }
-
-  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-    email: normalizedEmail,
-    password: senha,
-  })
-
-  if (signInError || !signInData.session?.access_token) {
+  if (error || !data.session?.access_token) {
     throw new Error(
-      signInError?.message ??
-        'Não foi possível autenticar. Se acabou de se cadastrar, confirme o e-mail no Supabase e tente entrar com a mesma senha.',
+      error?.message ??
+        'Conta ativada, mas o login automático falhou. Entre em /workspace/acesso com o mesmo e-mail e senha.',
     )
   }
 
-  return signInData.session
+  return data.session
 }
 
 function InvitePageContent() {
@@ -95,25 +76,31 @@ function InvitePageContent() {
         throw new Error('Use o mesmo e-mail que recebeu o convite.')
       }
 
-      const authSession = await resolveAuthSession(emailConvite, data.senha)
-      await syncBackendSession(authSession, empresaSlug || null)
-
-      await apiRequest('/convites/aceitar', {
+      const activation = await apiRequest<{
+        email: string
+        empresaSlug?: string
+      }>('/convites/ativar', {
         method: 'POST',
-        accessToken: authSession.access_token,
-        headers: empresaSlug ? { 'x-company-slug': empresaSlug } : undefined,
         body: {
           token: inviteToken,
           nome: data.nome.trim(),
+          senha: data.senha,
         },
       })
+
+      const slug = activation.empresaSlug ?? empresaSlug
+      const authSession = await signInAfterActivation(
+        activation.email ?? emailConvite,
+        data.senha,
+      )
+      await syncBackendSession(authSession, slug || null)
 
       setIsSuccess(true)
       toast.success('Conta ativada com sucesso!')
 
       setTimeout(() => {
         router.push(
-          empresaSlug ? `/workspace/acesso/${encodeURIComponent(empresaSlug)}` : '/workspace/acesso',
+          slug ? `/workspace/acesso/${encodeURIComponent(slug)}` : '/workspace/acesso',
         )
       }, 1500)
     } catch (error) {
@@ -165,7 +152,7 @@ function InvitePageContent() {
       />
 
       <p className="text-center text-xs text-muted-foreground">
-        Já possui conta? Use o mesmo e-mail do convite e sua senha atual — o sistema fará login automaticamente.
+        Use o e-mail do convite. Se já tinha conta, a senha informada será atualizada para concluir o acesso.
       </p>
     </div>
   )

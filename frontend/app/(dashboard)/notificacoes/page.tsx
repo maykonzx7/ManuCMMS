@@ -27,6 +27,7 @@ import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { useRealtimeConnection } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
+import { PageDataLoading } from '@/components/shared'
 
 const typeIcons = {
   info: Info,
@@ -53,12 +54,14 @@ export default function NotificacoesPage() {
     linkPath?: string | null
     fotoUrl?: string | null
   }>>([])
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const { accessToken } = useAuth()
   const company = useCurrentCompany()
   const unit = useCurrentUnit()
 
   useEffect(() => {
     if (!accessToken || !unit?.id) return
+    setIsPageLoading(true)
     void apiRequest<Array<{
       id: string
       tipo: 'info' | 'warning' | 'error' | 'success'
@@ -84,6 +87,7 @@ export default function NotificacoesPage() {
         )
       })
       .catch(() => setNotifications([]))
+      .finally(() => setIsPageLoading(false))
   }, [accessToken, unit?.id])
 
   useRealtimeConnection(accessToken, company?.slug, {
@@ -129,6 +133,10 @@ export default function NotificacoesPage() {
     void apiRequest(`/notificacoes/${id}`, { method: 'DELETE', accessToken })
       .then(() => setNotifications(prev => prev.filter(n => n.id !== id)))
       .catch((error) => toast.error(error instanceof Error ? error.message : 'Falha ao excluir notificação'))
+  }
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="list" message="Carregando notificações..." />
   }
 
   return (

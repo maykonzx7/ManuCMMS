@@ -26,6 +26,7 @@ export interface User {
   nome: string
   email: string
   avatar?: string
+  cargoNome?: string
   perfil: UserRole
   ativo: boolean
   empresaId: string

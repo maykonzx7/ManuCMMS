@@ -4,7 +4,7 @@ import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
-import { LoginForm } from '@/components/auth'
+import { AuthLoadingScreen, LoginForm } from '@/components/auth'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 function LoginPageContent() {
@@ -36,6 +36,10 @@ function LoginPageContent() {
     } catch {
       toast.error('Nao foi possivel iniciar login com Google')
     }
+  }
+
+  if (isLoading && !isAuthenticated) {
+    return <AuthLoadingScreen layout="embedded" message="Verificando sua sessão..." />
   }
 
   return (
@@ -111,7 +115,7 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando...</div>}>
+    <Suspense fallback={<AuthLoadingScreen layout="embedded" message="Carregando..." />}>
       <LoginPageContent />
     </Suspense>
   )

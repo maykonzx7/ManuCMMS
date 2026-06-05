@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { PageDataLoading } from '@/components/shared'
 
 type BackendMe = {
   usuario: {
@@ -55,6 +56,7 @@ export default function PermissionsPage() {
   const [novoNome, setNovoNome] = useState('')
   const [novoNivel, setNovoNivel] = useState('15')
   const [novoPermissoes, setNovoPermissoes] = useState<string[]>([])
+  const [isPageLoading, setIsPageLoading] = useState(true)
 
   const loadPainel = async () => {
     if (!accessToken || !company?.id) return
@@ -68,13 +70,18 @@ export default function PermissionsPage() {
 
   useEffect(() => {
     if (!accessToken) return
-    void apiRequest<BackendMe>('/me', { accessToken })
-      .then(setMe)
-      .catch(() => setMe(null))
-  }, [accessToken])
-
-  useEffect(() => {
-    void loadPainel()
+    setIsPageLoading(true)
+    void Promise.allSettled([
+      apiRequest<BackendMe>('/me', { accessToken }),
+      company?.id
+        ? apiRequest<PainelResponse>(`/empresas/${company.id}/gestao/painel`, { accessToken })
+        : Promise.resolve(null),
+    ])
+      .then(([meResult, painelResult]) => {
+        setMe(meResult.status === 'fulfilled' ? meResult.value : null)
+        setPainel(painelResult.status === 'fulfilled' ? painelResult.value : null)
+      })
+      .finally(() => setIsPageLoading(false))
   }, [accessToken, company?.id])
 
   const onCriarCargo = async () => {
@@ -106,6 +113,10 @@ export default function PermissionsPage() {
   }
 
   const permissoesAtuais = useMemo(() => me?.usuario?.permissoes ?? [], [me])
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="table" message="Carregando permissões..." />
+  }
 
   return (
     <div className="space-y-6">

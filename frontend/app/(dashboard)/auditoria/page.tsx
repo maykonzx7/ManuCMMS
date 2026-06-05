@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/dialog'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest, resolveApiBaseUrl } from '@/lib/api'
+import { PageDataLoading } from '@/components/shared'
 
 type ApiAuditLog = {
   idLog: string
@@ -182,6 +183,7 @@ export default function AuditoriaPage() {
   const [selectedLog, setSelectedLog] = useState<ApiAuditLog | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [summary, setSummary] = useState<ApiAuditSummary | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const { isAuthenticated } = useAuth()
   const unit = useCurrentUnit()
 
@@ -214,6 +216,7 @@ export default function AuditoriaPage() {
 
   useEffect(() => {
     if (!isAuthenticated) return
+    setIsPageLoading(true)
     const to = new Date()
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const query = new URLSearchParams({
@@ -300,6 +303,7 @@ export default function AuditoriaPage() {
         setTotalLogs(0)
         setLoadError(error instanceof Error ? error.message : 'Falha ao carregar auditoria')
       })
+      .finally(() => setIsPageLoading(false))
   }, [isAuthenticated, unit?.id, page, actionFilter, entityFilter, userFilter])
 
   const filteredLogs = logs.filter((log) => {
@@ -332,6 +336,10 @@ export default function AuditoriaPage() {
     return acc
   }, {} as Record<string, number>), [logs])
   const effectiveActionCounts = summary?.porAcao ?? actionCounts
+
+  if (isPageLoading && logs.length === 0) {
+    return <PageDataLoading variant="table" message="Carregando auditoria..." />
+  }
 
   return (
     <div className="space-y-6">

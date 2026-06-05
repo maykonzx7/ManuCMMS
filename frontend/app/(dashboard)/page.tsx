@@ -10,6 +10,7 @@ import { useAuth, useCurrentUnit, useCurrentUser } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiAtivoToAsset, mapApiOrdemToServiceOrder, type ApiAtivo, type ApiOrdem } from '@/lib/backend-mappers'
 import { usePermissions } from '@/hooks/use-permissions'
+import { PageDataLoading } from '@/components/shared'
 import { ROUTES } from '@/lib/routes'
 import { ORDER_STATUS_LABELS } from '@/lib/constants'
 
@@ -54,7 +55,7 @@ function ExecutiveHome() {
   const [ativos, setAtivos] = useState<ReturnType<typeof mapApiAtivoToAsset>[]>([])
   const [ordens, setOrdens] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
   const [dashboard, setDashboard] = useState<DashboardExecutivoResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!isAuthenticated || !unidadeAtual?.id) return
@@ -119,6 +120,10 @@ function ExecutiveHome() {
     updatedAt: new Date().toISOString(),
   }))
 
+  if (isLoading) {
+    return <PageDataLoading variant="dashboard" message="Carregando painel executivo..." />
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -146,14 +151,6 @@ function ExecutiveHome() {
         <KPICard title="Custo Mensal" value={`R$ ${(dashboard?.kpis.custoMensalEstimado ?? 0).toFixed(2)}`} description="Estimativa operacional" icon={Package} />
       </div>
 
-      {isLoading ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sincronizando dados</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Atualizando indicadores da unidade selecionada...</CardContent>
-        </Card>
-      ) : null}
     </div>
   )
 }
@@ -163,7 +160,7 @@ function TechnicianHome() {
   const user = useCurrentUser()
   const unidadeAtual = useCurrentUnit()
   const [ordens, setOrdens] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken || !unidadeAtual?.id || !user?.id) return
@@ -187,6 +184,10 @@ function TechnicianHome() {
   const minhasRecentes = ordens
     .filter((o) => o.status === 'ABERTA' || o.status === 'EM_EXECUCAO')
     .slice(0, 6)
+
+  if (isLoading) {
+    return <PageDataLoading variant="dashboard" message="Carregando suas ordens..." />
+  }
 
   return (
     <div className="space-y-6">
@@ -216,9 +217,7 @@ function TechnicianHome() {
           <CardTitle>Próximas ações</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando suas ordens...</p>
-          ) : minhasRecentes.length === 0 ? (
+          {minhasRecentes.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma OS aberta ou em execução atribuída a você.</p>
           ) : (
             minhasRecentes.map((ordem) => (

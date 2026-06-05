@@ -24,6 +24,7 @@ type UsuarioRow = {
   authSub: string;
   idUnidade: string;
   nome: string;
+  fotoUrl?: string | null;
   email: string;
   perfil: string;
   status: string;
@@ -156,6 +157,7 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
         auth_sub AS "authSub",
         id_unidade AS "idUnidade",
         nome,
+        foto_url AS "fotoUrl",
         email,
         perfil,
         status::text AS status
@@ -537,6 +539,7 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       authSub: r.authSub,
       idUnidade: r.idUnidade,
       nome: r.nome,
+      fotoUrl: r.fotoUrl ?? null,
       email: r.email,
       perfil: r.perfil,
       status: r.status,
@@ -544,6 +547,16 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       cargos,
       permissoes,
     };
+  }
+
+  async updateFotoUrl(idUsuario: string, fotoUrl: string | null): Promise<void> {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE usuario
+      SET
+        foto_url = ${fotoUrl},
+        updated_at = NOW()
+      WHERE id = ${idUsuario}::uuid
+    `);
   }
 
   private async loadEmpresaContext(

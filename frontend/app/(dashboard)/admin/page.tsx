@@ -19,6 +19,7 @@ import { apiRequest } from '@/lib/api'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { toast } from 'sonner'
+import { PageDataLoading } from '@/components/shared'
 import {
   ConvitesPanel,
   InviteLinkDialog,
@@ -86,7 +87,7 @@ export default function AdminPage() {
   const company = useCurrentCompany()
   const [painel, setPainel] = useState<PainelResponse | null>(null)
   const [unidades, setUnidades] = useState<UnidadeItem[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [emailDestino, setEmailDestino] = useState('')
   const [nomeDestino, setNomeDestino] = useState('')
   const [cargoCodigo, setCargoCodigo] = useState('')
@@ -321,6 +322,10 @@ export default function AdminPage() {
       estado: prev.estado || result.uf,
     }))
     setCepEmpresaLoading(false)
+  }
+
+  if (isLoading && !painel) {
+    return <PageDataLoading variant="dashboard" message="Carregando painel de gestão..." />
   }
 
   return (

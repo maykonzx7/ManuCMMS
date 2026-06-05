@@ -223,6 +223,7 @@ model Usuario {
   idUnidade         String           @map("id_unidade") @db.Uuid
   unidade           UnidadeFabril    @relation(fields: [idUnidade], references: [id])
   nome              String           @db.VarChar(150)
+  fotoUrl           String?          @map("foto_url") @db.VarChar(2048)
   credencial        String?          @unique @db.VarChar(60)
   email             String           @unique @db.VarChar(100)
   perfil            PerfilUsuario

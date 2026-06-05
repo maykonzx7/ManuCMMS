@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session } from '@supabase/supabase-js'
 import type { User, Company, Unit, SessionData } from '@/types'
 import { apiRequest, setApiCompanySlug } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseConfig } from '@/lib/supabase'
 
 type BackendMe = {
   email: string | null
@@ -13,6 +13,7 @@ type BackendMe = {
     idUnidade: string
     nome: string
     email: string
+    fotoUrl?: string | null
     perfil: string
     status?: string
     empresa: {
@@ -20,6 +21,12 @@ type BackendMe = {
       nomeEmpresa: string
       slug: string
     } | null
+    cargos?: Array<{
+      id: string
+      codigo: string
+      nome: string
+      nivelHierarquico: number
+    }>
   } | null
 }
 
@@ -42,6 +49,7 @@ interface AuthContextType {
   updatePassword: (novaSenha: string) => Promise<void>
   logout: () => Promise<void>
   setUnidadeAtual: (unidade: Unit) => void
+  refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -96,6 +104,8 @@ function toSessionData(me: BackendMe, unidades: BackendUnit[]): SessionData | nu
     id: me.usuario.id,
     nome: me.usuario.nome,
     email: me.usuario.email,
+    avatar: me.usuario.fotoUrl ?? undefined,
+    cargoNome: me.usuario.cargos?.[0]?.nome,
     perfil: mapPerfil(me.usuario.perfil),
     ativo: (me.usuario.status ?? 'ATIVO').toUpperCase() === 'ATIVO',
     empresaId: me.usuario.empresa.id,
@@ -124,7 +134,7 @@ function toSessionData(me: BackendMe, unidades: BackendUnit[]): SessionData | nu
 export function AuthProvider({ children }: AuthProviderProps) {
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(supabaseConfig.isConfigured)
   const [isPlatformOperator, setIsPlatformOperator] = useState(false)
 
   const hydrateFromSupabase = useCallback(async (currentSession: Session | null, preferredCompanySlug?: string | null) => {
@@ -302,6 +312,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSessionData((prev) => (prev ? { ...prev, unidadeAtual: unidade } : prev))
   }, [])
 
+  const refreshSession = useCallback(async () => {
+    if (!accessToken) return
+    const companySlug = sessionData?.empresa.slug ?? null
+    const headers = companySlug ? { 'x-company-slug': companySlug } : undefined
+    const me = await apiRequest<BackendMe>('/me', { accessToken, headers })
+    const unidades = await apiRequest<BackendUnit[]>('/unidades', { accessToken, headers })
+    const nextSession = toSessionData(me, unidades)
+    if (nextSession) {
+      setSessionData((prev) => ({
+        ...nextSession,
+        unidadeAtual: prev?.unidadeAtual ?? nextSession.unidadeAtual,
+      }))
+    }
+  }, [accessToken, sessionData?.empresa.slug])
+
   const value = useMemo<AuthContextType>(() => ({
     session: sessionData,
     isAuthenticated: !!sessionData,
@@ -314,7 +339,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     updatePassword,
     logout,
     setUnidadeAtual,
-  }), [accessToken, isLoading, isPlatformOperator, login, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual])
+    refreshSession,
+  }), [accessToken, isLoading, isPlatformOperator, login, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual, refreshSession])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { toast } from 'sonner'
+import { PageDataLoading } from '@/components/shared'
 
 type IntegrationStatus = {
   ok: boolean
@@ -57,7 +58,7 @@ export default function IntegracoesPage() {
   const [data, setData] = useState<IntegracoesStatusResponse | null>(null)
   const [integracao, setIntegracao] = useState<IntegracaoEmpresaResponse | null>(null)
   const [webhookUrl, setWebhookUrl] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [savingWebhook, setSavingWebhook] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -165,6 +166,10 @@ export default function IntegracoesPage() {
     if (!key) return
     await navigator.clipboard.writeText(key)
     toast.success('API key copiada.')
+  }
+
+  if (isLoading && !data) {
+    return <PageDataLoading variant="cards" message="Carregando integrações..." />
   }
 
   return (

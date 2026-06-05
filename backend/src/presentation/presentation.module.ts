@@ -11,7 +11,9 @@ import { AuthorizeUsuarioPermissionUseCase } from '../application/iam/authorize-
 import { AuthorizePlatformOperatorUseCase } from '../application/iam/authorize-platform-operator.use-case';
 import { EnforceUnidadeScopeUseCase } from '../application/iam/enforce-unidade-scope.use-case';
 import { GetUsuarioByIdInUnidadeUseCase } from '../application/iam/get-usuario-by-id-in-unidade.use-case';
+import { UpdateMeuPerfilUseCase } from '../application/iam/update-meu-perfil.use-case';
 import { ListUsuariosByUnidadeUseCase } from '../application/iam/list-usuarios-by-unidade.use-case';
+import { ActivateConviteAcessoUseCase } from '../application/onboarding/activate-convite-acesso.use-case';
 import { AcceptConviteAcessoUseCase } from '../application/onboarding/accept-convite-acesso.use-case';
 import { CancelConviteAcessoUseCase } from '../application/onboarding/cancel-convite-acesso.use-case';
 import { CreateConviteAcessoUseCase } from '../application/onboarding/create-convite-acesso.use-case';
@@ -66,6 +68,7 @@ import { MongoHealthIndicator } from '../infrastructure/health/mongo-health.indi
 import { RabbitmqHealthIndicator } from '../infrastructure/health/rabbitmq-health.indicator';
 import { RedisHealthIndicator } from '../infrastructure/health/redis-health.indicator';
 import { RequestRateLimitService } from './http/request-rate-limit.service';
+import { SupabaseAdminService } from '../infrastructure/auth/supabase-admin.service';
 
 @Module({
   imports: [TerminusModule, AuthModule],
@@ -96,6 +99,7 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     GetUnidadeByIdUseCase,
     ListUsuariosByUnidadeUseCase,
     GetUsuarioByIdInUnidadeUseCase,
+    UpdateMeuPerfilUseCase,
     AuthorizeUsuarioPermissionUseCase,
     AuthorizePlatformOperatorUseCase,
     EnforceUnidadeScopeUseCase,
@@ -104,7 +108,9 @@ import { RequestRateLimitService } from './http/request-rate-limit.service';
     ListConvitesAcessoUseCase,
     CancelConviteAcessoUseCase,
     ResendConviteAcessoUseCase,
+    ActivateConviteAcessoUseCase,
     AcceptConviteAcessoUseCase,
+    SupabaseAdminService,
     NotificacaoService,
     ListAtivosByUnidadeUseCase,
     CreateAtivoUseCase,

@@ -12,6 +12,7 @@ import { apiRequest } from '@/lib/api'
 import { mapApiAtivoToAsset, mapApiOrdemToServiceOrder, type ApiAtivo, type ApiOrdem } from '@/lib/backend-mappers'
 import { ASSET_STATUS_COLORS, ASSET_STATUS_LABELS, MAINTENANCE_TYPE_LABELS, ORDER_STATUS_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { PageDataLoading } from '@/components/shared'
 
 type ApiAtivoDetalhe = ApiAtivo
 
@@ -22,9 +23,11 @@ export default function AssetDetailPage() {
   const [asset, setAsset] = useState<ReturnType<typeof mapApiAtivoToAsset> | null>(null)
   const [historico, setHistorico] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
 
   const load = async () => {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
+    setIsPageLoading(true)
     try {
       const [res, ordensRes] = await Promise.all([
         apiRequest<ApiAtivoDetalhe>(`/unidades/${unit.id}/ativos/${params.id}`, { accessToken }),
@@ -37,12 +40,18 @@ export default function AssetDetailPage() {
       setAsset(null)
       setHistorico([])
       setError(e instanceof Error ? e.message : 'Falha ao carregar ativo')
+    } finally {
+      setIsPageLoading(false)
     }
   }
 
   useEffect(() => {
     void load()
   }, [accessToken, unit?.id, params.id])
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="detail" message="Carregando ativo..." />
+  }
 
   if (!asset) {
     return (
@@ -52,7 +61,7 @@ export default function AssetDetailPage() {
         </Button>
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            {error || 'Carregando ativo...'}
+            {error || 'Ativo não encontrado.'}
           </CardContent>
         </Card>
       </div>

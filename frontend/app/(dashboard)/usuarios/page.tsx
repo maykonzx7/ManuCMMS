@@ -52,7 +52,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { EmptyState } from '@/components/shared'
+import { EmptyState, PageDataLoading } from '@/components/shared'
 import { USER_ROLE_LABELS, USER_ROLE_OPTIONS } from '@/lib/constants'
 import { usePermissions } from '@/hooks/use-permissions'
 import type { UserRole } from '@/types'
@@ -92,6 +92,7 @@ export default function UsersPage() {
   const [unidadesConvite, setUnidadesConvite] = useState<Array<{ id: string; nome: string }>>([])
   const [idUnidadeDestino, setIdUnidadeDestino] = useState('__CURRENT__')
   const [usersError, setUsersError] = useState<string | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const [convitesRefreshKey, setConvitesRefreshKey] = useState(0)
   const [inviteLinkDialog, setInviteLinkDialog] = useState<{
     emailDestino: string
@@ -106,6 +107,7 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     if (!accessToken || !unit?.id || !company?.id) return
+    setIsPageLoading(true)
     try {
       const res = await apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, { accessToken })
       setUsers(res.map((item) => mapApiUsuarioToUser(item, company.id, unit.id)))
@@ -113,6 +115,8 @@ export default function UsersPage() {
     } catch (error) {
       setUsers([])
       setUsersError(error instanceof Error ? error.message : 'Falha ao carregar usuários')
+    } finally {
+      setIsPageLoading(false)
     }
   }
 
@@ -232,6 +236,10 @@ export default function UsersPage() {
     } finally {
       setIsSubmittingInvite(false)
     }
+  }
+
+  if (isPageLoading) {
+    return <PageDataLoading variant="table" message="Carregando usuários..." />
   }
 
   return (
