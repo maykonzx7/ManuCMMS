@@ -15,7 +15,7 @@ function LoginSkeletonPanel({ message }: { message: string }) {
     <div className="space-y-6">
       <div className="flex justify-center">
         <img
-          src="/logo-nome.png"
+          src="/icon.svg"
           alt="ManuCMMS"
           className="h-12 w-auto max-w-[260px] object-contain"
         />

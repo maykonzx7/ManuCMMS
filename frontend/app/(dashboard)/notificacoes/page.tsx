@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { resolveMediaUrl } from '@/lib/media-url'
 import { useRealtimeConnection } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
@@ -230,7 +231,7 @@ export default function NotificacoesPage() {
                         {notification.fotoUrl ? (
                           <div className="pt-2">
                             <img
-                              src={notification.fotoUrl}
+                              src={resolveMediaUrl(notification.fotoUrl) ?? notification.fotoUrl}
                               alt="Evidência da intervenção"
                               className="max-h-40 rounded-md border object-cover"
                             />
@@ -317,7 +318,7 @@ export default function NotificacoesPage() {
                         {notification.fotoUrl ? (
                           <div className="pt-2">
                             <img
-                              src={notification.fotoUrl}
+                              src={resolveMediaUrl(notification.fotoUrl) ?? notification.fotoUrl}
                               alt="Evidência da intervenção"
                               className="max-h-40 rounded-md border object-cover"
                             />

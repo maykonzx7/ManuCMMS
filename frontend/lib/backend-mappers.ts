@@ -1,4 +1,5 @@
 import type { Asset, ServiceOrder, Unit, User } from '@/types'
+import { resolveMediaUrl } from '@/lib/media-url'
 
 export type ApiAtivo = {
   id?: string
@@ -188,7 +189,7 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
       input.fotoProblema
         ? {
             id: `${id}-foto-problema`,
-            url: input.fotoProblema,
+            url: resolveMediaUrl(input.fotoProblema) ?? input.fotoProblema,
             descricao: 'Foto do problema',
             ordemServicoId: id,
             createdAt: input.dataAbertura,
@@ -197,7 +198,7 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
       input.fotoSolucao
         ? {
             id: `${id}-foto-solucao`,
-            url: input.fotoSolucao,
+            url: resolveMediaUrl(input.fotoSolucao) ?? input.fotoSolucao,
             descricao: 'Foto da solução',
             ordemServicoId: id,
             createdAt: input.dataFechamento ?? input.dataAbertura,
@@ -206,7 +207,7 @@ export function mapApiOrdemToServiceOrder(input: ApiOrdem, unidadeId: string): S
       input.fotoAnexo
         ? {
             id: `${id}-foto-anexo`,
-            url: input.fotoAnexo,
+            url: resolveMediaUrl(input.fotoAnexo) ?? input.fotoAnexo,
             descricao: 'Foto da intervenção',
             ordemServicoId: id,
             createdAt: input.dataFechamento ?? input.dataAbertura,

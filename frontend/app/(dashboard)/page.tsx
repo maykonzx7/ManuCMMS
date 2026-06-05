@@ -13,6 +13,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { PageDataLoading } from '@/components/shared'
 import { ROUTES } from '@/lib/routes'
 import { ORDER_STATUS_LABELS } from '@/lib/constants'
+import { toast } from 'sonner'
 
 type DashboardExecutivoResponse = {
   periodo: {
@@ -50,32 +51,37 @@ type DashboardExecutivoResponse = {
 }
 
 function ExecutiveHome() {
-  const { isAuthenticated } = useAuth()
+  const { accessToken, isAuthenticated } = useAuth()
   const unidadeAtual = useCurrentUnit()
   const [ativos, setAtivos] = useState<ReturnType<typeof mapApiAtivoToAsset>[]>([])
   const [ordens, setOrdens] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
   const [dashboard, setDashboard] = useState<DashboardExecutivoResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isAuthenticated || !unidadeAtual?.id) return
+    if (!isAuthenticated || !accessToken || !unidadeAtual?.id) return
     setIsLoading(true)
+    setLoadError(null)
     void apiRequest<DashboardExecutivoResponse>(
       `/unidades/${unidadeAtual.id}/dashboard/executivo`,
-      {},
+      { accessToken },
     )
       .then((res) => {
         setDashboard(res)
         setAtivos(res.recentes.ativos.map((item) => mapApiAtivoToAsset(item, unidadeAtual.id)))
         setOrdens(res.recentes.ordens.map((item) => mapApiOrdemToServiceOrder(item, unidadeAtual.id)))
       })
-      .catch(() => {
+      .catch((error) => {
         setDashboard(null)
         setAtivos([])
         setOrdens([])
+        const message = error instanceof Error ? error.message : 'Falha ao carregar painel executivo'
+        setLoadError(message)
+        toast.error(message)
       })
       .finally(() => setIsLoading(false))
-  }, [isAuthenticated, unidadeAtual?.id])
+  }, [accessToken, isAuthenticated, unidadeAtual?.id])
 
   const kpis = useMemo(() => {
     const ordensAbertas = dashboard?.ordens.abertas ?? 0
@@ -131,6 +137,14 @@ function ExecutiveHome() {
         <p className="text-muted-foreground">Indicadores e visão geral da manutenção industrial</p>
       </div>
 
+      {loadError ? (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-destructive">{loadError}</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard title="Total de Ativos" value={kpis.totalAtivos} description={`${kpis.ativosEmManutencao} em manutenção`} icon={Package} />
         <KPICard title="Ordens Abertas" value={kpis.ordensAbertas} description={`${kpis.ordensEmAndamento} em andamento`} icon={ClipboardList} />
@@ -159,30 +173,42 @@ function TechnicianHome() {
   const { accessToken, isAuthenticated } = useAuth()
   const user = useCurrentUser()
   const unidadeAtual = useCurrentUnit()
+  const { role } = usePermissions()
   const [ordens, setOrdens] = useState<ReturnType<typeof mapApiOrdemToServiceOrder>[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const isTecnico = role === 'TECNICO'
 
   useEffect(() => {
-    if (!isAuthenticated || !accessToken || !unidadeAtual?.id || !user?.id) return
+    if (!isAuthenticated || !accessToken || !unidadeAtual?.id) return
     setIsLoading(true)
-    const query = new URLSearchParams({ idTecnico: user.id })
-    void apiRequest<ApiOrdem[]>(`/unidades/${unidadeAtual.id}/ordens-servico?${query}`, { accessToken })
+    setLoadError(null)
+    const query = isTecnico && user?.id
+      ? `?${new URLSearchParams({ idTecnico: user.id }).toString()}`
+      : ''
+    void apiRequest<ApiOrdem[]>(`/unidades/${unidadeAtual.id}/ordens-servico${query}`, { accessToken })
       .then((res) => {
         setOrdens(res.map((item) => mapApiOrdemToServiceOrder(item, unidadeAtual.id)))
       })
-      .catch(() => setOrdens([]))
+      .catch((error) => {
+        setOrdens([])
+        const message = error instanceof Error ? error.message : 'Falha ao carregar ordens'
+        setLoadError(message)
+        toast.error(message)
+      })
       .finally(() => setIsLoading(false))
-  }, [accessToken, isAuthenticated, unidadeAtual?.id, user?.id])
+  }, [accessToken, isAuthenticated, isTecnico, unidadeAtual?.id, user?.id])
 
   const resumo = useMemo(() => {
     const abertas = ordens.filter((o) => o.status === 'ABERTA').length
-    const emExecucao = ordens.filter((o) => o.status === 'EM_EXECUCAO').length
+    const emExecucao = ordens.filter((o) => o.status === 'EM_ANDAMENTO').length
     const concluidas = ordens.filter((o) => o.status === 'CONCLUIDA').length
     return { abertas, emExecucao, concluidas, total: ordens.length }
   }, [ordens])
 
   const minhasRecentes = ordens
-    .filter((o) => o.status === 'ABERTA' || o.status === 'EM_EXECUCAO')
+    .filter((o) => o.status === 'ABERTA' || o.status === 'EM_ANDAMENTO')
     .slice(0, 6)
 
   if (isLoading) {
@@ -193,9 +219,13 @@ function TechnicianHome() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Minhas Ordens</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {isTecnico ? 'Minhas Ordens' : 'Ordens da Unidade'}
+          </h1>
           <p className="text-muted-foreground">
-            Olá, {user?.nome ?? 'técnico'}. Acompanhe suas OS atribuídas nesta unidade.
+            {isTecnico
+              ? `Olá, ${user?.nome ?? 'técnico'}. Acompanhe suas OS atribuídas nesta unidade.`
+              : `Visão operacional das ordens de serviço em ${unidadeAtual?.nome ?? 'sua unidade'}.`}
           </p>
         </div>
         <Button asChild variant="outline">
@@ -205,6 +235,14 @@ function TechnicianHome() {
           </Link>
         </Button>
       </div>
+
+      {loadError ? (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-destructive">{loadError}</p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <KPICard title="Abertas" value={resumo.abertas} description="Aguardando início" icon={ClipboardList} />
@@ -218,7 +256,11 @@ function TechnicianHome() {
         </CardHeader>
         <CardContent className="space-y-3">
           {minhasRecentes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma OS aberta ou em execução atribuída a você.</p>
+            <p className="text-sm text-muted-foreground">
+              {isTecnico
+                ? 'Nenhuma OS aberta ou em execução atribuída a você.'
+                : 'Nenhuma OS aberta ou em execução nesta unidade.'}
+            </p>
           ) : (
             minhasRecentes.map((ordem) => (
               <Link

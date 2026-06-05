@@ -22,7 +22,7 @@ function LoadingHeader({ message }: { message: string }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
       <img
-        src="/manucmms-icon-oficial.png"
+        src="/icon.svg"
         alt=""
         aria-hidden="true"
         className="h-8 w-8 object-contain opacity-90"

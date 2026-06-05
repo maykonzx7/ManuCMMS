@@ -31,28 +31,16 @@ export default function manifest(): PwaManifest {
     categories: ['business', 'productivity'],
     icons: [
       {
-        src: '/icon',
-        sizes: '192x192',
-        type: 'image/png',
+        src: '/icon.svg',
+        sizes: 'any',
+        type: 'image/svg+xml',
         purpose: 'any',
       },
       {
-        src: '/icon',
+        src: '/icon.svg',
         sizes: '512x512',
-        type: 'image/png',
-        purpose: 'any',
-      },
-      {
-        src: '/icon',
-        sizes: '512x512',
-        type: 'image/png',
+        type: 'image/svg+xml',
         purpose: 'maskable',
-      },
-      {
-        src: '/apple-icon',
-        sizes: '180x180',
-        type: 'image/png',
-        purpose: 'any',
       },
     ],
     capture_links: 'new-client',

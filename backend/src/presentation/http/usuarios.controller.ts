@@ -4,6 +4,7 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { GetUsuarioByIdInUnidadeUseCase } from '../../application/iam/get-usuario-by-id-in-unidade.use-case';
 import { ListUsuariosByUnidadeUseCase } from '../../application/iam/list-usuarios-by-unidade.use-case';
+import { toUsuarioPublicResponse } from './response-mappers';
 
 /**
  * RF-01 v1: leitura de usuários da unidade autenticada.
@@ -24,7 +25,8 @@ export class UsuariosController {
       'usuario.visualizar_unidade',
     );
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.listUsuarios.execute(unidadeId);
+    const usuarios = await this.listUsuarios.execute(unidadeId);
+    return usuarios.map(toUsuarioPublicResponse);
   }
 
   @Get(':usuarioId')
@@ -38,6 +40,10 @@ export class UsuariosController {
       'usuario.visualizar_unidade',
     );
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
-    return this.getUsuarioByIdInUnidade.execute(unidadeId, usuarioId);
+    const usuario = await this.getUsuarioByIdInUnidade.execute(
+      unidadeId,
+      usuarioId,
+    );
+    return toUsuarioPublicResponse(usuario);
   }
 }

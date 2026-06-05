@@ -33,8 +33,10 @@ import {
 } from '@/lib/constants'
 import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
-import { useAuth, useCurrentUnit, useCurrentUser } from '@/lib/auth'
-import { apiRequest, downloadApiFile } from '@/lib/api'
+import { useAuth, useCurrentCompany, useCurrentUnit, useCurrentUser } from '@/lib/auth'
+import { apiRequest, downloadApiFile, peekApiCache } from '@/lib/api'
+import { buildApiCacheKey } from '@/lib/api-cache'
+import { resolveMediaUrl } from '@/lib/media-url'
 import { mapApiOrdemToServiceOrder, type ApiOrdem, type ApiOrdemComentario } from '@/lib/backend-mappers'
 import { toast } from 'sonner'
 import {
@@ -80,8 +82,9 @@ type ApiPeca = {
 
 export default function OrderDetailPage() {
   const params = useParams()
-  const { canManageOrderStatus, canEditOrder } = usePermissions()
+  const { canManageOrderStatus, canEditOrder, role } = usePermissions()
   const { accessToken } = useAuth()
+  const company = useCurrentCompany()
   const currentUser = useCurrentUser()
   const unit = useCurrentUnit()
   const [order, setOrder] = useState<ReturnType<typeof mapApiOrdemToServiceOrder> | null>(null)
@@ -153,12 +156,12 @@ export default function OrderDetailPage() {
 
   const loadOrder = async () => {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
-    setIsPageLoading(true)
+    const path = `/unidades/${unit.id}/ordens-servico/${params.id}`
+    const cacheKey = buildApiCacheKey('GET', path, company?.slug ?? null)
+    const hasCached = peekApiCache<ApiOrdem>(cacheKey) !== undefined
+    if (!hasCached) setIsPageLoading(true)
     try {
-      const res = await apiRequest<ApiOrdem>(
-        `/unidades/${unit.id}/ordens-servico/${params.id}`,
-        { accessToken },
-      )
+      const res = await apiRequest<ApiOrdem>(path, { accessToken })
       setRawOrder(res)
       setOrder(mapApiOrdemToServiceOrder(res, unit.id))
     } catch {
@@ -395,23 +398,31 @@ export default function OrderDetailPage() {
       toast.error('Selecione o técnico de destino.')
       return
     }
+    if (transferTecnicoId === rawOrder?.idTecnico) {
+      toast.error('Selecione um técnico diferente do responsável atual.')
+      return
+    }
     if (transferMotivo.trim().length < 10) {
       toast.error('Informe um motivo com no mínimo 10 caracteres.')
       return
     }
-    await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}`, {
-      method: 'PATCH',
-      accessToken,
-      body: {
-        idTecnico: transferTecnicoId,
-        motivoTransferencia: transferMotivo.trim(),
-      },
-    })
-    toast.success('OS transferida com sucesso.')
-    setTransferOpen(false)
-    setTransferTecnicoId('')
-    setTransferMotivo('')
-    await loadOrder()
+    try {
+      await apiRequest(`/unidades/${unit.id}/ordens-servico/${params.id}`, {
+        method: 'PATCH',
+        accessToken,
+        body: {
+          idTecnico: transferTecnicoId,
+          motivoTransferencia: transferMotivo.trim(),
+        },
+      })
+      toast.success('OS transferida com sucesso.')
+      setTransferOpen(false)
+      setTransferTecnicoId('')
+      setTransferMotivo('')
+      await loadOrder()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao transferir OS')
+    }
   }
 
   const formatDate = (dateString?: string) => {
@@ -520,18 +531,22 @@ export default function OrderDetailPage() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('csv')}>
-            <Download className="mr-2 h-4 w-4" />
-            CSV
-          </Button>
-          <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('json')}>
-            <Download className="mr-2 h-4 w-4" />
-            JSON
-          </Button>
-          <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('pdf')}>
-            <Download className="mr-2 h-4 w-4" />
-            PDF
-          </Button>
+          {role !== 'TECNICO' ? (
+            <>
+              <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('csv')}>
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
+              <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('json')}>
+                <Download className="mr-2 h-4 w-4" />
+                JSON
+              </Button>
+              <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('pdf')}>
+                <Download className="mr-2 h-4 w-4" />
+                PDF
+              </Button>
+            </>
+          ) : null}
           {canManageOrderStatus && order.status === 'ABERTA' && (
             <Button onClick={() => setIniciarWizardOpen(true)}>
               <Play className="mr-2 h-4 w-4" />
@@ -560,14 +575,12 @@ export default function OrderDetailPage() {
               Escalar
             </Button>
           )}
-          {!['CONCLUIDA', 'CANCELADA'].includes(order.status) && (
+          {canEditOrder && ['ABERTA', 'EM_ANDAMENTO'].includes(order.status) && (
             <Button
               variant="outline"
               onClick={() => {
-                if (!canEditOrder) {
-                  toast.error('Transferência disponível apenas para Supervisor, Gestor ou Admin.')
-                  return
-                }
+                setTransferTecnicoId('')
+                setTransferMotivo('')
                 setTransferOpen(true)
               }}
             >
@@ -665,30 +678,57 @@ export default function OrderDetailPage() {
                     {rawOrder?.fotoProblema && (
                       <button
                         type="button"
-                        onClick={() => setPhotoPreview({ url: rawOrder.fotoProblema!, label: 'Foto do problema' })}
+                        onClick={() =>
+                          setPhotoPreview({
+                            url: resolveMediaUrl(rawOrder.fotoProblema!) ?? rawOrder.fotoProblema!,
+                            label: 'Foto do problema',
+                          })
+                        }
                         className="block overflow-hidden rounded-md border text-left transition hover:opacity-90"
                       >
-                        <img src={rawOrder.fotoProblema} alt="Foto do problema" className="h-40 w-full object-cover" />
+                        <img
+                          src={resolveMediaUrl(rawOrder.fotoProblema) ?? rawOrder.fotoProblema}
+                          alt="Foto do problema"
+                          className="h-40 w-full object-cover"
+                        />
                         <p className="p-2 text-xs text-muted-foreground">Problema · clique para ampliar</p>
                       </button>
                     )}
                     {rawOrder?.fotoSolucao && (
                       <button
                         type="button"
-                        onClick={() => setPhotoPreview({ url: rawOrder.fotoSolucao!, label: 'Foto da solução' })}
+                        onClick={() =>
+                          setPhotoPreview({
+                            url: resolveMediaUrl(rawOrder.fotoSolucao!) ?? rawOrder.fotoSolucao!,
+                            label: 'Foto da solução',
+                          })
+                        }
                         className="block overflow-hidden rounded-md border text-left transition hover:opacity-90"
                       >
-                        <img src={rawOrder.fotoSolucao} alt="Foto da solução" className="h-40 w-full object-cover" />
+                        <img
+                          src={resolveMediaUrl(rawOrder.fotoSolucao) ?? rawOrder.fotoSolucao}
+                          alt="Foto da solução"
+                          className="h-40 w-full object-cover"
+                        />
                         <p className="p-2 text-xs text-muted-foreground">Solução · clique para ampliar</p>
                       </button>
                     )}
                     {rawOrder?.fotoAnexo && (
                       <button
                         type="button"
-                        onClick={() => setPhotoPreview({ url: rawOrder.fotoAnexo!, label: 'Foto da intervenção' })}
+                        onClick={() =>
+                          setPhotoPreview({
+                            url: resolveMediaUrl(rawOrder.fotoAnexo!) ?? rawOrder.fotoAnexo!,
+                            label: 'Foto da intervenção',
+                          })
+                        }
                         className="block overflow-hidden rounded-md border text-left transition hover:opacity-90"
                       >
-                        <img src={rawOrder.fotoAnexo} alt="Foto da intervenção" className="h-40 w-full object-cover" />
+                        <img
+                          src={resolveMediaUrl(rawOrder.fotoAnexo) ?? rawOrder.fotoAnexo}
+                          alt="Foto da intervenção"
+                          className="h-40 w-full object-cover"
+                        />
                         <p className="p-2 text-xs text-muted-foreground">Intervenção · clique para ampliar</p>
                       </button>
                     )}
@@ -728,7 +768,10 @@ export default function OrderDetailPage() {
                   ) : (
                     <div className="mt-2 flex items-center gap-3 rounded-md border p-3">
                       <Avatar className="h-10 w-10 rounded-lg">
-                        <AvatarImage src={confirmacaoFechamento.fotoUrl ?? undefined} alt={confirmacaoFechamento.nome ?? ''} />
+                        <AvatarImage
+                          src={resolveMediaUrl(confirmacaoFechamento.fotoUrl) ?? confirmacaoFechamento.fotoUrl ?? undefined}
+                          alt={confirmacaoFechamento.nome ?? ''}
+                        />
                         <AvatarFallback className="rounded-lg">
                           {(confirmacaoFechamento.nome ?? 'T').slice(0, 2).toUpperCase()}
                         </AvatarFallback>

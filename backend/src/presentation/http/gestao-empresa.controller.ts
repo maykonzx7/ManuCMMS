@@ -17,6 +17,7 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import { resolveFrontendBaseUrl } from '../../application/shared/frontend-link.shared';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
+import { maskApiKeyIntegracao } from './response-mappers';
 
 const PERFIS = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'] as const;
 
@@ -843,7 +844,6 @@ export class GestaoEmpresaController {
     return {
       ok: true,
       email,
-      resetLink: payload?.action_link ?? null,
     };
   }
 
@@ -927,7 +927,11 @@ export class GestaoEmpresaController {
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
-    return this.integracaoWebhook.getResumo(empresaId);
+    const resumo = await this.integracaoWebhook.getResumo(empresaId);
+    return {
+      ...resumo,
+      apiKeyIntegracao: maskApiKeyIntegracao(resumo.apiKeyIntegracao),
+    };
   }
 
   @Patch('integracao')
@@ -950,7 +954,11 @@ export class GestaoEmpresaController {
       await this.integracaoWebhook.updateWebhookUrl(empresaId, webhookUrl);
     }
 
-    return this.integracaoWebhook.getResumo(empresaId);
+    const resumo = await this.integracaoWebhook.getResumo(empresaId);
+    return {
+      ...resumo,
+      apiKeyIntegracao: maskApiKeyIntegracao(resumo.apiKeyIntegracao),
+    };
   }
 
   @Post('integracao/regenerar-api-key')

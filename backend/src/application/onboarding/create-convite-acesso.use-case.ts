@@ -203,7 +203,6 @@ export class CreateConviteAcessoUseCase {
       },
     });
 
-    const isProd = this.config.get<string>('NODE_ENV') === 'production';
     const inviteLink = buildInviteAccessLink(this.config, {
       emailDestino,
       empresaSlug: empresa.slug,
@@ -244,12 +243,8 @@ export class CreateConviteAcessoUseCase {
         cargoCodigo: conviteCargoCodigo,
         idUnidadeDestino,
         expiraEm: expiraEm.toISOString(),
-        token: isProd ? undefined : token,
       },
       entregaEmail,
-      links: {
-        convite: inviteLink,
-      },
     };
   }
 }

@@ -166,9 +166,6 @@ export class ResendConviteAcessoUseCase {
         status: 'PENDENTE' as const,
       },
       entregaEmail,
-      links: {
-        convite: inviteLink,
-      },
     };
   }
 }

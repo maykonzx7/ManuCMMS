@@ -62,7 +62,8 @@ import {
   OsFluxoContinuoPrompt,
 } from '@/components/ordens/os-execution-wizard'
 import { getPodeConcluirOrdem } from '@/lib/os-flow-utils'
-import { apiRequest, downloadApiFile } from '@/lib/api'
+import { apiRequest, downloadApiFile, peekApiCache } from '@/lib/api'
+import { buildApiCacheKey } from '@/lib/api-cache'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
 import { useRealtimeConnection } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
@@ -97,6 +98,7 @@ export default function OrdersPage() {
   const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferOrderId, setTransferOrderId] = useState('')
+  const [transferCurrentTecnicoId, setTransferCurrentTecnicoId] = useState('')
   const [transferTecnicoId, setTransferTecnicoId] = useState('')
   const [transferMotivo, setTransferMotivo] = useState('')
   const [exportandoLista, setExportandoLista] = useState(false)
@@ -106,7 +108,7 @@ export default function OrdersPage() {
   const [wizardOrderId, setWizardOrderId] = useState('')
   const [pecasCatalog, setPecasCatalog] = useState<Array<{ id: string; codigo: string; nome: string; quantidadeEstoque: number; quantidadeMinima: number }>>([])
   const [wizardSubmitting, setWizardSubmitting] = useState(false)
-  const { canCreateOrder, canManageOrderStatus, canEditOrder } = usePermissions()
+  const { canCreateOrder, canManageOrderStatus, canEditOrder, role } = usePermissions()
   const { accessToken } = useAuth()
   const company = useCurrentCompany()
   const currentUnit = useCurrentUnit()
@@ -114,9 +116,12 @@ export default function OrdersPage() {
 
   const loadOrders = async () => {
     if (!accessToken || !currentUnit?.id) return
-    setIsPageLoading(true)
+    const path = `/unidades/${currentUnit.id}/ordens-servico`
+    const cacheKey = buildApiCacheKey('GET', path, company?.slug ?? null)
+    const hasCached = peekApiCache<ApiOrdem[]>(cacheKey) !== undefined
+    if (!hasCached) setIsPageLoading(true)
     try {
-      const res = await apiRequest<ApiOrdem[]>(`/unidades/${currentUnit.id}/ordens-servico`, { accessToken })
+      const res = await apiRequest<ApiOrdem[]>(path, { accessToken })
       setOrders(res.map((item) => ({
         ...mapApiOrdemToServiceOrder(item, currentUnit.id),
         statusSla: item.statusSla,
@@ -288,7 +293,8 @@ export default function OrdersPage() {
       return
     }
     setTransferOrderId(orderId)
-    setTransferTecnicoId(currentTecnicoId ?? '')
+    setTransferCurrentTecnicoId(currentTecnicoId ?? '')
+    setTransferTecnicoId('')
     setTransferMotivo('')
     setTransferOpen(true)
   }
@@ -297,6 +303,10 @@ export default function OrdersPage() {
     if (!accessToken || !currentUnit?.id || !transferOrderId) return
     if (!transferTecnicoId) {
       toast.error('Selecione o técnico de destino.')
+      return
+    }
+    if (transferTecnicoId === transferCurrentTecnicoId) {
+      toast.error('Selecione um técnico diferente do responsável atual.')
       return
     }
     if (transferMotivo.trim().length < 10) {
@@ -315,6 +325,7 @@ export default function OrdersPage() {
       toast.success('OS transferida com sucesso.')
       setTransferOpen(false)
       setTransferOrderId('')
+      setTransferCurrentTecnicoId('')
       setTransferTecnicoId('')
       setTransferMotivo('')
       await loadOrders()
@@ -391,18 +402,22 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('csv')}>
-            <Download className="mr-2 h-4 w-4" />
-            Exportar CSV
-          </Button>
-          <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('json')}>
-            <Download className="mr-2 h-4 w-4" />
-            Exportar JSON
-          </Button>
-          <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('pdf')}>
-            <Download className="mr-2 h-4 w-4" />
-            Exportar PDF
-          </Button>
+          {role !== 'TECNICO' ? (
+            <>
+              <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('csv')}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar CSV
+              </Button>
+              <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('json')}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar JSON
+              </Button>
+              <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('pdf')}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar PDF
+              </Button>
+            </>
+          ) : null}
           {canCreateOrder && (
             <Button asChild>
               <Link href="/ordens/nova">
@@ -647,10 +662,15 @@ export default function OrdersPage() {
                               Concluir
                             </DropdownMenuItem>
                           ) : null}
-                          <DropdownMenuItem onClick={() => openTransfer(order.id, order.responsavelId)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Transferir
-                          </DropdownMenuItem>
+                          {canEditOrder &&
+                          ['ABERTA', 'EM_ANDAMENTO'].includes(order.status) ? (
+                            <DropdownMenuItem
+                              onClick={() => openTransfer(order.id, order.responsavelId)}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Transferir
+                            </DropdownMenuItem>
+                          ) : null}
                           <DropdownMenuSeparator />
                           {canManageOrderStatus &&
                           order.status !== 'CONCLUIDA' &&
@@ -693,11 +713,13 @@ export default function OrdersPage() {
                   <SelectValue placeholder="Selecione o técnico" />
                 </SelectTrigger>
                 <SelectContent>
-                  {tecnicos.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.nome}
-                    </SelectItem>
-                  ))}
+                  {tecnicos
+                    .filter((t) => t.id !== transferCurrentTecnicoId)
+                    .map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session } from '@supabase/supabase-js'
 import type { User, Company, Unit, SessionData } from '@/types'
 import { apiRequest, setApiCompanySlug } from '@/lib/api'
+import { resolveMediaUrl } from '@/lib/media-url'
 import { supabase, supabaseConfig } from '@/lib/supabase'
 
 type BackendMe = {
@@ -104,7 +105,7 @@ function toSessionData(me: BackendMe, unidades: BackendUnit[]): SessionData | nu
     id: me.usuario.id,
     nome: me.usuario.nome,
     email: me.usuario.email,
-    avatar: me.usuario.fotoUrl ?? undefined,
+    avatar: resolveMediaUrl(me.usuario.fotoUrl) ?? undefined,
     cargoNome: me.usuario.cargos?.[0]?.nome,
     perfil: mapPerfil(me.usuario.perfil),
     ativo: (me.usuario.status ?? 'ATIVO').toUpperCase() === 'ATIVO',

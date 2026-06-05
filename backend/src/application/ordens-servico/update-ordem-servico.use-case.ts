@@ -110,6 +110,10 @@ export class UpdateOrdemServicoUseCase {
     const perfil = executorPerfil.toUpperCase();
     const podeEditarConcluida = perfil === 'GESTOR' || perfil === 'ADMIN';
 
+    const mudouTecnico =
+      idTecnico !== undefined &&
+      (atual.idTecnico ?? null) !== (idTecnico ?? null);
+
     if (atual.status === 'CONCLUIDA') {
       if (!podeEditarConcluida) {
         throw new BadRequestException(
@@ -121,15 +125,21 @@ export class UpdateOrdemServicoUseCase {
           'Transferência de técnico não permitida em OS concluída (RN-15)',
         );
       }
-    } else if (atual.status !== 'ABERTA') {
-      throw new BadRequestException(
-        'Somente OS ABERTA pode ser editada antes de iniciar execução.',
-      );
+    } else if (atual.status === 'CANCELADA') {
+      throw new BadRequestException('OS cancelada não pode ser alterada.');
+    } else if (mudouTecnico) {
+      if (!['ABERTA', 'EM_ANDAMENTO'].includes(atual.status)) {
+        throw new BadRequestException(
+          'Transferência de OS permitida apenas para OS aberta ou em andamento.',
+        );
+      }
+    } else if (descricao !== undefined || idTecnico !== undefined) {
+      if (atual.status !== 'ABERTA') {
+        throw new BadRequestException(
+          'Somente OS ABERTA pode ser editada antes de iniciar execução.',
+        );
+      }
     }
-
-    const mudouTecnico =
-      idTecnico !== undefined &&
-      (atual.idTecnico ?? null) !== (idTecnico ?? null);
     const motivoTransferencia = body.motivoTransferencia?.trim();
     if (
       mudouTecnico &&

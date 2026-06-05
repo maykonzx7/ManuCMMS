@@ -48,7 +48,7 @@ export default function CompanyLoginPage() {
     <div className="space-y-6">
       <div className="flex justify-center">
         <img
-          src="/logo-nome.png"
+          src="/icon.svg"
           alt="ManuCMMS"
           className="h-10 w-auto max-w-[220px] object-contain"
         />

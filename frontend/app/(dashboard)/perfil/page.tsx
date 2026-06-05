@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { useAuth, useCurrentUser } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { resolveMediaUrl } from '@/lib/media-url'
 import { USER_ROLE_LABELS } from '@/lib/constants'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
@@ -39,7 +40,7 @@ export default function PerfilPage() {
 
   const previewUrl = useMemo(() => {
     if (fotoFile) return URL.createObjectURL(fotoFile)
-    return me?.fotoUrl ?? currentUser?.avatar ?? null
+    return resolveMediaUrl(me?.fotoUrl ?? currentUser?.avatar ?? null) ?? null
   }, [fotoFile, me?.fotoUrl, currentUser?.avatar])
 
   useEffect(() => {

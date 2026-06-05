@@ -1,3 +1,10 @@
+import {
+  buildApiCacheKey,
+  invalidateApiCacheForMutation,
+  peekApiCache,
+  setApiCache,
+} from './api-cache'
+
 let inMemoryCompanySlug: string | null = null
 
 export function resolveApiBaseUrl() {
@@ -58,11 +65,30 @@ type ApiRequestOptions = {
   body?: unknown
   headers?: Record<string, string>
   cache?: RequestCache
+  /** Usa cache em memória para GET (padrão: true). */
+  useCache?: boolean
 }
 
+export { peekApiCache, invalidateApiCacheForMutation as invalidateApiCache } from './api-cache'
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, headers, cache = 'no-store', accessToken } = options
+  const {
+    method = 'GET',
+    body,
+    headers,
+    cache = 'no-store',
+    accessToken,
+    useCache = method === 'GET',
+  } = options
   const isFormDataBody = typeof FormData !== 'undefined' && body instanceof FormData
+  const companySlug = resolveApiCompanySlug()
+  const cacheKey = buildApiCacheKey(method, path, companySlug)
+
+  if (useCache && method === 'GET') {
+    const cached = peekApiCache<T>(cacheKey)
+    if (cached !== undefined) return cached
+  }
+
   const mergedHeaders: Record<string, string> = {
     ...(headers ?? {}),
   }
@@ -72,7 +98,6 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     mergedHeaders.Authorization = `Bearer ${token}`
   }
   if (!mergedHeaders['x-company-slug']) {
-    const companySlug = resolveApiCompanySlug()
     if (companySlug) {
       mergedHeaders['x-company-slug'] = companySlug
     }
@@ -108,6 +133,12 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
             ? payload.error
             : `Falha na requisicao (${response.status})`
     throw new Error(message)
+  }
+
+  if (useCache && method === 'GET') {
+    setApiCache(cacheKey, payload)
+  } else if (method !== 'GET') {
+    invalidateApiCacheForMutation(path)
   }
 
   return payload as T

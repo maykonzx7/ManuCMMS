@@ -38,6 +38,7 @@ const nextConfig = {
       { source: '/workspace', destination: '/' },
       { source: '/workspace/:path*', destination: '/:path*' },
       { source: '/api/:path*', destination: `${configuredApiBaseUrl}/:path*` },
+      { source: '/uploads/:path*', destination: `${configuredApiBaseUrl}/uploads/:path*` },
     ]
   },
 }

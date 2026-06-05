@@ -69,6 +69,7 @@ import { RabbitmqHealthIndicator } from '../infrastructure/health/rabbitmq-healt
 import { RedisHealthIndicator } from '../infrastructure/health/redis-health.indicator';
 import { RequestRateLimitService } from './http/request-rate-limit.service';
 import { SupabaseAdminService } from '../infrastructure/auth/supabase-admin.service';
+import { SupabaseStorageService } from '../infrastructure/storage/supabase-storage.service';
 
 @Module({
   imports: [TerminusModule, AuthModule],
@@ -111,6 +112,7 @@ import { SupabaseAdminService } from '../infrastructure/auth/supabase-admin.serv
     ActivateConviteAcessoUseCase,
     AcceptConviteAcessoUseCase,
     SupabaseAdminService,
+    SupabaseStorageService,
     NotificacaoService,
     ListAtivosByUnidadeUseCase,
     CreateAtivoUseCase,

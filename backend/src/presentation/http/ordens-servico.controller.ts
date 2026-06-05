@@ -20,6 +20,7 @@ import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { diskStorage } from 'multer';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import { buildUploadPublicPath } from '../../application/shared/upload-url.shared';
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { CancelarOrdemServicoUseCase } from '../../application/ordens-servico/cancelar-ordem-servico.use-case';
 import { CreateOrdemServicoComentarioUseCase } from '../../application/ordens-servico/create-ordem-servico-comentario.use-case';
@@ -94,15 +95,6 @@ const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
 function isImagemMimeType(mimeType: string): boolean {
   return mimeType.startsWith('image/');
-}
-
-function fileToPublicUrl(req: Request, file: Express.Multer.File): string {
-  const baseUrl = process.env.PUBLIC_BASE_URL?.trim();
-  const origin =
-    baseUrl && baseUrl.length > 0
-      ? baseUrl
-      : `${req.protocol}://${req.get('host')}`;
-  return `${origin}/${UPLOADS_DIR}/ordens-servico/${file.filename}`;
 }
 
 function resolveRequestIp(req: Request): string | null {
@@ -381,7 +373,7 @@ export class OrdensServicoController {
       req.usuarioLocal!.id,
       {
         fotoProblema: files.fotoProblema?.[0]
-          ? fileToPublicUrl(req, files.fotoProblema[0])
+          ? buildUploadPublicPath('ordens-servico', files.fotoProblema[0].filename)
           : body.fotoProblema,
         descricaoProblema: body.descricaoProblema,
       },
@@ -489,14 +481,14 @@ export class OrdensServicoController {
       ordemServicoId,
       {
         fotoAnexo: files.fotoAnexo?.[0]
-          ? fileToPublicUrl(req, files.fotoAnexo[0])
+          ? buildUploadPublicPath('ordens-servico', files.fotoAnexo[0].filename)
           : body.fotoAnexo,
         fotoProblema: files.fotoProblema?.[0]
-          ? fileToPublicUrl(req, files.fotoProblema[0])
+          ? buildUploadPublicPath('ordens-servico', files.fotoProblema[0].filename)
           : body.fotoProblema,
         descricaoProblema: body.descricaoProblema,
         fotoSolucao: files.fotoSolucao?.[0]
-          ? fileToPublicUrl(req, files.fotoSolucao[0])
+          ? buildUploadPublicPath('ordens-servico', files.fotoSolucao[0].filename)
           : body.fotoSolucao,
         descricaoSolucao: body.descricaoSolucao,
         assinaturaDigital: assinaturaPayload,

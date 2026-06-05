@@ -188,7 +188,6 @@ export class CreateEmpresaWithInviteUseCase {
       },
     });
 
-    const isProd = this.config.get<string>('NODE_ENV') === 'production';
     const frontendBaseUrl = resolveInviteFrontendBaseUrl({
       frontendNgrokBaseUrl: this.config.get<string>(
         'FRONTEND_NGROK_PUBLIC_BASE_URL',
@@ -268,12 +267,8 @@ export class CreateEmpresaWithInviteUseCase {
         id: conviteId,
         expiraEm: expiraEm.toISOString(),
         cargoCodigo: 'ADMIN',
-        token: isProd ? undefined : inviteToken,
       },
       entregaEmail,
-      links: {
-        convite: inviteLink,
-      },
     };
   }
 }

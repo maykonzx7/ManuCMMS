@@ -57,6 +57,7 @@ export default function IntegracoesPage() {
   const company = useCurrentCompany()
   const [data, setData] = useState<IntegracoesStatusResponse | null>(null)
   const [integracao, setIntegracao] = useState<IntegracaoEmpresaResponse | null>(null)
+  const [revealedApiKey, setRevealedApiKey] = useState<string | null>(null)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [savingWebhook, setSavingWebhook] = useState(false)
@@ -86,8 +87,10 @@ export default function IntegracoesPage() {
       )
       setIntegracao(response)
       setWebhookUrl(response.webhookUrl ?? '')
+      setRevealedApiKey(null)
     } catch {
       setIntegracao(null)
+      setRevealedApiKey(null)
     }
   }
 
@@ -137,7 +140,8 @@ export default function IntegracoesPage() {
         { method: 'POST', accessToken },
       )
       setIntegracao(response)
-      toast.success('Nova API key gerada.')
+      setRevealedApiKey(response.apiKeyIntegracao)
+      toast.success('Nova API key gerada. Copie agora — ela não será exibida novamente.')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao regenerar API key')
     }
@@ -162,11 +166,19 @@ export default function IntegracoesPage() {
   }
 
   const copyApiKey = async () => {
-    const key = integracao?.apiKeyIntegracao
-    if (!key) return
+    const key = revealedApiKey ?? integracao?.apiKeyIntegracao
+    if (!key || key.startsWith('••••')) {
+      toast.error('Gere uma nova API key para copiar o valor completo.')
+      return
+    }
     await navigator.clipboard.writeText(key)
     toast.success('API key copiada.')
   }
+
+  const displayedApiKey =
+    revealedApiKey ??
+    integracao?.apiKeyIntegracao ??
+    'Gere uma chave para habilitar a API'
 
   if (isLoading && !data) {
     return <PageDataLoading variant="cards" message="Carregando integrações..." />
@@ -229,9 +241,9 @@ export default function IntegracoesPage() {
               <Label>API key de parceiro</Label>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Input readOnly value={integracao?.apiKeyIntegracao ?? 'Gere uma chave para habilitar a API'} />
+              <Input readOnly value={displayedApiKey} />
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => void copyApiKey()} disabled={!integracao?.apiKeyIntegracao}>
+                <Button variant="outline" onClick={() => void copyApiKey()} disabled={!revealedApiKey}>
                   <Copy className="mr-2 h-4 w-4" />
                   Copiar
                 </Button>

@@ -217,7 +217,7 @@ export default function UsersPage() {
       toast.success(
         response.entregaEmail?.status === 'ENVIADO'
           ? 'Convite enviado por e-mail'
-          : 'Convite registrado — confira o link abaixo',
+          : 'Convite registrado — o link foi enviado por e-mail quando configurado.',
       )
       if (response.links?.convite) {
         setInviteLinkDialog({
