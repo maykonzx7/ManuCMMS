@@ -68,7 +68,7 @@ export function AppSidebar() {
               <Link href="/workspace">
                 <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-transparent">
                   <Image
-                    src="/icon.svg"
+                    src="/manucmms-icon-oficial.png"
                     alt="Logo ManuCMMS"
                     width={24}
                     height={24}

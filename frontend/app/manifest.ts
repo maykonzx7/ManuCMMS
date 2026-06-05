@@ -31,15 +31,15 @@ export default function manifest(): PwaManifest {
     categories: ['business', 'productivity'],
     icons: [
       {
-        src: '/icon.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
+        src: '/manucmms-icon-oficial.png',
+        sizes: '500x500',
+        type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/icon.svg',
-        sizes: '512x512',
-        type: 'image/svg+xml',
+        src: '/manucmms-icon-oficial.png',
+        sizes: '500x500',
+        type: 'image/png',
         purpose: 'maskable',
       },
     ],
