@@ -93,7 +93,12 @@ interface AuthContextType {
   accessToken: string | null
   isPlatformOperator: boolean
   login: (email: string, senha: string, empresaSlug?: string) => Promise<void>
-  completeInviteAccess: (email: string, senha: string, empresaSlug?: string) => Promise<void>
+  completeInviteAccess: (
+    email: string,
+    senha: string,
+    empresaSlug?: string,
+    authSession?: { accessToken: string; refreshToken: string; expiresIn?: number },
+  ) => Promise<void>
   loginWithGoogle: (empresaSlug?: string, redirectPath?: string) => Promise<void>
   requestPasswordReset: (email: string, redirectPath?: string) => Promise<void>
   updatePassword: (novaSenha: string) => Promise<void>
@@ -409,14 +414,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     email: string,
     senha: string,
     empresaSlug?: string,
+    authSession?: { accessToken: string; refreshToken: string; expiresIn?: number },
   ) => {
+    if (!supabase) {
+      throw new Error('Supabase nao configurado')
+    }
+
     setIsLoading(true)
     try {
       await clearLocalAuthState()
       if (empresaSlug) {
         setApiCompanySlug(empresaSlug)
       }
-      const session = await signInWithPassword(email, senha, empresaSlug)
+
+      let session: Session | null = null
+
+      if (authSession?.accessToken && authSession.refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: authSession.accessToken,
+          refresh_token: authSession.refreshToken,
+        })
+        if (error || !data.session?.access_token) {
+          throw new Error(
+            error?.message ?? 'Falha ao aplicar sessao retornada pelo servidor.',
+          )
+        }
+        session = data.session
+      } else {
+        session = await signInWithPassword(email, senha, empresaSlug)
+      }
+
       explicitAuthRef.current = session.access_token
       try {
         await runHydration(session, empresaSlug ?? null, { intent: 'login', useCache: false })

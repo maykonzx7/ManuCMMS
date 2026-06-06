@@ -87,11 +87,13 @@ export class ActivateConviteAcessoUseCase {
         userMetadata: { full_name: nome },
       };
       const result = await this.acceptConvite.execute(authUser, { token, nome });
+      const authSession = await this.createAuthSession(emailDestino, senha);
       return {
         ...result,
         email: emailDestino,
         empresaSlug: convite.empresaSlug,
         alreadyActivated: true,
+        authSession,
       };
     }
 
@@ -123,13 +125,36 @@ export class ActivateConviteAcessoUseCase {
     };
 
     const result = await this.acceptConvite.execute(authUser, { token, nome });
+    const authSession = await this.createAuthSession(emailDestino, senha);
 
     return {
       ...result,
       email: emailDestino,
       empresaSlug: convite.empresaSlug,
       alreadyActivated: false,
+      authSession,
     };
+  }
+
+  private async createAuthSession(email: string, senha: string) {
+    try {
+      const session = await this.supabaseAdmin.createPasswordSession({
+        email,
+        password: senha,
+      });
+      return {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+        expiresIn: session.expires_in,
+        tokenType: session.token_type,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'Conta ativada, mas nao foi possivel iniciar a sessao automaticamente.',
+      );
+    }
   }
 
   private async provisionAuthUser(

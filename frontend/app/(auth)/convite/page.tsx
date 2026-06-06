@@ -56,6 +56,11 @@ function InvitePageContent() {
         email: string
         empresaSlug?: string
         alreadyActivated?: boolean
+        authSession?: {
+          accessToken: string
+          refreshToken: string
+          expiresIn?: number
+        }
       }>('/convites/ativar', {
         method: 'POST',
         body: {
@@ -72,7 +77,12 @@ function InvitePageContent() {
         setApiCompanySlug(slug)
       }
 
-      await completeInviteAccess(emailLogin, data.senha, slug || undefined)
+      await completeInviteAccess(
+        emailLogin,
+        data.senha,
+        slug || undefined,
+        activation.authSession,
+      )
 
       setIsSuccess(true)
       toast.success(
