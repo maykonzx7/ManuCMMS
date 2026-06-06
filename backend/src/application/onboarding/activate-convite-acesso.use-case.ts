@@ -77,8 +77,18 @@ export class ActivateConviteAcessoUseCase {
     }
 
     if (convite.status === 'ACEITO') {
-      await this.provisionAuthUser(emailDestino, senha, nome);
+      const authSub = await this.provisionAuthUser(emailDestino, senha, nome);
+      const authUser: AuthUserContext = {
+        userId: authSub,
+        email: emailDestino,
+        role: 'authenticated',
+        emailConfirmedAt: new Date().toISOString(),
+        appMetadata: {},
+        userMetadata: { full_name: nome },
+      };
+      const result = await this.acceptConvite.execute(authUser, { token, nome });
       return {
+        ...result,
         email: emailDestino,
         empresaSlug: convite.empresaSlug,
         alreadyActivated: true,

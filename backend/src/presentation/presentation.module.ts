@@ -8,6 +8,7 @@ import { GetAtivoByIdUseCase } from '../application/ativos/get-ativo-by-id.use-c
 import { ListAtivosByUnidadeUseCase } from '../application/ativos/list-ativos-by-unidade.use-case';
 import { UpdateAtivoUseCase } from '../application/ativos/update-ativo.use-case';
 import { AuthorizeUsuarioPermissionUseCase } from '../application/iam/authorize-usuario-permission.use-case';
+import { RemoveUsuarioAcessoUseCase } from '../application/iam/remove-usuario-acesso.use-case';
 import { AuthorizePlatformOperatorUseCase } from '../application/iam/authorize-platform-operator.use-case';
 import { EnforceUnidadeScopeUseCase } from '../application/iam/enforce-unidade-scope.use-case';
 import { GetUsuarioByIdInUnidadeUseCase } from '../application/iam/get-usuario-by-id-in-unidade.use-case';
@@ -102,6 +103,7 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     GetUsuarioByIdInUnidadeUseCase,
     UpdateMeuPerfilUseCase,
     AuthorizeUsuarioPermissionUseCase,
+    RemoveUsuarioAcessoUseCase,
     AuthorizePlatformOperatorUseCase,
     EnforceUnidadeScopeUseCase,
     CreateEmpresaWithInviteUseCase,

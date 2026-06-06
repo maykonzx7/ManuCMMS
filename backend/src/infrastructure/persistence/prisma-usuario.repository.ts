@@ -89,7 +89,10 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     >(Prisma.sql`
       SELECT DISTINCT u.id
       FROM usuario u
-      LEFT JOIN usuario_empresa ue ON ue.usuario_id = u.id
+      JOIN unidade_fabril uf ON uf.id = ${idUnidade}::uuid
+      JOIN usuario_empresa ue ON ue.usuario_id = u.id
+        AND ue.empresa_id = uf.empresa_id
+        AND ue.status = 'ATIVO'
       LEFT JOIN usuario_cargo uc ON uc.usuario_empresa_id = ue.id
       WHERE u.id_unidade = ${idUnidade}::uuid
          OR uc.id_unidade = ${idUnidade}::uuid
@@ -234,6 +237,24 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
         if (again) {
           return again;
         }
+
+        const byEmail = await this.findByEmail(input.email);
+        if (byEmail) {
+          await this.updateAuthSub(byEmail.id, input.authSub);
+          await this.ensureAccessContext({
+            idUsuario: byEmail.id,
+            idUnidade: input.idUnidade,
+            idUnidadeCargo: input.idUnidadeCargo ?? input.idUnidade,
+            empresaId: input.empresaId ?? null,
+            perfil: input.perfil,
+            cargoCodigoEmpresa: input.cargoCodigoEmpresa,
+          });
+          const relinked = await this.findByAuthSub(input.authSub);
+          if (relinked) {
+            return relinked;
+          }
+          return byEmail;
+        }
       }
       throw e;
     }
@@ -278,6 +299,14 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
           NOW(),
           NOW()
         )
+      `);
+    } else {
+      await executor.$executeRaw(Prisma.sql`
+        UPDATE usuario_empresa
+        SET
+          status = 'ATIVO',
+          updated_at = NOW()
+        WHERE id = ${usuarioEmpresaId}::uuid
       `);
     }
 

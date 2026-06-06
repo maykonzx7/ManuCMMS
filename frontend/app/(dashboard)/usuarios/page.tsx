@@ -365,7 +365,9 @@ export default function UsersPage() {
           onSuccess={async () => {
             await loadUsers()
             await loadPainelGestao()
+            setConvitesRefreshKey((value) => value + 1)
           }}
+          onConviteReenviado={(payload) => setInviteLinkDialog(payload)}
         />
       ) : null}
 
@@ -457,7 +459,10 @@ export default function UsersPage() {
                               <RefreshCcw className="mr-2 h-4 w-4" />Resetar senha
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" disabled>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => openUserDialog(user, 'remover-acesso')}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />Remover acesso
                             </DropdownMenuItem>
                           </>

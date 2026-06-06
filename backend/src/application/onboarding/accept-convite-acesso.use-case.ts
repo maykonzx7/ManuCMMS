@@ -95,41 +95,22 @@ export class AcceptConviteAcessoUseCase {
       );
     }
 
-    if (convite.status === 'ACEITO') {
-      const usuarioAceito = await this.usuarios.findByAuthSub(authUser.userId);
-      if (
-        usuarioAceito &&
-        normalizeEmail(usuarioAceito.email) === emailAuth
-      ) {
-        return {
-          convite: {
-            id: convite.id,
-            status: 'ACEITO',
-            empresaId: convite.empresaId,
-            cargoCodigo: usuarioAceito.perfil,
-            idUnidadeDestino: convite.idUnidadeDestino,
-          },
-          usuario: usuarioAceito,
-        };
-      }
-
+    if (convite.status !== 'PENDENTE' && convite.status !== 'ACEITO') {
       throw new BadRequestException('Convite expirado ou indisponivel.');
     }
 
-    if (convite.status !== 'PENDENTE') {
-      throw new BadRequestException('Convite expirado ou indisponivel.');
-    }
-
-    const expiradoRows = await this.prisma.$queryRaw<Array<{ expirado: boolean }>>(
-      Prisma.sql`
+    if (convite.status === 'PENDENTE') {
+      const expiradoRows = await this.prisma.$queryRaw<
+        Array<{ expirado: boolean }>
+      >(Prisma.sql`
         SELECT (expira_em <= NOW()) AS expirado
         FROM convite_acesso
         WHERE id = ${convite.id}::uuid
         LIMIT 1
-      `,
-    );
-    if (expiradoRows[0]?.expirado) {
-      throw new BadRequestException('Convite expirado ou indisponivel.');
+      `);
+      if (expiradoRows[0]?.expirado) {
+        throw new BadRequestException('Convite expirado ou indisponivel.');
+      }
     }
 
     const unidadeRows = await this.unidades.listByEmpresa(convite.empresaId);
@@ -155,100 +136,181 @@ export class AcceptConviteAcessoUseCase {
       emailAuth.split('@')[0] || 'Colaborador',
     );
 
-    let usuarioLocal = await this.usuarios.findByAuthSub(authUser.userId);
-    if (!usuarioLocal) {
-      usuarioLocal = await this.usuarios.createBootstrap({
-        authSub: authUser.userId,
-        email: emailAuth,
-        nome,
-        idUnidade: unidadePrincipal.id,
-        idUnidadeCargo,
-        empresaId: convite.empresaId,
-        perfil,
-        cargoCodigoEmpresa,
-      });
-    } else {
-      await this.usuarios.ensureAccessContext({
-        idUsuario: usuarioLocal.id,
-        idUnidade: unidadePrincipal.id,
-        idUnidadeCargo,
-        empresaId: convite.empresaId,
-        perfil,
-        cargoCodigoEmpresa,
-      });
-      usuarioLocal =
-        (await this.usuarios.findByAuthSub(authUser.userId)) ?? usuarioLocal;
-    }
+    const usuarioLocal = await this.ensureUsuarioLocalFromConvite({
+      authUser,
+      emailAuth,
+      nome,
+      convite,
+      unidadePrincipalId: unidadePrincipal.id,
+      idUnidadeCargo,
+      perfil,
+      cargoCodigoEmpresa,
+    });
 
-    const updatedRows = await this.prisma.$queryRaw<Array<{ id: string }>>(
-      Prisma.sql`
+    if (convite.status === 'PENDENTE') {
+      const updatedRows = await this.prisma.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`
+          UPDATE convite_acesso
+          SET
+            status = 'ACEITO',
+            usuario_criado_id = ${usuarioLocal.id}::uuid,
+            updated_at = NOW()
+          WHERE id = ${convite.id}::uuid
+            AND status = 'PENDENTE'
+            AND expira_em > NOW()
+          RETURNING id
+        `,
+      );
+
+      if (!updatedRows[0]?.id) {
+        const refreshedRows = await this.prisma.$queryRaw<
+          Array<{ status: string; usuarioCriadoId: string | null }>
+        >(Prisma.sql`
+          SELECT status::text AS status, usuario_criado_id AS "usuarioCriadoId"
+          FROM convite_acesso
+          WHERE id = ${convite.id}::uuid
+          LIMIT 1
+        `);
+        const refreshed = refreshedRows[0];
+        if (
+          refreshed?.status === 'ACEITO' &&
+          refreshed.usuarioCriadoId === usuarioLocal.id
+        ) {
+          return this.buildAcceptResponse(convite, usuarioLocal, perfil, idUnidadeCargo);
+        }
+
+        throw new BadRequestException('Convite expirado ou indisponivel.');
+      }
+
+      await this.auditLog.append({
+        idUsuario: usuarioLocal.id,
+        entidadeAfetada: 'ConviteAcesso',
+        idRegistro: convite.id,
+        valorAnterior: {
+          status: 'PENDENTE',
+        },
+        valorNovo: {
+          status: 'ACEITO',
+          empresaId: convite.empresaId,
+          usuarioId: usuarioLocal.id,
+          perfil,
+          idUnidadeCargo,
+        },
+      });
+    } else if (!convite.usuarioCriadoId) {
+      await this.prisma.$executeRaw(Prisma.sql`
         UPDATE convite_acesso
         SET
-          status = 'ACEITO',
           usuario_criado_id = ${usuarioLocal.id}::uuid,
           updated_at = NOW()
         WHERE id = ${convite.id}::uuid
-          AND status = 'PENDENTE'
-          AND expira_em > NOW()
-        RETURNING id
-      `,
-    );
-
-    if (!updatedRows[0]?.id) {
-      const refreshedRows = await this.prisma.$queryRaw<
-        Array<{ status: string; usuarioCriadoId: string | null }>
-      >(Prisma.sql`
-        SELECT status::text AS status, usuario_criado_id AS "usuarioCriadoId"
-        FROM convite_acesso
-        WHERE id = ${convite.id}::uuid
-        LIMIT 1
+          AND usuario_criado_id IS NULL
       `);
-      const refreshed = refreshedRows[0];
-      if (
-        refreshed?.status === 'ACEITO' &&
-        refreshed.usuarioCriadoId === usuarioLocal.id
-      ) {
-        return {
-          convite: {
-            id: convite.id,
-            status: 'ACEITO',
-            empresaId: convite.empresaId,
-            cargoCodigo: perfil,
-            idUnidadeDestino: idUnidadeCargo,
-          },
-          usuario: usuarioLocal,
-        };
-      }
-
-      throw new BadRequestException('Convite expirado ou indisponivel.');
     }
 
-    await this.auditLog.append({
-      idUsuario: usuarioLocal.id,
-      entidadeAfetada: 'ConviteAcesso',
-      idRegistro: convite.id,
-      valorAnterior: {
-        status: 'PENDENTE',
-      },
-      valorNovo: {
-        status: 'ACEITO',
-        empresaId: convite.empresaId,
-        usuarioId: usuarioLocal.id,
-        perfil,
-        idUnidadeCargo,
-      },
-    });
+    return this.buildAcceptResponse(convite, usuarioLocal, perfil, idUnidadeCargo);
+  }
+
+  private buildAcceptResponse(
+    convite: {
+      id: string;
+      empresaId: string;
+      idUnidadeDestino: string | null;
+    },
+    usuarioLocal: Awaited<ReturnType<IUsuarioReadPort['findByAuthSub']>>,
+    perfil: PerfilUsuarioCodigo,
+    idUnidadeCargo: string | null,
+  ) {
+    if (!usuarioLocal) {
+      throw new BadRequestException(
+        'Nao foi possivel concluir o vinculo local do convite.',
+      );
+    }
 
     return {
       convite: {
         id: convite.id,
-        status: 'ACEITO',
+        status: 'ACEITO' as const,
         empresaId: convite.empresaId,
         cargoCodigo: perfil,
         idUnidadeDestino: idUnidadeCargo,
       },
       usuario: usuarioLocal,
     };
+  }
+
+  private async ensureUsuarioLocalFromConvite(input: {
+    authUser: AuthUserContext;
+    emailAuth: string;
+    nome: string;
+    convite: { id: string; empresaId: string };
+    unidadePrincipalId: string;
+    idUnidadeCargo: string | null;
+    perfil: PerfilUsuarioCodigo;
+    cargoCodigoEmpresa: string | null;
+  }) {
+    let usuarioLocal = await this.usuarios.findByAuthSub(input.authUser.userId);
+
+    if (!usuarioLocal) {
+      const existentePorEmail = await this.usuarios.findByEmail(input.emailAuth);
+      if (existentePorEmail) {
+        await this.usuarios.updateAuthSub(
+          existentePorEmail.id,
+          input.authUser.userId,
+        );
+        usuarioLocal =
+          (await this.usuarios.findByAuthSub(input.authUser.userId)) ??
+          existentePorEmail;
+      }
+    }
+
+    if (!usuarioLocal) {
+      usuarioLocal = await this.usuarios.createBootstrap({
+        authSub: input.authUser.userId,
+        email: input.emailAuth,
+        nome: input.nome,
+        idUnidade: input.unidadePrincipalId,
+        idUnidadeCargo: input.idUnidadeCargo,
+        empresaId: input.convite.empresaId,
+        perfil: input.perfil,
+        cargoCodigoEmpresa: input.cargoCodigoEmpresa,
+      });
+    } else {
+      await this.usuarios.ensureAccessContext({
+        idUsuario: usuarioLocal.id,
+        idUnidade: input.unidadePrincipalId,
+        idUnidadeCargo: input.idUnidadeCargo,
+        empresaId: input.convite.empresaId,
+        perfil: input.perfil,
+        cargoCodigoEmpresa: input.cargoCodigoEmpresa,
+      });
+      usuarioLocal =
+        (await this.usuarios.findByAuthSub(input.authUser.userId)) ??
+        usuarioLocal;
+    }
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE usuario
+      SET
+        status = 'ATIVO',
+        nome = ${input.nome},
+        perfil = ${input.perfil}::"PerfilUsuario",
+        id_unidade = ${input.unidadePrincipalId}::uuid,
+        updated_at = NOW()
+      WHERE id = ${usuarioLocal.id}::uuid
+    `);
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE usuario_empresa
+      SET
+        status = 'ATIVO',
+        updated_at = NOW()
+      WHERE usuario_id = ${usuarioLocal.id}::uuid
+        AND empresa_id = ${input.convite.empresaId}::uuid
+    `);
+
+    const refreshed = await this.usuarios.findByAuthSub(input.authUser.userId);
+    return refreshed ?? usuarioLocal;
   }
 
   private async resolveConvitePerfil(

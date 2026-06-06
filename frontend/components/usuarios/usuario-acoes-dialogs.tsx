@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import { USER_ROLE_LABELS, USER_ROLE_OPTIONS } from '@/lib/constants'
 import { apiRequest } from '@/lib/api'
 import type { UserRole } from '@/types'
@@ -53,14 +54,24 @@ export type UsuarioDialogAction =
   | 'acesso'
   | 'reset-senha'
   | 'enviar-email'
+  | 'remover-acesso'
   | null
 
 type EmailActionResponse = {
   ok: boolean
   email: string
   resetLink?: string
-  links?: { acessoConta?: string }
+  links?: { acessoConta?: string; convite?: string }
   entregaEmail?: { status: ConviteEmailStatus; erro?: string }
+}
+
+type RemoveAccessResponse = {
+  ok: boolean
+  email: string
+  conviteReenviado?: {
+    links?: { convite?: string }
+    entregaEmail?: { status: ConviteEmailStatus }
+  } | null
 }
 
 const ACESSO_REGEX = /^[a-z0-9._-]+$/
@@ -86,6 +97,11 @@ type UsuarioAcoesDialogsProps = {
   user: UsuarioGestaoItem | null
   onOpenChange: (open: boolean) => void
   onSuccess: () => Promise<void> | void
+  onConviteReenviado?: (payload: {
+    emailDestino: string
+    link: string
+    emailStatus?: ConviteEmailStatus
+  }) => void
 }
 
 export function UsuarioAcoesDialogs({
@@ -96,8 +112,10 @@ export function UsuarioAcoesDialogs({
   user,
   onOpenChange,
   onSuccess,
+  onConviteReenviado,
 }: UsuarioAcoesDialogsProps) {
   const [submitting, setSubmitting] = useState(false)
+  const [reenviarConvite, setReenviarConvite] = useState(true)
   const [perfil, setPerfil] = useState<UserRole>('TECNICO')
   const [email, setEmail] = useState('')
   const [usuarioAcesso, setUsuarioAcesso] = useState('')
@@ -111,6 +129,7 @@ export function UsuarioAcoesDialogs({
     setUsuarioAcesso(user.usuarioAcesso ?? '')
     setMensagem('')
     setEmailResult(null)
+    setReenviarConvite(true)
   }, [user, action])
 
   const close = () => onOpenChange(false)
@@ -216,6 +235,43 @@ export function UsuarioAcoesDialogs({
       await onSuccess()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha no reset de senha')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleRemoverAcesso = async () => {
+    if (!user) return
+    setSubmitting(true)
+    try {
+      const response = await apiRequest<RemoveAccessResponse>(
+        `/empresas/${empresaId}/gestao/usuarios/${user.id}/remover-acesso`,
+        {
+          method: 'POST',
+          accessToken,
+          body: {
+            reenviarConvite,
+            cargoCodigo: user.perfil,
+          },
+        },
+      )
+      toast.success(
+        reenviarConvite
+          ? 'Acesso removido e novo convite enviado'
+          : 'Acesso removido da empresa',
+      )
+      const conviteLink = response.conviteReenviado?.links?.convite
+      if (conviteLink) {
+        onConviteReenviado?.({
+          emailDestino: response.email,
+          link: conviteLink,
+          emailStatus: response.conviteReenviado?.entregaEmail?.status,
+        })
+      }
+      await onSuccess()
+      close()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao remover acesso')
     } finally {
       setSubmitting(false)
     }
@@ -427,6 +483,48 @@ export function UsuarioAcoesDialogs({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={action === 'remover-acesso'} onOpenChange={onOpenChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover acesso</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  {user.nome} deixará de ter acesso a esta empresa. O vínculo local será removido
+                  e convites anteriores serão cancelados.
+                </p>
+                <label className="flex items-start gap-3 rounded-md border p-3">
+                  <Checkbox
+                    checked={reenviarConvite}
+                    onCheckedChange={(checked) => setReenviarConvite(checked === true)}
+                    disabled={submitting}
+                  />
+                  <span>
+                    <span className="font-medium text-foreground">Reenviar convite por e-mail</span>
+                    <span className="mt-1 block">
+                      Gera um novo link de convite para {user.email} com o perfil atual ({USER_ROLE_LABELS[user.perfil]}).
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={submitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault()
+                void handleRemoverAcesso()
+              }}
+            >
+              {submitting ? 'Removendo...' : 'Remover acesso'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={action === 'enviar-email'} onOpenChange={onOpenChange}>
         <DialogContent>

@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, StatusEmpresa, StatusUsuario } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import { RemoveUsuarioAcessoUseCase } from '../../application/iam/remove-usuario-acesso.use-case';
 import {
   buildAcessoPortalEmail,
   buildResetSenhaEmail,
@@ -36,6 +37,7 @@ export class GestaoEmpresaController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+    private readonly removeUsuarioAcesso: RemoveUsuarioAcessoUseCase,
     private readonly integracaoWebhook: IntegracaoWebhookService,
     @Inject(EMAIL_PORT) private readonly emailPort: IEmailPort,
   ) {}
@@ -887,6 +889,44 @@ export class GestaoEmpresaController {
       email,
       resetLink: payload.action_link,
       entregaEmail: { status: entregaEmail },
+    };
+  }
+
+  @Post('usuarios/:usuarioId/remover-acesso')
+  async removerAcessoUsuario(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body()
+    body: {
+      reenviarConvite?: boolean;
+      cargoCodigo?: string;
+      idUnidadeDestino?: string | null;
+      nomeDestino?: string;
+    },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const result = await this.removeUsuarioAcesso.execute(
+      req.usuarioLocal,
+      empresaId,
+      usuarioId,
+      body,
+    );
+
+    const convite = result.conviteReenviado;
+    return {
+      ok: true,
+      email: result.email,
+      usuarioId: result.usuarioId,
+      conviteReenviado: convite
+        ? {
+            convite: convite.convite,
+            links: convite.links,
+            entregaEmail: { status: convite.entregaEmail },
+          }
+        : null,
     };
   }
 
