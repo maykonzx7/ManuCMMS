@@ -279,6 +279,15 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       empresaId,
     );
     if (!usuarioEmpresaId) {
+      const empresaVinculosRows = await executor.$queryRaw<
+        Array<{ total: number }>
+      >(Prisma.sql`
+        SELECT COUNT(*)::int AS total
+        FROM usuario_empresa
+        WHERE empresa_id = ${empresaId}::uuid
+      `);
+      const isResponsavelPrincipal = (empresaVinculosRows[0]?.total ?? 0) === 0;
+
       usuarioEmpresaId = randomUUID();
       await executor.$executeRaw(Prisma.sql`
         INSERT INTO usuario_empresa (
@@ -295,7 +304,7 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
           ${usuarioId}::uuid,
           ${empresaId}::uuid,
           'ATIVO',
-          true,
+          ${isResponsavelPrincipal},
           NOW(),
           NOW()
         )

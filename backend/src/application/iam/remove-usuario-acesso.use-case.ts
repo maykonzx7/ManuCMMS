@@ -75,9 +75,37 @@ export class RemoveUsuarioAcessoUseCase {
       throw new NotFoundException('Usuario nao encontrado nesta empresa.');
     }
 
-    if (target.isResponsavelPrincipal) {
+    const membrosAtivosRows = await this.prisma.$queryRaw<
+      Array<{ total: number; admins: number }>
+    >(Prisma.sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (
+          WHERE u.perfil IN ('ADMIN', 'GESTOR')
+        )::int AS admins
+      FROM usuario_empresa ue
+      JOIN usuario u ON u.id = ue.usuario_id
+      WHERE ue.empresa_id = ${empresaId}::uuid
+        AND ue.status = 'ATIVO'
+        AND u.status = 'ATIVO'
+    `);
+    const membrosAtivos = membrosAtivosRows[0]?.total ?? 0;
+    const adminsAtivos = membrosAtivosRows[0]?.admins ?? 0;
+
+    if (membrosAtivos <= 1) {
       throw new BadRequestException(
-        'Nao e permitido remover o responsavel principal da empresa.',
+        'Nao e permitido remover o ultimo usuario ativo da empresa.',
+      );
+    }
+
+    const perfilAlvo = target.perfil.trim().toUpperCase();
+    if (
+      target.isResponsavelPrincipal &&
+      ['ADMIN', 'GESTOR'].includes(perfilAlvo) &&
+      adminsAtivos <= 1
+    ) {
+      throw new BadRequestException(
+        'Nao e permitido remover o ultimo administrador/gestor ativo da empresa. Promova outro usuario antes.',
       );
     }
 
@@ -99,6 +127,28 @@ export class RemoveUsuarioAcessoUseCase {
         WHERE usuario_id = ${usuarioId}::uuid
           AND empresa_id = ${empresaId}::uuid
       `);
+
+      if (target.isResponsavelPrincipal) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE usuario_empresa ue
+          SET
+            is_responsavel_principal = true,
+            updated_at = NOW()
+          WHERE ue.id = (
+            SELECT ue2.id
+            FROM usuario_empresa ue2
+            JOIN usuario u ON u.id = ue2.usuario_id
+            WHERE ue2.empresa_id = ${empresaId}::uuid
+              AND ue2.status = 'ATIVO'
+              AND u.status = 'ATIVO'
+              AND u.id <> ${usuarioId}::uuid
+            ORDER BY
+              CASE WHEN u.perfil = 'ADMIN' THEN 0 WHEN u.perfil = 'GESTOR' THEN 1 ELSE 2 END,
+              ue2.created_at ASC
+            LIMIT 1
+          )
+        `);
+      }
 
       await tx.$executeRaw(Prisma.sql`
         UPDATE usuario
