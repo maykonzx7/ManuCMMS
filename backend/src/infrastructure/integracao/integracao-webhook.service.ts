@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
 import { PrismaService } from '../persistence/prisma.service';
+import { EventPublisherService } from '../messaging/event-publisher.service';
 import { IntegracaoCircuitBreakerService } from './integracao-circuit-breaker.service';
 
 type EmpresaIntegracaoRow = {
@@ -16,6 +17,7 @@ export class IntegracaoWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly circuitBreaker: IntegracaoCircuitBreakerService,
+    private readonly eventPublisher: EventPublisherService,
   ) {}
 
   async enqueueOrdemServicoConcluida(input: {
@@ -73,7 +75,16 @@ export class IntegracaoWebhookService {
       )
     `);
 
-    void this.deliverEvent(empresa, eventoId, payload).catch(() => undefined);
+    const published = await this.eventPublisher.publishWebhookDeliver({
+      eventoId,
+      empresaId: input.empresaId,
+      webhookUrl: empresa.webhookUrl!.trim(),
+      payload,
+    });
+
+    if (!published) {
+      void this.deliverEvent(empresa, eventoId, payload).catch(() => undefined);
+    }
   }
 
   async deliverEvent(

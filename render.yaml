@@ -1,28 +1,27 @@
-# Blueprint Render — ManuCMMS API
-# https://render.com/docs/blueprint-spec
+# =============================================================================
+# ManuCMMS — Blueprint Render (microserviços)
+# =============================================================================
+# Aplicar: Render Dashboard → Blueprints → New Blueprint Instance → repo GitHub
+# Ou: sincronizar após push na branch conectada.
 #
-# Build na raiz do monorepo (Dockerfile na raiz copia backend/).
-# Alternativa no painel: Root Directory = backend + Dockerfile em backend/.
+# Serviços:
+#   1. manucmms-api          — api-core (REST + WebSocket)
+#   2. manucmms-worker-events — consumers RabbitMQ (webhook, email, OS preditiva)
+#   3. manucmms-iot-ingestion — ingestão IoT (POST /iot/leituras, RN-01)
+#
+# Infra externa (preencher no painel — sync: false):
+#   - DATABASE_URL    → Supabase Connection Pooling → Session (porta 5432)
+#                       postgresql://postgres.<ref>:<senha>@<region>.pooler.supabase.com:5432/postgres?sslmode=require
+#   - MONGODB_URI     → MongoDB Atlas M0
+#   - RABBITMQ_URL    → CloudAMQP (ou RabbitMQ gerenciado)
+#   - REDIS_URL       → Upstash Redis (rediss://... para TLS)
+#
+# Frontend: Vercel (https://manucmms.vercel.app) — ver docs/14-DEPLOY-HOMOLOGACAO.md
 
-services:
-  - type: web
-    name: manucmms-api
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: free
-    healthCheckPath: /health
-    autoDeploy: true
+envVarGroups:
+  - name: manucmms-shared-infra
     envVars:
-      - key: NODE_ENV
-        value: production
-      # --- Obrigatórias (preencher no painel Render; não usar localhost) ---
       - key: DATABASE_URL
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_JWT_SECRET
-        sync: false
-      - key: SUPABASE_ANON_KEY
         sync: false
       - key: MONGODB_URI
         sync: false
@@ -30,14 +29,61 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+
+  - name: manucmms-supabase
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: avatars
+
+  - name: manucmms-email
+    envVars:
+      # Render FREE bloqueia SMTP 587 — usar Brevo HTTP API
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SMTP_FROM_EMAIL
+        sync: false
+      - key: BREVO_SMTP_FROM_NAME
+        value: Equipe ManuCMMS
+
+services:
+  # ---------------------------------------------------------------------------
+  # API Core — NestJS monólito modular (IAM, Core, WebSocket, integrações sync)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: manucmms-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - Dockerfile
+        - backend/**
+    envVars:
+      - fromGroup: manucmms-shared-infra
+      - fromGroup: manucmms-supabase
+      - key: NODE_ENV
+        value: production
       - key: PUBLIC_BASE_URL
-        value: https://manucmms.onrender.com
+        value: https://manucmms-api.onrender.com
       - key: FRONTEND_PUBLIC_BASE_URL
         value: https://manucmms.vercel.app
       - key: FRONTEND_INVITE_PORTAL_PATH
         value: /workspace/convite
       - key: FRONTEND_ACCESS_PORTAL_PATH
         value: /workspace/acesso
+      - key: FRONTEND_PLATFORM_PORTAL_PATH
+        value: /workspace/platform
       - key: CORS_ALLOWED_ORIGINS
         value: https://manucmms.vercel.app
       - key: CORS_ALLOWED_ORIGIN_SUFFIXES
@@ -46,18 +92,56 @@ services:
         value: "true"
       - key: PLATFORM_OWNER_EMAILS
         value: maykon011games@gmail.com
-      # SMTP (Brevo) — portas 587 bloqueadas no Render FREE; use BREVO_API_KEY
-      - key: BREVO_API_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: avatars
-      - key: SMTP_PROVIDER
-        sync: false
-      - key: BREVO_SMTP_LOGIN
-        sync: false
-      - key: BREVO_SMTP_KEY
-        sync: false
-      - key: BREVO_SMTP_FROM_EMAIL
+      - key: ALLOW_AUTH_SUB_LINK_BY_EMAIL
+        value: "false"
+      # Microserviço IoT — URLs públicas (ajuste se renomear o serviço no Render)
+      - key: IOT_HEALTHCHECK_URL
+        value: https://manucmms-iot-ingestion.onrender.com/health
+      - key: IOT_INGESTION_URL
+        value: https://manucmms-iot-ingestion.onrender.com
+
+  # ---------------------------------------------------------------------------
+  # Worker Events — consumers RabbitMQ (NF-08)
+  # Webhook outbound, envio de email, criação de OS preditiva (RN-01)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: manucmms-worker-events
+    runtime: docker
+    dockerfilePath: ./services/worker-events/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - services/worker-events/**
+        - backend/prisma/**
+    envVars:
+      - fromGroup: manucmms-shared-infra
+      - fromGroup: manucmms-email
+      - key: NODE_ENV
+        value: production
+
+  # ---------------------------------------------------------------------------
+  # IoT Ingestion — telemetria e simulação (RF-06, RF-19, RN-01)
+  # Publica eventos na fila; worker cria OS preditiva
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: manucmms-iot-ingestion
+    runtime: docker
+    dockerfilePath: ./services/iot-ingestion/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - services/iot-ingestion/**
+        - backend/prisma/**
+    envVars:
+      - fromGroup: manucmms-shared-infra
+      - key: NODE_ENV
+        value: production
+      # Opcional: exige header x-iot-api-key em POST /iot/leituras e /iot/simular
+      - key: IOT_API_KEY
         sync: false

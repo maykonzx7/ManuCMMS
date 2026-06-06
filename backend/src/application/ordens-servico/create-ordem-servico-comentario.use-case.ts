@@ -22,6 +22,7 @@ import {
   USUARIO_READ_PORT,
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
+import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { buildOrdemServicoComentarioEmail } from '../shared/email/email-template.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
@@ -38,6 +39,7 @@ export class CreateOrdemServicoComentarioUseCase {
     private readonly usuarios: IUsuarioReadPort,
     @Inject(EMAIL_PORT)
     private readonly emailPort: IEmailPort,
+    private readonly eventPublisher: EventPublisherService,
     private readonly config: ConfigService,
     private readonly notificacoes: NotificacaoService,
   ) {}
@@ -189,6 +191,15 @@ export class CreateOrdemServicoComentarioUseCase {
       comentario: texto,
       osLink,
     });
+
+    const published = await this.eventPublisher.publishEmailSend({
+      to: tecnico.email,
+      subject,
+      text,
+      html,
+    });
+
+    if (published) return;
 
     try {
       await this.emailPort.send({ to: tecnico.email, subject, text, html });

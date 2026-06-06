@@ -26,6 +26,7 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
+import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 import { buildOrdemServicoAtribuidaEmail } from '../shared/email/email-template.shared';
@@ -66,6 +67,7 @@ export class CreateOrdemServicoUseCase {
     private readonly usuarios: IUsuarioReadPort,
     @Inject(EMAIL_PORT)
     private readonly emailPort: IEmailPort,
+    private readonly eventPublisher: EventPublisherService,
     private readonly notificacoes: NotificacaoService,
   ) {}
 
@@ -310,6 +312,15 @@ export class CreateOrdemServicoUseCase {
       unidadeNome,
       osLink,
     });
+
+    const published = await this.eventPublisher.publishEmailSend({
+      to: tecnico.email,
+      subject,
+      text,
+      html,
+    });
+
+    if (published) return;
 
     try {
       await this.emailPort.send({ to: tecnico.email, subject, text, html });
