@@ -8,6 +8,7 @@ import {
   Search, 
   Filter,
   ClipboardList,
+  CalendarDays,
   MoreHorizontal,
   Pencil,
   Eye,
@@ -402,6 +403,12 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/workspace/ordens/agenda">
+              <CalendarDays className="mr-2 h-4 w-4" />
+              Agenda / Kanban
+            </Link>
+          </Button>
           {role !== 'TECNICO' ? (
             <>
               <Button variant="outline" disabled={exportandoLista} onClick={() => void baixarLista('csv')}>

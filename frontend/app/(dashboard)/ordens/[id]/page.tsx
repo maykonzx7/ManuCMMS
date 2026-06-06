@@ -15,6 +15,7 @@ import {
   MessageSquare,
   AlertTriangle,
   Download,
+  Printer,
   Send,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -63,6 +64,7 @@ import {
 import { OsProximoPassoBanner } from '@/components/ordens/os-proximo-passo-banner'
 import { PageDataLoading } from '@/components/shared'
 import { getPodeConcluirOrdem } from '@/lib/os-flow-utils'
+import { ROUTES } from '@/lib/routes'
 import type { UserRole } from '@/types'
 
 type ApiUsuario = {
@@ -531,6 +533,12 @@ export default function OrderDetailPage() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={ROUTES.ordemImprimir(String(params.id))}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir
+            </Link>
+          </Button>
           {role !== 'TECNICO' ? (
             <>
               <Button variant="outline" disabled={exportando} onClick={() => void baixarOrdem('csv')}>

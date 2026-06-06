@@ -113,6 +113,7 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   // Telas acessíveis a todos
   home: ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'],
   'ordens-lista': ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'],
+  'ordens-agenda': ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'],
   'ativos-lista': ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'],
   
   // Telas restritas
@@ -128,6 +129,7 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   integracoes: ['GESTOR', 'ADMIN'],
   iot: ['ADMIN'],
   admin: ['ADMIN'],
+  metricas: ['ADMIN'],
   permissoes: ['GESTOR', 'ADMIN'],
   configuracoes: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
 }
@@ -142,6 +144,7 @@ export const SIDEBAR_NAVIGATION = [
     items: [
       { title: 'Início', url: ROUTES.home, icon: 'Home', screen: 'home' },
       { title: 'Ordens de Serviço', url: ROUTES.ordens, icon: 'ClipboardList', screen: 'ordens-lista' },
+      { title: 'Agenda / Kanban', url: ROUTES.ordensAgenda, icon: 'CalendarDays', screen: 'ordens-agenda' },
       { title: 'Ativos', url: ROUTES.ativos, icon: 'Package', screen: 'ativos-lista' },
       { title: 'Peças / Estoque', url: ROUTES.pecas, icon: 'Boxes', screen: 'pecas-estoque' },
     ],
@@ -159,6 +162,7 @@ export const SIDEBAR_NAVIGATION = [
     title: 'Análises',
     items: [
       { title: 'Dashboard', url: '/workspace/dashboard', icon: 'BarChart3', screen: 'dashboard' },
+      { title: 'Métricas Admin', url: ROUTES.metricas, icon: 'LineChart', screen: 'metricas' },
       { title: 'Relatórios', url: '/workspace/relatorios', icon: 'FileText', screen: 'relatorios' },
       { title: 'Auditoria', url: '/workspace/auditoria', icon: 'History', screen: 'auditoria' },
     ],
