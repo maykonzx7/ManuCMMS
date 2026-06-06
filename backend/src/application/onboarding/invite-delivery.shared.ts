@@ -80,7 +80,9 @@ export async function sendInviteEmail(
     return 'NAO_CONFIGURADO';
   }
 
+  const frontendBaseUrl = new URL(inviteLink).origin;
   const template = buildInviteEmailTemplate({
+    frontendBaseUrl,
     nomeDestinatario: payload.nomeDestino,
     nomeEmpresa: payload.nomeEmpresa,
     linkConvite: inviteLink,

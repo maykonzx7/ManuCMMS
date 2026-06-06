@@ -65,12 +65,19 @@ import {
   type ConviteActionResponse,
   type ConviteEmailStatus,
 } from '@/components/convites/convites-panel'
+import {
+  UsuarioAcoesDialogs,
+  type UsuarioDialogAction,
+  type UsuarioGestaoItem,
+} from '@/components/usuarios/usuario-acoes-dialogs'
 
 type GestaoPainelResponse = {
+  links?: { acessoConta?: string | null }
   usuarios: Array<{
     id: string
     idUnidade: string
     unidadeNome: string
+    usuarioAcesso?: string | null
   }>
   cargos: Array<{
     id: string
@@ -99,6 +106,12 @@ export default function UsersPage() {
     link: string
     emailStatus?: ConviteEmailStatus
   } | null>(null)
+  const [accessLink, setAccessLink] = useState<string | null>(null)
+  const [usuariosGestaoMap, setUsuariosGestaoMap] = useState<
+    Record<string, { usuarioAcesso?: string | null }>
+  >({})
+  const [dialogAction, setDialogAction] = useState<UsuarioDialogAction>(null)
+  const [selectedUser, setSelectedUser] = useState<UsuarioGestaoItem | null>(null)
 
   const { canManageUsers, isAdmin } = usePermissions()
   const { accessToken } = useAuth()
@@ -120,32 +133,40 @@ export default function UsersPage() {
     }
   }
 
-  const patchUsuario = async (userId: string, path: string, body: Record<string, unknown>) => {
-    if (!accessToken || !company?.id) return
-    await apiRequest(`/empresas/${company.id}/gestao/usuarios/${userId}/${path}`, {
-      method: 'PATCH',
-      accessToken,
-      body,
-    })
-    await loadUsers()
-  }
-
   const loadPainelGestao = async () => {
     if (!accessToken || !company?.id) return
     try {
       const painel = await apiRequest<GestaoPainelResponse>(`/empresas/${company.id}/gestao/painel`, { accessToken })
       setCargos(painel.cargos)
+      setAccessLink(painel.links?.acessoConta ?? null)
       const byUnit = new Map<string, string>()
+      const gestaoMap: Record<string, { usuarioAcesso?: string | null }> = {}
       painel.usuarios.forEach((item) => {
         if (!byUnit.has(item.idUnidade)) byUnit.set(item.idUnidade, item.unidadeNome)
+        gestaoMap[item.id] = { usuarioAcesso: item.usuarioAcesso ?? null }
       })
+      setUsuariosGestaoMap(gestaoMap)
       setUnidadesConvite(Array.from(byUnit.entries()).map(([id, nome]) => ({ id, nome })))
       if (painel.cargos.length > 0) setCargoCodigo(painel.cargos[0].codigo)
     } catch {
       setCargos([])
       setUnidadesConvite([])
       setCargoCodigo('')
+      setAccessLink(null)
+      setUsuariosGestaoMap({})
     }
+  }
+
+  const openUserDialog = (user: ReturnType<typeof mapApiUsuarioToUser>, action: UsuarioDialogAction) => {
+    setSelectedUser({
+      id: user.id,
+      nome: user.nome,
+      email: user.email,
+      perfil: user.perfil,
+      ativo: user.ativo,
+      usuarioAcesso: usuariosGestaoMap[user.id]?.usuarioAcesso ?? null,
+    })
+    setDialogAction(action)
   }
 
   useEffect(() => {
@@ -328,6 +349,26 @@ export default function UsersPage() {
         emailStatus={inviteLinkDialog?.emailStatus}
       />
 
+      {company?.id && accessToken ? (
+        <UsuarioAcoesDialogs
+          empresaId={company.id}
+          accessToken={accessToken}
+          accessLink={accessLink}
+          action={dialogAction}
+          user={selectedUser}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDialogAction(null)
+              setSelectedUser(null)
+            }
+          }}
+          onSuccess={async () => {
+            await loadUsers()
+            await loadPainelGestao()
+          }}
+        />
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle><UsersIcon className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Ativos</CardTitle><div className="h-2 w-2 rounded-full bg-emerald-500" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.ativos}</div></CardContent></Card>
@@ -363,6 +404,7 @@ export default function UsersPage() {
               <TableRow>
                 <TableHead>Usuário</TableHead>
                 <TableHead className="hidden md:table-cell">Email</TableHead>
+                <TableHead className="hidden lg:table-cell">Usuário de acesso</TableHead>
                 <TableHead>Perfil</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-12"></TableHead>
@@ -381,6 +423,9 @@ export default function UsersPage() {
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{user.email}</TableCell>
+                  <TableCell className="hidden lg:table-cell font-mono text-xs text-muted-foreground">
+                    {usuariosGestaoMap[user.id]?.usuarioAcesso ?? '—'}
+                  </TableCell>
                   <TableCell><Badge variant="outline" className={getRoleBadgeColor(user.perfil)}>{USER_ROLE_LABELS[user.perfil]}</Badge></TableCell>
                   <TableCell><Badge variant={user.ativo ? 'default' : 'secondary'}>{user.ativo ? 'Ativo' : 'Inativo'}</Badge></TableCell>
                   <TableCell>
@@ -389,68 +434,35 @@ export default function UsersPage() {
                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Ações</span></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Enviar email</DropdownMenuItem>
-                        {canManageUsers && (
+                        {canManageUsers ? (
                           <>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const proximo = prompt('Novo perfil (TECNICO, SUPERVISOR, GESTOR, AUDITOR, ADMIN):', user.perfil)
-                                if (!proximo) return
-                                void patchUsuario(user.id, 'perfil', { perfil: proximo.toUpperCase() })
-                                  .then(() => toast.success('Perfil atualizado'))
-                                  .catch((e) => toast.error(e instanceof Error ? e.message : 'Falha ao atualizar perfil'))
-                              }}
-                            >
+                            <DropdownMenuItem onClick={() => openUserDialog(user, 'enviar-email')}>
+                              <Mail className="mr-2 h-4 w-4" />Enviar e-mail
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => openUserDialog(user, 'perfil')}>
                               <Shield className="mr-2 h-4 w-4" />Alterar perfil
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const usuarioAcesso = prompt('Usuário de acesso (credencial):')
-                                if (!usuarioAcesso) return
-                                void patchUsuario(user.id, 'usuario-acesso', { usuarioAcesso })
-                                  .then(() => toast.success('Usuário de acesso atualizado'))
-                                  .catch((e) => toast.error(e instanceof Error ? e.message : 'Falha ao atualizar usuário de acesso'))
-                              }}
-                            >
+                            <DropdownMenuItem onClick={() => openUserDialog(user, 'acesso')}>
                               <UserCog className="mr-2 h-4 w-4" />Editar usuário de acesso
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const email = prompt('Novo email do usuário:', user.email)
-                                if (!email) return
-                                void patchUsuario(user.id, 'email', { email })
-                                  .then(() => toast.success('Email atualizado'))
-                                  .catch((e) => toast.error(e instanceof Error ? e.message : 'Falha ao atualizar email'))
-                              }}
-                            >
-                              <Mail className="mr-2 h-4 w-4" />Alterar email
+                            <DropdownMenuItem onClick={() => openUserDialog(user, 'email')}>
+                              <Mail className="mr-2 h-4 w-4" />Alterar e-mail
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const novoStatus = user.ativo ? 'INATIVO' : 'ATIVO'
-                                void patchUsuario(user.id, 'status', { status: novoStatus })
-                                  .then(() => toast.success(`Usuário ${novoStatus === 'ATIVO' ? 'ativado' : 'inativado'}`))
-                                  .catch((e) => toast.error(e instanceof Error ? e.message : 'Falha ao atualizar status'))
-                              }}
-                            >
-                              <KeyRound className="mr-2 h-4 w-4" />{user.ativo ? 'Inativar usuário' : 'Ativar usuário'}
+                            <DropdownMenuItem onClick={() => openUserDialog(user, 'status')}>
+                              <KeyRound className="mr-2 h-4 w-4" />
+                              {user.ativo ? 'Inativar usuário' : 'Ativar usuário'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                if (!company?.id || !accessToken) return
-                                void apiRequest(`/empresas/${company.id}/gestao/usuarios/${user.id}/reset-senha`, {
-                                  method: 'POST',
-                                  accessToken,
-                                })
-                                  .then(() => toast.success('Reset de senha enviado'))
-                                  .catch((e) => toast.error(e instanceof Error ? e.message : 'Falha no reset de senha'))
-                              }}
-                            >
+                            <DropdownMenuItem onClick={() => openUserDialog(user, 'reset-senha')}>
                               <RefreshCcw className="mr-2 h-4 w-4" />Resetar senha
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Remover acesso</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" disabled>
+                              <Trash2 className="mr-2 h-4 w-4" />Remover acesso
+                            </DropdownMenuItem>
                           </>
+                        ) : (
+                          <DropdownMenuItem disabled>Sem permissão de gestão</DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

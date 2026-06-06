@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Inject,
   InternalServerErrorException,
   Param,
   Patch,
@@ -14,7 +15,12 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, StatusEmpresa, StatusUsuario } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import {
+  buildAcessoPortalEmail,
+  buildResetSenhaEmail,
+} from '../../application/shared/email/email-template.shared';
 import { resolveFrontendBaseUrl } from '../../application/shared/frontend-link.shared';
+import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
 import { maskApiKeyIntegracao } from './response-mappers';
@@ -22,6 +28,7 @@ import { maskApiKeyIntegracao } from './response-mappers';
 const PERFIS = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'] as const;
 
 type PerfilCodigo = (typeof PERFIS)[number];
+type EmailEntregaStatus = 'ENVIADO' | 'ENVIANDO' | 'NAO_CONFIGURADO' | 'FALHOU';
 
 @Controller('empresas/:empresaId/gestao')
 export class GestaoEmpresaController {
@@ -30,6 +37,7 @@ export class GestaoEmpresaController {
     private readonly config: ConfigService,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly integracaoWebhook: IntegracaoWebhookService,
+    @Inject(EMAIL_PORT) private readonly emailPort: IEmailPort,
   ) {}
 
   @Get('painel')
@@ -833,7 +841,7 @@ export class GestaoEmpresaController {
       msg?: string;
     } | null;
 
-    if (!response.ok) {
+    if (!response.ok || !payload?.action_link) {
       throw new BadRequestException(
         payload?.error_description ||
           payload?.msg ||
@@ -841,9 +849,126 @@ export class GestaoEmpresaController {
       );
     }
 
+    const usuarioRows = await this.prisma.$queryRaw<
+      Array<{ nome: string; empresaNome: string }>
+    >(Prisma.sql`
+      SELECT u.nome, e.nome_empresa AS "empresaNome"
+      FROM usuario u
+      JOIN usuario_empresa ue ON ue.usuario_id = u.id
+      JOIN empresa e ON e.id = ue.empresa_id
+      WHERE u.id = ${usuarioId}::uuid
+        AND ue.empresa_id = ${empresaId}::uuid
+      LIMIT 1
+    `);
+    const usuario = usuarioRows[0];
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
+    });
+    const template = buildResetSenhaEmail({
+      frontendBaseUrl: frontendBaseUrl || 'https://manucmms.vercel.app',
+      nome: usuario?.nome ?? email,
+      empresaNome: usuario?.empresaNome ?? 'Empresa',
+      resetLink: payload.action_link,
+    });
+    const entregaEmail = await this.enviarEmailTransacional(
+      email,
+      template.subject,
+      template.text,
+      template.html,
+    );
+
     return {
       ok: true,
       email,
+      resetLink: payload.action_link,
+      entregaEmail: { status: entregaEmail },
+    };
+  }
+
+  @Post('usuarios/:usuarioId/enviar-email')
+  async enviarEmailUsuario(
+    @Param('empresaId') empresaId: string,
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { mensagem?: string },
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.ensureEmpresaScope(req, empresaId);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        nome: string;
+        email: string;
+        usuarioAcesso: string | null;
+        empresaNome: string;
+        empresaSlug: string;
+      }>
+    >(Prisma.sql`
+      SELECT
+        u.nome,
+        u.email,
+        u.credencial AS "usuarioAcesso",
+        e.nome_empresa AS "empresaNome",
+        e.slug AS "empresaSlug"
+      FROM usuario u
+      JOIN usuario_empresa ue ON ue.usuario_id = u.id
+      JOIN empresa e ON e.id = ue.empresa_id
+      WHERE u.id = ${usuarioId}::uuid
+        AND ue.empresa_id = ${empresaId}::uuid
+      LIMIT 1
+    `);
+
+    const usuario = rows[0];
+    if (!usuario?.email) {
+      throw new BadRequestException('Usuário não encontrado na empresa.');
+    }
+
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
+    });
+    const accessPath =
+      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
+      '/workspace/acesso';
+    const accessLink = frontendBaseUrl
+      ? `${frontendBaseUrl}${accessPath}/${usuario.empresaSlug}`
+      : null;
+    if (!accessLink) {
+      throw new BadRequestException(
+        'FRONTEND_PUBLIC_BASE_URL não configurada para gerar link de acesso.',
+      );
+    }
+
+    const template = buildAcessoPortalEmail({
+      frontendBaseUrl: frontendBaseUrl || 'https://manucmms.vercel.app',
+      nome: usuario.nome,
+      email: usuario.email,
+      empresaNome: usuario.empresaNome,
+      accessLink,
+      usuarioAcesso: usuario.usuarioAcesso,
+      mensagem: body.mensagem?.trim() || null,
+    });
+    const entregaEmail = await this.enviarEmailTransacional(
+      usuario.email,
+      template.subject,
+      template.text,
+      template.html,
+    );
+
+    return {
+      ok: true,
+      email: usuario.email,
+      links: { acessoConta: accessLink },
+      entregaEmail: { status: entregaEmail },
     };
   }
 
@@ -982,6 +1107,23 @@ export class GestaoEmpresaController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
     return this.integracaoWebhook.testWebhook(empresaId);
+  }
+
+  private async enviarEmailTransacional(
+    to: string,
+    subject: string,
+    text: string,
+    html: string,
+  ): Promise<EmailEntregaStatus> {
+    if (!this.emailPort.isConfigured()) {
+      return 'NAO_CONFIGURADO';
+    }
+    try {
+      await this.emailPort.send({ to, subject, text, html });
+      return 'ENVIADO';
+    } catch {
+      return 'FALHOU';
+    }
   }
 
   private ensureEmpresaScope(req: Request, empresaId: string) {

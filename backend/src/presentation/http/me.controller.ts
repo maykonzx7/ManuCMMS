@@ -16,6 +16,7 @@ import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import type { AuthUserContext } from '../auth/auth-user.types';
 import { UpdateMeuPerfilUseCase } from '../../application/iam/update-meu-perfil.use-case';
+import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.use-case';
 import { SupabaseStorageService } from '../../infrastructure/storage/supabase-storage.service';
 
 type RequestWithUser = Request & { user: AuthUserContext };
@@ -33,11 +34,23 @@ function isImagemMimeType(mimeType: string): boolean {
 export class MeController {
   constructor(
     private readonly updateMeuPerfil: UpdateMeuPerfilUseCase,
+    private readonly listUnidades: ListUnidadesUseCase,
     private readonly supabaseStorage: SupabaseStorageService,
   ) {}
 
   @Get()
   getMe(@Req() req: RequestWithUser) {
+    return this.buildMeResponse(req);
+  }
+
+  @Get('bootstrap')
+  async getBootstrap(@Req() req: RequestWithUser) {
+    const me = this.buildMeResponse(req);
+    const unidades = await this.listUnidades.execute(req.usuarioLocal);
+    return { ...me, unidades };
+  }
+
+  private buildMeResponse(req: RequestWithUser) {
     const u = req.user;
     const local = req.usuarioLocal;
     return {

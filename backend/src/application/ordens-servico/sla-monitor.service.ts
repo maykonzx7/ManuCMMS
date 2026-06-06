@@ -10,6 +10,8 @@ import {
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { buildSlaAtrasadoEmail } from '../shared/email/email-template.shared';
+import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
 @Injectable()
@@ -92,23 +94,29 @@ export class OrdemServicoSlaMonitorService {
       ordemId,
     });
 
-    const subject = `SLA atrasado na OS ${ordemId.slice(0, 8).toUpperCase()}`;
     const perfilTexto = isTecnico ? 'responsável técnico' : 'admin responsável';
-    const text = [
-      `Olá, ${nome}.`,
-      '',
-      `A OS ${ordemId} do ativo ${ativoNome} ultrapassou o SLA e foi marcada como atrasada.`,
-      `Você foi notificado por ser ${perfilTexto}.`,
-      link ? `Acesse: ${link}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
+    });
+    const { subject, text, html } = buildSlaAtrasadoEmail({
+      frontendBaseUrl,
+      nome,
+      ordemId,
+      ativoNome,
+      perfilTexto,
+      osLink: link,
+    });
 
     await this.emailPort.send({
       to: email,
       subject,
       text,
-      html: `<p>Olá, <strong>${nome}</strong>.</p><p>A OS <strong>${ordemId}</strong> do ativo <strong>${ativoNome}</strong> ultrapassou o SLA e foi marcada como atrasada.</p>${link ? `<p><a href="${link}">Abrir OS no sistema</a></p>` : ''}`,
+      html,
     });
   }
 }

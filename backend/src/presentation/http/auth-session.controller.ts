@@ -18,6 +18,7 @@ import { Public } from '../auth/public.decorator';
 
 type CreateSessionBody = {
   accessToken?: string;
+  intent?: 'login' | 'refresh';
 };
 
 @Controller('auth/session')
@@ -74,17 +75,20 @@ export class AuthSessionController {
       );
     }
 
-    await this.auditLog.append({
-      idUsuario: authUser.userId,
-      entidadeAfetada: 'AuthSession',
-      idRegistro: randomUUID(),
-      valorAnterior: {},
-      valorNovo: {
-        acao: 'LOGIN',
-        origem: 'cookie_session',
-        companySlug: (companySlug ?? '').trim().toLowerCase() || null,
-      },
-    });
+    const intent = (body.intent ?? 'refresh').trim().toLowerCase();
+    if (intent === 'login') {
+      await this.auditLog.append({
+        idUsuario: authUser.userId,
+        entidadeAfetada: 'AuthSession',
+        idRegistro: randomUUID(),
+        valorAnterior: {},
+        valorNovo: {
+          acao: 'LOGIN',
+          origem: 'cookie_session',
+          companySlug: (companySlug ?? '').trim().toLowerCase() || null,
+        },
+      });
+    }
 
     res.status(204).send();
   }

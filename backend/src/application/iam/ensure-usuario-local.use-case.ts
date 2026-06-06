@@ -47,16 +47,6 @@ export class EnsureUsuarioLocalUseCase {
         perfil: existentePorSub.perfil as PerfilUsuarioCodigo,
       });
 
-      const atualizado = await this.usuarios.findByAuthSub(
-        jwt.userId,
-        preferredEmpresaSlug,
-      );
-      if (atualizado) {
-        this.assertPreferredEmpresaScope(atualizado, preferredEmpresaSlug);
-        this.assertAccessIsActive(atualizado);
-        return atualizado;
-      }
-
       this.assertPreferredEmpresaScope(existentePorSub, preferredEmpresaSlug);
       this.assertAccessIsActive(existentePorSub);
       return existentePorSub;

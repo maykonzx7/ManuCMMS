@@ -45,26 +45,67 @@ type TecnicoInfo = {
 
 function wizardDialogClass(isMobile: boolean) {
   return cn(
-    'gap-4',
     isMobile
-      ? 'max-w-[100vw] h-[100dvh] max-h-[100dvh] rounded-none border-0 sm:rounded-lg sm:border sm:max-w-lg sm:h-auto sm:max-h-[90vh]'
-      : 'max-w-lg max-h-[90vh] overflow-y-auto',
+      ? 'flex h-[100dvh] max-h-[100dvh] max-w-[100vw] flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:max-h-[90vh] sm:max-w-lg sm:gap-4 sm:rounded-lg sm:border sm:p-6'
+      : 'max-h-[90vh] max-w-lg gap-4 overflow-y-auto',
   )
 }
 
+function wizardSectionClass(isMobile: boolean, area: 'header' | 'body' | 'footer') {
+  if (area === 'footer') {
+    return cn(
+      'flex gap-2',
+      isMobile
+        ? 'shrink-0 flex-col-reverse border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+        : 'justify-between',
+    )
+  }
+
+  if (!isMobile) return undefined
+
+  if (area === 'header') return 'shrink-0 space-y-4 px-4 pt-4'
+  return 'min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3'
+}
+
 function wizardButtonClass(isMobile: boolean, extra?: string) {
-  return cn(isMobile && 'h-12 text-base', extra)
+  return cn(isMobile && 'h-12 w-full text-base', extra)
 }
 
 function StepIndicator({ steps, current, isMobile }: { steps: string[]; current: number; isMobile: boolean }) {
+  if (isMobile) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
+          {steps.map((label, index) => (
+            <div key={label} className="flex min-w-0 flex-1 items-center gap-1.5">
+              <div
+                className={cn(
+                  'h-2 flex-1 rounded-full transition-colors',
+                  index < current && 'bg-emerald-500',
+                  index === current && 'bg-primary',
+                  index > current && 'bg-muted',
+                )}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium">{steps[current]}</p>
+          <p className="text-xs text-muted-foreground">
+            Passo {current + 1} de {steps.length}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1">
       {steps.map((label, index) => (
         <div key={label} className="flex shrink-0 items-center gap-2">
           <div
             className={cn(
-              'flex items-center justify-center rounded-full font-semibold',
-              isMobile ? 'h-8 w-8 text-sm' : 'h-7 w-7 text-xs',
+              'flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold',
               index < current && 'bg-emerald-500 text-white',
               index === current && 'bg-primary text-primary-foreground',
               index > current && 'bg-muted text-muted-foreground',
@@ -74,7 +115,7 @@ function StepIndicator({ steps, current, isMobile }: { steps: string[]; current:
           </div>
           <span
             className={cn(
-              isMobile ? 'text-sm' : 'text-xs',
+              'text-xs',
               index === current ? 'font-medium text-foreground' : 'text-muted-foreground',
             )}
           >
@@ -85,6 +126,39 @@ function StepIndicator({ steps, current, isMobile }: { steps: string[]; current:
           ) : null}
         </div>
       ))}
+    </div>
+  )
+}
+
+function WizardConfirmCheckbox({
+  id,
+  checked,
+  onCheckedChange,
+  label,
+  description,
+  isMobile,
+}: {
+  id: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  label: string
+  description?: string
+  isMobile: boolean
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-md border p-3">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(value) => onCheckedChange(value === true)}
+        className={isMobile ? 'mt-1 h-5 w-5 shrink-0' : 'mt-0.5 shrink-0'}
+      />
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor={id} className={cn('leading-snug', isMobile && 'text-base')}>
+          {label}
+        </Label>
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      </div>
     </div>
   )
 }
@@ -211,16 +285,20 @@ export function OsFluxoContinuoPrompt({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(wizardDialogClass(isMobile), 'max-w-md')}>
-        <DialogHeader>
-          <DialogTitle>OS {orderNumero} iniciada</DialogTitle>
-          <DialogDescription>
-            O reparo já foi concluído no local? Você pode registrar a resolução agora sem sair do fluxo.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
-          <p>Se ainda vai executar o serviço, escolha &quot;Concluir depois&quot; e retome quando terminar.</p>
+        <div className={wizardSectionClass(isMobile, 'header')}>
+          <DialogHeader>
+            <DialogTitle>OS {orderNumero} iniciada</DialogTitle>
+            <DialogDescription>
+              O reparo já foi concluído no local? Você pode registrar a resolução agora sem sair do fluxo.
+            </DialogDescription>
+          </DialogHeader>
         </div>
-        <div className={cn('flex gap-2', isMobile ? 'flex-col-reverse' : 'justify-end')}>
+        <div className={wizardSectionClass(isMobile, 'body')}>
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+            <p>Se ainda vai executar o serviço, escolha &quot;Concluir depois&quot; e retome quando terminar.</p>
+          </div>
+        </div>
+        <div className={cn(wizardSectionClass(isMobile, 'footer'), !isMobile && 'justify-end')}>
           <Button
             variant="outline"
             className={wizardButtonClass(isMobile)}
@@ -301,19 +379,23 @@ export function OsIniciarWizard({
     )
   }
 
+  const confirmStep = stepLabels.length - 1
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={wizardDialogClass(isMobile)}>
-        <DialogHeader>
-          <DialogTitle>Iniciar {orderNumero}</DialogTitle>
-          <DialogDescription>
-            Siga os passos abaixo para registrar o início da intervenção.
-          </DialogDescription>
-        </DialogHeader>
+        <div className={wizardSectionClass(isMobile, 'header')}>
+          <DialogHeader>
+            <DialogTitle>Iniciar {orderNumero}</DialogTitle>
+            <DialogDescription>
+              Siga os passos abaixo para registrar o início da intervenção.
+            </DialogDescription>
+          </DialogHeader>
 
-        <StepIndicator steps={stepLabels} current={step} isMobile={isMobile} />
+          <StepIndicator steps={stepLabels} current={step} isMobile={isMobile} />
+        </div>
 
-        <div className={cn('space-y-4 py-2', isMobile ? 'min-h-[220px]' : 'min-h-[180px]')}>
+        <div className={cn(wizardSectionClass(isMobile, 'body'), !isMobile && 'min-h-[180px] py-2')}>
           {step === 0 && (
             <div className="space-y-3 rounded-md border bg-muted/20 p-4 text-sm">
               <p className="font-medium">O que vai acontecer:</p>
@@ -381,7 +463,7 @@ export function OsIniciarWizard({
           )}
         </div>
 
-        <div className={cn('flex gap-2', isMobile ? 'flex-col-reverse' : 'justify-between')}>
+        <div className={wizardSectionClass(isMobile, 'footer')}>
           <Button
             variant="outline"
             disabled={step === 0 || submitting}
@@ -391,7 +473,7 @@ export function OsIniciarWizard({
             <ChevronLeft className="mr-1 h-4 w-4" />
             Voltar
           </Button>
-          {step < stepLabels.length - 1 ? (
+          {step < confirmStep ? (
             <Button
               disabled={!canAdvance() || submitting}
               className={wizardButtonClass(isMobile)}
@@ -500,16 +582,18 @@ export function OsConcluirWizard({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={wizardDialogClass(isMobile)}>
-        <DialogHeader>
-          <DialogTitle>Concluir {orderNumero}</DialogTitle>
-          <DialogDescription>
-            Registre a resolução, evidência fotográfica e confirme a conclusão.
-          </DialogDescription>
-        </DialogHeader>
+        <div className={wizardSectionClass(isMobile, 'header')}>
+          <DialogHeader>
+            <DialogTitle>Concluir {orderNumero}</DialogTitle>
+            <DialogDescription>
+              Registre a resolução, evidência fotográfica e confirme a conclusão.
+            </DialogDescription>
+          </DialogHeader>
 
-        <StepIndicator steps={stepLabels} current={step} isMobile={isMobile} />
+          <StepIndicator steps={stepLabels} current={step} isMobile={isMobile} />
+        </div>
 
-        <div className={cn('space-y-4 py-2', isMobile ? 'min-h-[220px]' : 'min-h-[180px]')}>
+        <div className={cn(wizardSectionClass(isMobile, 'body'), !isMobile && 'min-h-[180px] py-2')}>
           {step === 0 && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -567,39 +651,46 @@ export function OsConcluirWizard({
           {step === confirmStep && (
             <div className="space-y-4">
               <div className="rounded-md border bg-muted/20 p-4 text-sm">
-                <p className="font-medium">Resumo da conclusão</p>
-                <ul className="mt-2 space-y-1 text-muted-foreground">
-                  <li>✓ Resolução descrita</li>
-                  <li>✓ Foto da {isCorretiva ? 'resolução' : 'intervenção'} anexada</li>
+                <div className="flex items-center gap-2 font-medium">
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+                  Resumo da conclusão
+                </div>
+                <ul className="mt-3 space-y-2 text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-600">✓</span>
+                    <span>Resolução descrita</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-600">✓</span>
+                    <span>Foto da {isCorretiva ? 'resolução' : 'intervenção'} anexada</span>
+                  </li>
+                  {hasPecas ? (
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-600">✓</span>
+                      <span>Peças registradas (se aplicável)</span>
+                    </li>
+                  ) : null}
                 </ul>
               </div>
 
-              <TecnicoAssinaturaCard tecnico={tecnico} isMobile={isMobile} />
-
-              <div className="flex items-start gap-3 rounded-md border p-3">
-                <Checkbox
-                  id="confirmacao-conclusao-wizard"
-                  checked={confirmacao}
-                  onCheckedChange={(checked) => setConfirmacao(checked === true)}
-                  className={isMobile ? 'mt-1 h-5 w-5' : undefined}
-                />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="confirmacao-conclusao-wizard"
-                    className={cn('leading-snug', isMobile && 'text-base')}
-                  >
-                    Confirmo que concluí esta intervenção conforme descrito
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Sua confirmação será registrada com nome, cargo e foto de perfil.
-                  </p>
-                </div>
+              <div className="space-y-2">
+                <p className={cn('font-medium', isMobile && 'text-base')}>Assinatura do técnico</p>
+                <TecnicoAssinaturaCard tecnico={tecnico} isMobile={isMobile} />
               </div>
+
+              <WizardConfirmCheckbox
+                id="confirmacao-conclusao-wizard"
+                checked={confirmacao}
+                onCheckedChange={setConfirmacao}
+                label="Confirmo que concluí esta intervenção conforme descrito"
+                description="Sua confirmação será registrada com nome, cargo e foto de perfil."
+                isMobile={isMobile}
+              />
             </div>
           )}
         </div>
 
-        <div className={cn('flex gap-2', isMobile ? 'flex-col-reverse' : 'justify-between')}>
+        <div className={wizardSectionClass(isMobile, 'footer')}>
           <Button
             variant="outline"
             disabled={step === 0 || submitting}

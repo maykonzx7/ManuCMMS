@@ -23,6 +23,8 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
+import { buildOrdemServicoComentarioEmail } from '../shared/email/email-template.shared';
+import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
 @Injectable()
@@ -169,32 +171,24 @@ export class CreateOrdemServicoComentarioUseCase {
       ordemId: os.id,
     });
 
-    const osCurta = os.id.slice(0, 8).toUpperCase();
-    const subject = `Novo comentario na OS ${osCurta}: ${os.ativoNome}`;
-    const text = [
-      `Olá, ${tecnico.nome}.`,
-      '',
-      `${comentario.usuarioNome} comentou na ordem de serviço atribuída a você.`,
-      `OS: ${os.id}`,
-      `Ativo: ${os.ativoNome}`,
-      `Unidade: ${unidadeNome}`,
-      `Comentário: ${texto}`,
-      osLink ? `Acesse: ${osLink}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-    const html = `
-      <p>Olá, <strong>${escapeHtml(tecnico.nome)}</strong>.</p>
-      <p><strong>${escapeHtml(comentario.usuarioNome)}</strong> comentou na ordem de serviço atribuída a você.</p>
-      <ul>
-        <li><strong>OS:</strong> ${escapeHtml(os.id)}</li>
-        <li><strong>Ativo:</strong> ${escapeHtml(os.ativoNome)}</li>
-        <li><strong>Unidade:</strong> ${escapeHtml(unidadeNome)}</li>
-      </ul>
-      <p><strong>Comentário:</strong></p>
-      <blockquote>${escapeHtml(texto)}</blockquote>
-      ${osLink ? `<p><a href="${osLink}">Abrir OS agora</a></p>` : ''}
-    `;
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
+    });
+    const { subject, text, html } = buildOrdemServicoComentarioEmail({
+      frontendBaseUrl,
+      tecnicoNome: tecnico.nome,
+      autorNome: comentario.usuarioNome,
+      ordemId: os.id,
+      ativoNome: os.ativoNome,
+      unidadeNome,
+      comentario: texto,
+      osLink,
+    });
 
     try {
       await this.emailPort.send({ to: tecnico.email, subject, text, html });
@@ -202,12 +196,4 @@ export class CreateOrdemServicoComentarioUseCase {
       // Notificação por email é best-effort e não deve bloquear o comentário.
     }
   }
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
 }

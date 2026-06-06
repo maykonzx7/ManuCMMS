@@ -113,13 +113,26 @@ export function AppHeader() {
       }
     }
 
-    void loadUnreadCount()
+    const schedule = () => {
+      void loadUnreadCount()
+    }
+
+    const idleId =
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback(schedule, { timeout: 1500 })
+        : window.setTimeout(schedule, 600)
+
     const intervalId = window.setInterval(() => {
       void loadUnreadCount()
     }, 60000)
 
     return () => {
       mounted = false
+      if (typeof window.cancelIdleCallback === 'function' && typeof idleId === 'number') {
+        window.cancelIdleCallback(idleId)
+      } else {
+        window.clearTimeout(idleId)
+      }
       window.clearInterval(intervalId)
     }
   }, [accessToken, isNotificationsPage])
@@ -127,11 +140,6 @@ export function AppHeader() {
   useRealtimeConnection(accessToken, company?.slug, {
     onNotificacaoNova: () => {
       setUnreadCount((prev) => prev + 1)
-    },
-    onReady: () => {
-      void apiRequest<Array<{ lidaEm: string | null }>>('/notificacoes', { accessToken: accessToken! })
-        .then((res) => setUnreadCount(res.filter((item) => !item.lidaEm).length))
-        .catch(() => undefined)
     },
   })
 

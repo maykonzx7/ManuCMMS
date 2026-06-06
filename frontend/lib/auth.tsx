@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { User, Company, Unit, SessionData } from '@/types'
 import { apiRequest, setApiCompanySlug } from '@/lib/api'
@@ -36,6 +36,54 @@ type BackendUnit = {
   idUnidade?: string
   nome: string
   localizacao: string
+}
+
+type BootstrapResponse = {
+  email: string | null
+  usuario: BackendMe['usuario']
+  unidades: BackendUnit[]
+}
+
+const SESSION_CACHE_KEY = 'manucmms_session_cache_v1'
+const SESSION_CACHE_TTL_MS = 10 * 60 * 1000
+
+type SessionCachePayload = {
+  token: string
+  session: SessionData
+  ts: number
+}
+
+function readSessionCache(token: string): SessionData | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as SessionCachePayload
+    if (parsed.token !== token) return null
+    if (Date.now() - parsed.ts > SESSION_CACHE_TTL_MS) return null
+    return parsed.session
+  } catch {
+    return null
+  }
+}
+
+function writeSessionCache(token: string, session: SessionData) {
+  if (typeof window === 'undefined') return
+  try {
+    const payload: SessionCachePayload = { token, session, ts: Date.now() }
+    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // Cache é best-effort.
+  }
+}
+
+function clearSessionCache() {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.removeItem(SESSION_CACHE_KEY)
+  } catch {
+    // noop
+  }
 }
 
 interface AuthContextType {
@@ -137,9 +185,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(supabaseConfig.isConfigured)
   const [isPlatformOperator, setIsPlatformOperator] = useState(false)
+  const syncedTokenRef = useRef<string | null>(null)
+  const hydratingRef = useRef<Promise<void> | null>(null)
 
-  const hydrateFromSupabase = useCallback(async (currentSession: Session | null, preferredCompanySlug?: string | null) => {
+  const applySession = useCallback((token: string, nextSession: SessionData | null) => {
+    setAccessToken(token)
+    setSessionData(nextSession)
+    setApiCompanySlug(nextSession?.empresa.slug ?? null)
+    setIsPlatformOperator(false)
+    if (nextSession) {
+      writeSessionCache(token, nextSession)
+    } else {
+      clearSessionCache()
+    }
+  }, [])
+
+  const hydrateFromSupabase = useCallback(async (
+    currentSession: Session | null,
+    preferredCompanySlug?: string | null,
+    options?: { intent?: 'login' | 'refresh'; useCache?: boolean },
+  ) => {
     if (!currentSession?.access_token) {
+      syncedTokenRef.current = null
+      clearSessionCache()
       setSessionData(null)
       setAccessToken(null)
       setIsPlatformOperator(false)
@@ -150,18 +218,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const token = currentSession.access_token
     const companySlug = resolvePreferredCompanySlug(preferredCompanySlug)
     const headers = companySlug ? { 'x-company-slug': companySlug } : undefined
-    await apiRequest('/auth/session', {
-      method: 'POST',
-      body: { accessToken: token },
+    const intent = options?.intent ?? 'refresh'
+    const cachedSession = options?.useCache === false ? null : readSessionCache(token)
+
+    if (cachedSession) {
+      applySession(token, cachedSession)
+    }
+
+    if (syncedTokenRef.current !== token) {
+      await apiRequest('/auth/session', {
+        method: 'POST',
+        body: { accessToken: token, intent },
+        headers,
+      })
+      syncedTokenRef.current = token
+    }
+
+    const bootstrap = await apiRequest<BootstrapResponse>('/me/bootstrap', {
+      accessToken: token,
       headers,
     })
-    setAccessToken(token)
-    const me = await apiRequest<BackendMe>('/me', { accessToken: token, headers })
-    const unidades = await apiRequest<BackendUnit[]>('/unidades', { accessToken: token, headers })
-    const nextSession = toSessionData(me, unidades)
-    setSessionData(nextSession)
-    setApiCompanySlug(nextSession?.empresa.slug)
-    setIsPlatformOperator(false)
+    const nextSession = toSessionData(
+      { email: bootstrap.email, usuario: bootstrap.usuario },
+      bootstrap.unidades,
+    )
+    applySession(token, nextSession)
 
     // Evita reprocessar hash OAuth antigo em refreshes seguintes.
     if (
@@ -171,7 +252,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const cleanUrl = `${window.location.pathname}${window.location.search}`
       window.history.replaceState({}, document.title, cleanUrl)
     }
-  }, [])
+  }, [applySession])
+
+  const runHydration = useCallback(async (
+    currentSession: Session | null,
+    preferredCompanySlug?: string | null,
+    options?: { intent?: 'login' | 'refresh'; useCache?: boolean },
+  ) => {
+    if (hydratingRef.current) {
+      await hydratingRef.current
+      return
+    }
+
+    const promise = hydrateFromSupabase(currentSession, preferredCompanySlug, options)
+    hydratingRef.current = promise
+    try {
+      await promise
+    } finally {
+      hydratingRef.current = null
+    }
+  }, [hydrateFromSupabase])
 
   useEffect(() => {
     if (!supabase) {
@@ -183,31 +283,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void supabase.auth
       .getSession()
       .then(async ({ data }) => {
-        await hydrateFromSupabase(data.session ?? null)
+        const token = data.session?.access_token
+        const cached = token ? readSessionCache(token) : null
+        if (cached) {
+          applySession(token!, cached)
+          setIsLoading(false)
+        }
+        await runHydration(data.session ?? null, undefined, { useCache: true })
       })
       .catch((error) => {
         console.warn('[auth] falha ao recuperar sessao inicial', error)
-        setSessionData(null)
+        syncedTokenRef.current = null
+        applySession('', null)
         setAccessToken(null)
-        setIsPlatformOperator(false)
-        setApiCompanySlug(null)
       })
       .finally(() => {
         setIsLoading(false)
       })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      void hydrateFromSupabase(nextSession).catch((error) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'INITIAL_SESSION') return
+
+      void runHydration(
+        nextSession,
+        undefined,
+        { intent: event === 'SIGNED_IN' ? 'login' : 'refresh', useCache: false },
+      ).catch((error) => {
         console.warn('[auth] falha ao hidratar sessao apos evento', error)
-        setSessionData(null)
+        syncedTokenRef.current = null
+        applySession('', null)
         setAccessToken(null)
-        setIsPlatformOperator(false)
-        setApiCompanySlug(null)
       })
     })
 
     return () => subscription.unsubscribe()
-  }, [hydrateFromSupabase])
+  }, [applySession, runHydration])
 
   const login = useCallback(async (email: string, senha: string, empresaSlug?: string) => {
     if (!supabase) {
@@ -233,11 +343,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error(error?.message ?? 'Falha de autenticacao')
       }
 
-      await hydrateFromSupabase(data.session, empresaSlug ?? null)
+      await runHydration(data.session, empresaSlug ?? null, { intent: 'login', useCache: false })
     } finally {
       setIsLoading(false)
     }
-  }, [hydrateFromSupabase])
+  }, [runHydration])
 
   const loginWithGoogle = useCallback(async (empresaSlug?: string, redirectPath?: string) => {
     if (!supabase) {
@@ -303,11 +413,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await supabase.auth.signOut()
     }
     await apiRequest('/auth/session', { method: 'DELETE' }).catch(() => undefined)
-    setSessionData(null)
+    syncedTokenRef.current = null
+    clearSessionCache()
+    applySession('', null)
     setAccessToken(null)
-    setIsPlatformOperator(false)
-    setApiCompanySlug(null)
-  }, [])
+  }, [applySession])
 
   const setUnidadeAtual = useCallback((unidade: Unit) => {
     setSessionData((prev) => (prev ? { ...prev, unidadeAtual: unidade } : prev))
@@ -317,16 +427,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!accessToken) return
     const companySlug = sessionData?.empresa.slug ?? null
     const headers = companySlug ? { 'x-company-slug': companySlug } : undefined
-    const me = await apiRequest<BackendMe>('/me', { accessToken, headers })
-    const unidades = await apiRequest<BackendUnit[]>('/unidades', { accessToken, headers })
-    const nextSession = toSessionData(me, unidades)
+    const bootstrap = await apiRequest<BootstrapResponse>('/me/bootstrap', { accessToken, headers })
+    const nextSession = toSessionData(
+      { email: bootstrap.email, usuario: bootstrap.usuario },
+      bootstrap.unidades,
+    )
     if (nextSession) {
-      setSessionData((prev) => ({
+      const merged = {
         ...nextSession,
-        unidadeAtual: prev?.unidadeAtual ?? nextSession.unidadeAtual,
-      }))
+        unidadeAtual: sessionData?.unidadeAtual ?? nextSession.unidadeAtual,
+      }
+      setSessionData(merged)
+      writeSessionCache(accessToken, merged)
     }
-  }, [accessToken, sessionData?.empresa.slug])
+  }, [accessToken, sessionData?.empresa.slug, sessionData?.unidadeAtual])
 
   const value = useMemo<AuthContextType>(() => ({
     session: sessionData,

@@ -1,4 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import {
+  buildTransactionalEmailTemplate,
+  escapeHtml,
+} from '../shared/email/email-template.shared';
 
 const SLUG_RESERVED = new Set(['admin', 'api', 'login', 'root', 'system']);
 
@@ -86,6 +90,7 @@ export function resolveInviteFrontendBaseUrl(input: {
 }
 
 export function buildInviteEmailTemplate(input: {
+  frontendBaseUrl: string;
   nomeDestinatario: string;
   nomeEmpresa: string;
   linkConvite: string;
@@ -101,87 +106,45 @@ export function buildInviteEmailTemplate(input: {
 
   const subject = `[${input.nomeEmpresa}] Convite de acesso ao ManuCMMS`;
   const text = [
-    `Ola, ${input.nomeDestinatario}!`,
+    `Olá, ${input.nomeDestinatario}!`,
     '',
-    `Voce recebeu um convite para acessar o ambiente da empresa ${input.nomeEmpresa} no ManuCMMS.`,
+    `Você recebeu um convite para acessar o ambiente da empresa ${input.nomeEmpresa} no ManuCMMS.`,
     `Perfil inicial: ${cargoExibicao}.`,
     unidadeTexto,
     '',
-    `Para ativar seu acesso, use o link exclusivo abaixo:`,
+    'Para ativar seu acesso, use o link exclusivo abaixo:',
     input.linkConvite,
     '',
     `Validade do convite: ${input.dataExpiracao}.`,
     '',
-    `Importante: entre/crie conta com o mesmo email que recebeu este convite.`,
-    `Se voce nao reconhece este convite, ignore esta mensagem.`,
+    'Importante: entre ou crie conta com o mesmo e-mail que recebeu este convite.',
+    'Se você não reconhece este convite, ignore esta mensagem.',
     '',
-    `Atenciosamente,`,
+    'Atenciosamente,',
     `Equipe ${input.nomeEmpresa} via ManuCMMS`,
   ].join('\n');
 
-  const html = `
-<!DOCTYPE html>
-<html lang="pt-BR">
-  <body style="margin:0;padding:0;background:#f3f5f7;font-family:Segoe UI,Arial,sans-serif;color:#173042;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f5f7;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:16px;overflow:hidden;">
-            <tr>
-              <td style="background:#23485c;padding:28px 32px;color:#ffffff;">
-                <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;">ManuCMMS</div>
-                <div style="font-size:28px;font-weight:700;margin-top:8px;">Convite de acesso</div>
-                <div style="font-size:13px;opacity:.9;margin-top:6px;">${input.nomeEmpresa}</div>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:32px;">
-                <p style="margin:0 0 16px;font-size:16px;">Ola, <strong>${input.nomeDestinatario}</strong>!</p>
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">
-                  Voce recebeu um convite para acessar o ambiente da empresa
-                  <strong>${input.nomeEmpresa}</strong> no ManuCMMS.
-                </p>
-                <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
-                  Perfil inicial: <strong>${cargoExibicao}</strong><br />
-                  ${unidadeTexto}
-                </p>
-                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">
-                  Para ativar seu acesso, clique no botao abaixo:
-                </p>
-                <p style="margin:0 0 24px;">
-                  <a href="${input.linkConvite}" style="display:inline-block;background:#23485c;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600;">
-                    Ativar meu acesso
-                  </a>
-                </p>
-                <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4d6472;">
-                  Validade do convite: <strong>${input.dataExpiracao}</strong>.
-                </p>
-                <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4d6472;">
-                  Entre ou crie sua conta com o mesmo email que recebeu este convite.
-                </p>
-                <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4d6472;">
-                  Se o botao nao funcionar, copie e cole este link no navegador:
-                </p>
-                <p style="margin:0 0 24px;font-size:14px;line-height:1.6;word-break:break-word;">
-                  <a href="${input.linkConvite}" style="color:#23485c;">${input.linkConvite}</a>
-                </p>
-                <hr style="border:none;border-top:1px solid #d9e0e4;margin:24px 0;" />
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#6a7d88;">
-                  Se voce nao reconhece este convite, ignore este email.
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:20px 32px;background:#eef2f4;font-size:12px;color:#5f7280;">
-                Equipe ${input.nomeEmpresa} via ManuCMMS
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  const html = buildTransactionalEmailTemplate({
+    frontendBaseUrl: input.frontendBaseUrl,
+    preheader: subject,
+    eyebrow: 'Convite de acesso',
+    title: 'Ative seu acesso',
+    subtitle: input.nomeEmpresa,
+    greeting: `Olá, <strong style="color:#e8eef3;">${escapeHtml(input.nomeDestinatario)}</strong>!`,
+    paragraphs: [
+      `Você recebeu um convite para acessar o ambiente da empresa <strong style="color:#e8eef3;">${escapeHtml(input.nomeEmpresa)}</strong> no ManuCMMS.`,
+      `Perfil inicial: <strong style="color:#e8eef3;">${escapeHtml(cargoExibicao)}</strong>. ${escapeHtml(unidadeTexto)}`,
+      `Validade do convite: <strong style="color:#e8eef3;">${escapeHtml(input.dataExpiracao)}</strong>.`,
+      'Entre ou crie sua conta com o mesmo e-mail que recebeu este convite.',
+    ],
+    cta: {
+      label: 'Ativar meu acesso',
+      href: input.linkConvite,
+    },
+    footerNote:
+      'Se você não reconhece este convite, ignore este e-mail com segurança.',
+    companyName: input.nomeEmpresa,
+  });
 
   return { subject, text, html };
 }

@@ -28,6 +28,8 @@ import {
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
+import { buildOrdemServicoAtribuidaEmail } from '../shared/email/email-template.shared';
+import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
 const TIPOS_VALIDOS: OrdemServicoListaItem['tipo'][] = [
@@ -290,32 +292,24 @@ export class CreateOrdemServicoUseCase {
       ordemId: ordem.id,
     });
 
-    const subject = `Nova OS atribuida: ${ordem.ativoNome} (${ordem.tipo})`;
-    const text = [
-      `Olá, ${tecnico.nome}.`,
-      '',
-      `Uma nova ordem de serviço foi atribuída a você.`,
-      `OS: ${ordem.id}`,
-      `Ativo: ${ordem.ativoNome}`,
-      `Tipo: ${ordem.tipo}`,
-      `Status: ${ordem.status}`,
-      `Unidade: ${unidadeNome}`,
-      osLink ? `Acesse: ${osLink}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-    const html = `
-      <p>Olá, <strong>${tecnico.nome}</strong>.</p>
-      <p>Uma nova ordem de serviço foi atribuída a você.</p>
-      <ul>
-        <li><strong>OS:</strong> ${ordem.id}</li>
-        <li><strong>Ativo:</strong> ${ordem.ativoNome}</li>
-        <li><strong>Tipo:</strong> ${ordem.tipo}</li>
-        <li><strong>Status:</strong> ${ordem.status}</li>
-        <li><strong>Unidade:</strong> ${unidadeNome}</li>
-      </ul>
-      ${osLink ? `<p><a href="${osLink}">Abrir OS agora</a></p>` : ''}
-    `;
+    const frontendBaseUrl = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
+    });
+    const { subject, text, html } = buildOrdemServicoAtribuidaEmail({
+      frontendBaseUrl,
+      tecnicoNome: tecnico.nome,
+      ordemId: ordem.id,
+      ativoNome: ordem.ativoNome,
+      tipo: ordem.tipo,
+      status: ordem.status,
+      unidadeNome,
+      osLink,
+    });
 
     try {
       await this.emailPort.send({ to: tecnico.email, subject, text, html });

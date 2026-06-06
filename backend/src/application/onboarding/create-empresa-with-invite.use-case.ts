@@ -223,6 +223,7 @@ export class CreateEmpresaWithInviteUseCase {
     if (this.emailPort.isConfigured()) {
       try {
         const template = buildInviteEmailTemplate({
+          frontendBaseUrl,
           nomeDestinatario: nomeResponsavel,
           nomeEmpresa,
           linkConvite: inviteLink,
