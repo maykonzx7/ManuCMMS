@@ -63,7 +63,7 @@ import {
 } from '@/components/ordens/os-execution-wizard'
 import { OsProximoPassoBanner } from '@/components/ordens/os-proximo-passo-banner'
 import { PageDataLoading } from '@/components/shared'
-import { getPodeConcluirOrdem } from '@/lib/os-flow-utils'
+import { getPodeConcluirOrdem, ordemPrecisaEvidenciaProblema } from '@/lib/os-flow-utils'
 import { ROUTES } from '@/lib/routes'
 import type { UserRole } from '@/types'
 
@@ -97,6 +97,7 @@ export default function OrderDetailPage() {
   const [tecnicos, setTecnicos] = useState<Array<{ id: string; nome: string }>>([])
   const [iniciarWizardOpen, setIniciarWizardOpen] = useState(false)
   const [concluirWizardOpen, setConcluirWizardOpen] = useState(false)
+  const [concluirRequireProblema, setConcluirRequireProblema] = useState(false)
   const [fluxoContinuoOpen, setFluxoContinuoOpen] = useState(false)
   const [wizardSubmitting, setWizardSubmitting] = useState(false)
   const [pecasCatalog, setPecasCatalog] = useState<ApiPeca[]>([])
@@ -166,6 +167,10 @@ export default function OrderDetailPage() {
       const res = await apiRequest<ApiOrdem>(path, { accessToken })
       setRawOrder(res)
       setOrder(mapApiOrdemToServiceOrder(res, unit.id))
+      void apiRequest(`/notificacoes/ordem-servico/${params.id}/lidas`, {
+        method: 'PATCH',
+        accessToken,
+      }).catch(() => undefined)
     } catch {
       setRawOrder(null)
       setOrder(null)
@@ -282,10 +287,24 @@ export default function OrderDetailPage() {
   )
 
   async function openConcluirWizard() {
+    if (!order) return
+    if (order.status === 'ABERTA' && order.tipo === 'CORRETIVA') {
+      setIniciarWizardOpen(true)
+      toast.info('Registre a evidência do problema antes de concluir.')
+      return
+    }
     if (!podeConcluir.ok) {
       toast.error(podeConcluir.motivo ?? 'Não é possível concluir esta OS agora.')
       return
     }
+    setConcluirRequireProblema(
+      ordemPrecisaEvidenciaProblema({
+        status: order.status,
+        tipo: order.tipo,
+        fotoProblema: rawOrder?.fotoProblema,
+        descricaoProblema: rawOrder?.descricaoProblema,
+      }),
+    )
     if (accessToken && unit?.id) {
       try {
         const res = await apiRequest<ApiPeca[]>(`/unidades/${unit.id}/pecas`, { accessToken })
@@ -331,6 +350,8 @@ export default function OrderDetailPage() {
     descricaoSolucao: string
     fotoSolucao?: File
     fotoAnexo?: File
+    fotoProblema?: File
+    descricaoProblema?: string
     confirmacaoConclusao: boolean
     pecasConsumidas: Array<{ pecaId: string; quantidade: number }>
   }) {
@@ -340,12 +361,13 @@ export default function OrderDetailPage() {
       const formData = new FormData()
       formData.append('descricaoSolucao', data.descricaoSolucao)
       formData.append('confirmacaoConclusao', 'true')
-      if (data.fotoSolucao) {
-        formData.append('fotoSolucao', data.fotoSolucao)
-        if (rawOrder?.descricaoProblema?.trim()) {
-          formData.append('descricaoProblema', rawOrder.descricaoProblema.trim())
-        }
+      if (data.fotoProblema) formData.append('fotoProblema', data.fotoProblema)
+      if (data.descricaoProblema) {
+        formData.append('descricaoProblema', data.descricaoProblema)
+      } else if (data.fotoSolucao && rawOrder?.descricaoProblema?.trim()) {
+        formData.append('descricaoProblema', rawOrder.descricaoProblema.trim())
       }
+      if (data.fotoSolucao) formData.append('fotoSolucao', data.fotoSolucao)
       if (data.fotoAnexo) formData.append('fotoAnexo', data.fotoAnexo)
       if (data.pecasConsumidas.length > 0) {
         formData.append('pecasConsumidas', JSON.stringify(data.pecasConsumidas))
@@ -1098,6 +1120,7 @@ export default function OrderDetailPage() {
         orderTipo={order.tipo}
         tecnico={tecnicoContext}
         pecasCatalog={pecasCatalog}
+        requireProblemaEvidence={concluirRequireProblema}
         submitting={wizardSubmitting}
         onConfirm={handleConcluirWizard}
       />

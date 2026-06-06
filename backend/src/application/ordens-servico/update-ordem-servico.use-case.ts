@@ -19,9 +19,14 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
+import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 import { buildOrdemServicoAtribuidaEmail } from '../shared/email/email-template.shared';
+import {
+  canDeliverEmail,
+  deliverTransactionalEmail,
+} from '../shared/email/deliver-email.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
@@ -39,6 +44,7 @@ export class UpdateOrdemServicoUseCase {
     private readonly usuarios: IUsuarioReadPort,
     @Inject(EMAIL_PORT)
     private readonly emailPort: IEmailPort,
+    private readonly eventPublisher: EventPublisherService,
     private readonly notificacoes: NotificacaoService,
   ) {}
 
@@ -130,7 +136,7 @@ export class UpdateOrdemServicoUseCase {
     } else if (atual.status === 'CANCELADA') {
       throw new BadRequestException('OS cancelada não pode ser alterada.');
     } else if (mudouTecnico) {
-      if (!['ABERTA', 'EM_ANDAMENTO'].includes(atual.status)) {
+      if (!['ABERTA', 'EM_EXECUCAO'].includes(atual.status)) {
         throw new BadRequestException(
           'Transferência de OS permitida apenas para OS aberta ou em andamento.',
         );
@@ -222,7 +228,7 @@ export class UpdateOrdemServicoUseCase {
     empresaSlug: string | null;
   }): Promise<void> {
     const { tecnico, ordem, unidadeNome } = input;
-    if (!tecnico?.email || !this.emailPort.isConfigured()) {
+    if (!tecnico?.email || !canDeliverEmail(this.emailPort, this.eventPublisher)) {
       return;
     }
 
@@ -256,10 +262,10 @@ export class UpdateOrdemServicoUseCase {
       reassigned: true,
     });
 
-    try {
-      await this.emailPort.send({ to: tecnico.email, subject, text, html });
-    } catch {
-      // Notificação por email é best-effort e não deve bloquear o fluxo de OS.
-    }
+    await deliverTransactionalEmail({
+      emailPort: this.emailPort,
+      eventPublisher: this.eventPublisher,
+      payload: { to: tecnico.email, subject, text, html },
+    });
   }
 }

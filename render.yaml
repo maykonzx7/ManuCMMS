@@ -72,6 +72,7 @@ services:
     envVars:
       - fromGroup: manucmms-shared-infra
       - fromGroup: manucmms-supabase
+      - fromGroup: manucmms-email
       - key: NODE_ENV
         value: production
       - key: PUBLIC_BASE_URL

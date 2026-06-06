@@ -62,7 +62,7 @@ import {
   OsConcluirWizard,
   OsFluxoContinuoPrompt,
 } from '@/components/ordens/os-execution-wizard'
-import { getPodeConcluirOrdem } from '@/lib/os-flow-utils'
+import { getPodeConcluirOrdem, normalizeOrderStatus, ordemPrecisaEvidenciaProblema } from '@/lib/os-flow-utils'
 import { apiRequest, downloadApiFile, peekApiCache } from '@/lib/api'
 import { buildApiCacheKey } from '@/lib/api-cache'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
@@ -105,6 +105,7 @@ export default function OrdersPage() {
   const [exportandoLista, setExportandoLista] = useState(false)
   const [iniciarWizardOpen, setIniciarWizardOpen] = useState(false)
   const [concluirWizardOpen, setConcluirWizardOpen] = useState(false)
+  const [concluirRequireProblema, setConcluirRequireProblema] = useState(false)
   const [fluxoContinuoOpen, setFluxoContinuoOpen] = useState(false)
   const [wizardOrderId, setWizardOrderId] = useState('')
   const [pecasCatalog, setPecasCatalog] = useState<Array<{ id: string; codigo: string; nome: string; quantidadeEstoque: number; quantidadeMinima: number }>>([])
@@ -149,7 +150,10 @@ export default function OrdersPage() {
       setOrders((prev) =>
         prev.map((order) =>
           order.id === payload.id
-            ? { ...order, status: payload.status as OrderStatus }
+            ? {
+                ...order,
+                status: normalizeOrderStatus(payload.status),
+              }
             : order,
         ),
       )
@@ -183,18 +187,33 @@ export default function OrdersPage() {
 
   const openConcluirWizard = async (orderId: string) => {
     const selected = orders.find((o) => o.id === orderId)
-    const bloqueio = selected
-      ? getPodeConcluirOrdem({
-          status: selected.status,
-          tipo: selected.tipo,
-          fotoProblema: selected.fotoProblema,
-          descricaoProblema: selected.descricaoProblema,
-        })
-      : { ok: true, motivo: null }
+    if (!selected) {
+      toast.error('Ordem não encontrada.')
+      return
+    }
+    if (selected.status === 'ABERTA' && selected.tipo === 'CORRETIVA') {
+      openIniciarWizard(orderId)
+      toast.info('Registre a evidência do problema antes de concluir.')
+      return
+    }
+    const bloqueio = getPodeConcluirOrdem({
+      status: selected.status,
+      tipo: selected.tipo,
+      fotoProblema: selected.fotoProblema,
+      descricaoProblema: selected.descricaoProblema,
+    })
     if (!bloqueio.ok) {
       toast.error(bloqueio.motivo ?? 'Não é possível concluir esta OS agora.')
       return
     }
+    setConcluirRequireProblema(
+      ordemPrecisaEvidenciaProblema({
+        status: selected.status,
+        tipo: selected.tipo,
+        fotoProblema: selected.fotoProblema,
+        descricaoProblema: selected.descricaoProblema,
+      }),
+    )
     setWizardOrderId(orderId)
     if (accessToken && currentUnit?.id) {
       try {
@@ -244,6 +263,8 @@ export default function OrdersPage() {
     descricaoSolucao: string
     fotoSolucao?: File
     fotoAnexo?: File
+    fotoProblema?: File
+    descricaoProblema?: string
     confirmacaoConclusao: boolean
     pecasConsumidas: Array<{ pecaId: string; quantidade: number }>
   }) => {
@@ -253,6 +274,8 @@ export default function OrdersPage() {
       const formData = new FormData()
       formData.append('descricaoSolucao', data.descricaoSolucao)
       formData.append('confirmacaoConclusao', 'true')
+      if (data.fotoProblema) formData.append('fotoProblema', data.fotoProblema)
+      if (data.descricaoProblema) formData.append('descricaoProblema', data.descricaoProblema)
       if (data.fotoSolucao) formData.append('fotoSolucao', data.fotoSolucao)
       if (data.fotoAnexo) formData.append('fotoAnexo', data.fotoAnexo)
       if (data.pecasConsumidas.length > 0) {
@@ -779,6 +802,7 @@ export default function OrdersPage() {
               cargo: currentUser?.cargoNome ?? null,
             }}
             pecasCatalog={pecasCatalog}
+            requireProblemaEvidence={concluirRequireProblema}
             submitting={wizardSubmitting}
             onConfirm={handleConcluirWizard}
           />

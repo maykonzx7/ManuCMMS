@@ -131,6 +131,21 @@ export class NotificacaoService {
     `);
   }
 
+  async markOrdemServicoAsReadForUsuario(
+    usuarioId: string,
+    ordemServicoId: string,
+  ): Promise<void> {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE notificacao
+      SET
+        lida_em = COALESCE(lida_em, NOW()),
+        updated_at = NOW()
+      WHERE usuario_id = ${usuarioId}::uuid
+        AND ordem_servico_id = ${ordemServicoId}::uuid
+        AND lida_em IS NULL
+    `);
+  }
+
   async delete(usuarioId: string, notificacaoId: string): Promise<void> {
     await this.prisma.$executeRaw(Prisma.sql`
       DELETE FROM notificacao

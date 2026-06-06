@@ -68,6 +68,10 @@ export class IniciarExecucaoOrdemServicoUseCase {
       fotoProblema,
       descricaoProblema,
     );
+    await this.notificacoes.markOrdemServicoAsReadForUsuario(
+      iniciadoPorUsuarioId,
+      idOrdemServico,
+    );
     publishOrdemServicoStatus(this.notificacoes, idUnidade, iniciada);
     return iniciada;
   }

@@ -23,6 +23,19 @@ export class NotificacoesController {
     return { ok: true };
   }
 
+  @Patch('ordem-servico/:ordemServicoId/lidas')
+  async markOrdemServicoAsRead(
+    @Req() req: Request,
+    @Param('ordemServicoId') ordemServicoId: string,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.notificacoes.markOrdemServicoAsReadForUsuario(
+      req.usuarioLocal!.id,
+      ordemServicoId,
+    );
+    return { ok: true };
+  }
+
   @Patch(':notificacaoId/lida')
   async markAsRead(
     @Req() req: Request,

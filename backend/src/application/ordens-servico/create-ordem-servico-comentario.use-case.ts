@@ -25,6 +25,10 @@ import {
 import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { buildOrdemServicoComentarioEmail } from '../shared/email/email-template.shared';
+import {
+  canDeliverEmail,
+  deliverTransactionalEmail,
+} from '../shared/email/deliver-email.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
@@ -159,7 +163,7 @@ export class CreateOrdemServicoComentarioUseCase {
     texto: string;
   }): Promise<void> {
     const { tecnico, os, comentario, unidadeNome, texto } = input;
-    if (!tecnico?.email || !this.emailPort.isConfigured()) {
+    if (!tecnico?.email || !canDeliverEmail(this.emailPort, this.eventPublisher)) {
       return;
     }
 
@@ -192,19 +196,10 @@ export class CreateOrdemServicoComentarioUseCase {
       osLink,
     });
 
-    const published = await this.eventPublisher.publishEmailSend({
-      to: tecnico.email,
-      subject,
-      text,
-      html,
+    await deliverTransactionalEmail({
+      emailPort: this.emailPort,
+      eventPublisher: this.eventPublisher,
+      payload: { to: tecnico.email, subject, text, html },
     });
-
-    if (published) return;
-
-    try {
-      await this.emailPort.send({ to: tecnico.email, subject, text, html });
-    } catch {
-      // Notificação por email é best-effort e não deve bloquear o comentário.
-    }
   }
 }

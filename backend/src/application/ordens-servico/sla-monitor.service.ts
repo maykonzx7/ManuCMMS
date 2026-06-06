@@ -9,8 +9,13 @@ import {
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
+import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { buildSlaAtrasadoEmail } from '../shared/email/email-template.shared';
+import {
+  canDeliverEmail,
+  deliverTransactionalEmail,
+} from '../shared/email/deliver-email.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
 
@@ -24,6 +29,7 @@ export class OrdemServicoSlaMonitorService {
     private readonly usuarios: IUsuarioReadPort,
     @Inject(EMAIL_PORT)
     private readonly emailPort: IEmailPort,
+    private readonly eventPublisher: EventPublisherService,
     private readonly notificacoes: NotificacaoService,
   ) {}
 
@@ -82,7 +88,7 @@ export class OrdemServicoSlaMonitorService {
     ativoNome: string,
     isTecnico: boolean,
   ): Promise<void> {
-    if (!email || !this.emailPort.isConfigured()) return;
+    if (!email || !canDeliverEmail(this.emailPort, this.eventPublisher)) return;
 
     const link = resolveOrdemServicoEmailLink({
       frontendNgrokBaseUrl: this.config.get<string>(
@@ -112,11 +118,10 @@ export class OrdemServicoSlaMonitorService {
       osLink: link,
     });
 
-    await this.emailPort.send({
-      to: email,
-      subject,
-      text,
-      html,
+    await deliverTransactionalEmail({
+      emailPort: this.emailPort,
+      eventPublisher: this.eventPublisher,
+      payload: { to: email, subject, text, html },
     });
   }
 }

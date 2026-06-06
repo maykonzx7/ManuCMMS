@@ -503,6 +503,8 @@ export type OsConcluirWizardResult = {
   descricaoSolucao: string
   fotoSolucao?: File
   fotoAnexo?: File
+  fotoProblema?: File
+  descricaoProblema?: string
   confirmacaoConclusao: boolean
   pecasConsumidas: Array<{ pecaId: string; quantidade: number }>
 }
@@ -514,6 +516,7 @@ type OsConcluirWizardProps = {
   orderTipo: MaintenanceType
   tecnico: TecnicoInfo
   pecasCatalog: PecaCatalogItem[]
+  requireProblemaEvidence?: boolean
   submitting?: boolean
   onConfirm: (data: OsConcluirWizardResult) => Promise<void>
 }
@@ -525,26 +528,38 @@ export function OsConcluirWizard({
   orderTipo,
   tecnico,
   pecasCatalog,
+  requireProblemaEvidence = false,
   submitting = false,
   onConfirm,
 }: OsConcluirWizardProps) {
   const isMobile = useIsMobile()
   const isCorretiva = orderTipo === 'CORRETIVA'
   const hasPecas = pecasCatalog.length > 0
-  const stepLabels = hasPecas
+  const problemaSteps = requireProblemaEvidence
+    ? ['Foto do problema', 'Descrição do problema']
+    : []
+  const resolucaoSteps = hasPecas
     ? isCorretiva
       ? ['Resolução', 'Foto da resolução', 'Peças', 'Confirmar']
       : ['Resolução', 'Foto da intervenção', 'Peças', 'Confirmar']
     : isCorretiva
       ? ['Resolução', 'Foto da resolução', 'Confirmar']
       : ['Resolução', 'Foto da intervenção', 'Confirmar']
+  const stepLabels = [...problemaSteps, ...resolucaoSteps]
 
   const confirmStep = stepLabels.length - 1
-  const pecasStep = hasPecas ? 2 : -1
-  const fotoStep = 1
+  const pecasStep = hasPecas ? stepLabels.indexOf('Peças') : -1
+  const resolucaoStep = stepLabels.indexOf('Resolução')
+  const fotoResolucaoStep = isCorretiva
+    ? stepLabels.indexOf('Foto da resolução')
+    : stepLabels.indexOf('Foto da intervenção')
+  const fotoProblemaStep = stepLabels.indexOf('Foto do problema')
+  const descricaoProblemaStep = stepLabels.indexOf('Descrição do problema')
 
   const [step, setStep] = useState(0)
   const [descricaoSolucao, setDescricaoSolucao] = useState('')
+  const [fotoProblema, setFotoProblema] = useState<File | null>(null)
+  const [descricaoProblema, setDescricaoProblema] = useState('')
   const [fotoFile, setFotoFile] = useState<File | null>(null)
   const [pecasConsumo, setPecasConsumo] = useState<Record<string, number>>({})
   const [confirmacao, setConfirmacao] = useState(false)
@@ -553,6 +568,8 @@ export function OsConcluirWizard({
     if (!open) {
       setStep(0)
       setDescricaoSolucao('')
+      setFotoProblema(null)
+      setDescricaoProblema('')
       setFotoFile(null)
       setPecasConsumo({})
       setConfirmacao(false)
@@ -560,8 +577,10 @@ export function OsConcluirWizard({
   }, [open])
 
   const canAdvance = () => {
-    if (step === 0) return descricaoSolucao.trim().length >= 10
-    if (step === fotoStep) return fotoFile !== null
+    if (step === fotoProblemaStep) return fotoProblema !== null
+    if (step === descricaoProblemaStep) return descricaoProblema.trim().length >= 10
+    if (step === resolucaoStep) return descricaoSolucao.trim().length >= 10
+    if (step === fotoResolucaoStep) return fotoFile !== null
     return true
   }
 
@@ -573,6 +592,12 @@ export function OsConcluirWizard({
 
     await onConfirm({
       descricaoSolucao: descricaoSolucao.trim(),
+      ...(requireProblemaEvidence
+        ? {
+            fotoProblema: fotoProblema!,
+            descricaoProblema: descricaoProblema.trim(),
+          }
+        : {}),
       ...(isCorretiva ? { fotoSolucao: fotoFile! } : { fotoAnexo: fotoFile! }),
       confirmacaoConclusao: true,
       pecasConsumidas: consumo,
@@ -594,7 +619,33 @@ export function OsConcluirWizard({
         </div>
 
         <div className={cn(wizardSectionClass(isMobile, 'body'), !isMobile && 'min-h-[180px] py-2')}>
-          {step === 0 && (
+          {step === fotoProblemaStep && (
+            <PhotoCaptureField
+              label="Foto do problema (obrigatória)"
+              file={fotoProblema}
+              onChange={setFotoProblema}
+              previewLabel="Prévia do problema"
+              isMobile={isMobile}
+            />
+          )}
+
+          {step === descricaoProblemaStep && (
+            <div className="space-y-2">
+              <Label className={isMobile ? 'text-base' : undefined}>
+                Descrição do problema (obrigatória)
+              </Label>
+              <Textarea
+                rows={isMobile ? 5 : 4}
+                value={descricaoProblema}
+                onChange={(e) => setDescricaoProblema(e.target.value)}
+                placeholder="Descreva o defeito, sintomas e condição do ativo..."
+                className={isMobile ? 'text-base' : undefined}
+              />
+              <p className="text-xs text-muted-foreground">Mínimo de 10 caracteres.</p>
+            </div>
+          )}
+
+          {step === resolucaoStep && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <FileText className="h-4 w-4 text-primary" />
@@ -611,7 +662,7 @@ export function OsConcluirWizard({
             </div>
           )}
 
-          {step === fotoStep && (
+          {step === fotoResolucaoStep && (
             <PhotoCaptureField
               label={isCorretiva ? 'Foto da resolução (obrigatória)' : 'Foto da intervenção (obrigatória)'}
               file={fotoFile}
@@ -656,6 +707,18 @@ export function OsConcluirWizard({
                   Resumo da conclusão
                 </div>
                 <ul className="mt-3 space-y-2 text-muted-foreground">
+                  {requireProblemaEvidence ? (
+                    <>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600">✓</span>
+                        <span>Foto do problema anexada</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600">✓</span>
+                        <span>Descrição do problema registrada</span>
+                      </li>
+                    </>
+                  ) : null}
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600">✓</span>
                     <span>Resolução descrita</span>

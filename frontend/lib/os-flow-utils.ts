@@ -7,6 +7,16 @@ type OrdemFlowInput = {
   descricaoProblema?: string | null
 }
 
+export function normalizeOrderStatus(status: string): OrderStatus {
+  const normalized = status.toUpperCase()
+  return (normalized === 'EM_EXECUCAO' ? 'EM_ANDAMENTO' : normalized) as OrderStatus
+}
+
+export function ordemPrecisaEvidenciaProblema(input: OrdemFlowInput): boolean {
+  if (input.tipo !== 'CORRETIVA') return false
+  return !input.fotoProblema || !input.descricaoProblema?.trim()
+}
+
 export type PodeConcluirResult = {
   ok: boolean
   motivo: string | null
@@ -15,20 +25,6 @@ export type PodeConcluirResult = {
 export function getPodeConcluirOrdem(input: OrdemFlowInput): PodeConcluirResult {
   if (input.status !== 'EM_ANDAMENTO') {
     return { ok: false, motivo: 'A OS precisa estar em andamento para ser concluída.' }
-  }
-  if (input.tipo === 'CORRETIVA') {
-    if (!input.fotoProblema) {
-      return {
-        ok: false,
-        motivo: 'Registre a foto do problema antes de concluir. Reinicie a OS se necessário.',
-      }
-    }
-    if (!input.descricaoProblema?.trim()) {
-      return {
-        ok: false,
-        motivo: 'A descrição do problema é obrigatória antes da conclusão.',
-      }
-    }
   }
   return { ok: true, motivo: null }
 }
@@ -49,12 +45,12 @@ export function getProximoPassoMensagem(input: OrdemFlowInput): {
     }
   }
   if (input.status === 'EM_ANDAMENTO') {
-    const bloqueio = getPodeConcluirOrdem(input)
-    if (!bloqueio.ok) {
+    if (ordemPrecisaEvidenciaProblema(input)) {
       return {
-        titulo: 'Conclusão bloqueada',
-        descricao: bloqueio.motivo ?? 'Complete as etapas anteriores.',
-        acao: null,
+        titulo: 'Próximo passo: evidência do problema',
+        descricao:
+          'Registre a foto e a descrição do defeito antes de finalizar a conclusão da OS.',
+        acao: 'concluir',
       }
     }
     return {
