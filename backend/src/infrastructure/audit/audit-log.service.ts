@@ -15,6 +15,9 @@ import type {
   IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
 
+const DEFAULT_DB_NAME = 'manucmms';
+const COLLECTION_NAME = 'log_auditoria';
+
 /**
  * Grava documentos na coleção `log_auditoria`. Sem MONGODB_URI, append é ignorado (dev).
  * Falha de escrita não reverte transação PostgreSQL (NF-12).
@@ -25,8 +28,15 @@ export class AuditLogService
 {
   private readonly logger = new Logger(AuditLogService.name);
   private client: MongoClient | null = null;
+  private readonly mongoUri: string | null;
+  private readonly dbName: string;
+  private connectPromise: Promise<MongoClient | null> | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {
+    this.mongoUri = this.config.get<string>('MONGODB_URI')?.trim() || null;
+    this.dbName =
+      this.config.get<string>('MONGODB_DB_NAME')?.trim() || DEFAULT_DB_NAME;
+  }
 
   private deriveAction(doc: {
     valor_anterior?: Record<string, unknown>;
@@ -57,38 +67,77 @@ export class AuditLogService
     return 'UPDATE';
   }
 
+  private collection() {
+    return this.client!.db(this.dbName).collection(COLLECTION_NAME);
+  }
+
+  private async connect(): Promise<MongoClient | null> {
+    const mongoUri = this.mongoUri;
+    if (!mongoUri) {
+      return null;
+    }
+
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    this.connectPromise = (async () => {
+      try {
+        if (this.client) {
+          try {
+            await this.client.db(this.dbName).command({ ping: 1 });
+            return this.client;
+          } catch {
+            await this.client.close().catch(() => undefined);
+            this.client = null;
+          }
+        }
+
+        const client = new MongoClient(mongoUri, {
+          serverSelectionTimeoutMS: 10_000,
+          connectTimeoutMS: 10_000,
+        });
+        await client.connect();
+        await client.db(this.dbName).command({ ping: 1 });
+        this.client = client;
+        this.logger.log(`MongoDB conectado (auditoria: ${this.dbName}).`);
+        return client;
+      } catch (error) {
+        this.client = null;
+        this.logger.warn(
+          `Nao foi possivel conectar ao MongoDB; auditoria desativada neste ambiente. Motivo: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+        );
+        return null;
+      } finally {
+        this.connectPromise = null;
+      }
+    })();
+
+    return this.connectPromise;
+  }
+
   async onModuleInit() {
-    const uri = this.config.get<string>('MONGODB_URI')?.trim();
-    if (!uri) {
+    if (!this.mongoUri) {
       this.logger.warn(
         'MONGODB_URI ausente — auditoria em MongoDB desativada (apenas dev).',
       );
       return;
     }
-    try {
-      this.client = new MongoClient(uri, {
-        serverSelectionTimeoutMS: 1000,
-        connectTimeoutMS: 1000,
-      });
-      await this.client.connect();
-    } catch (error) {
-      this.logger.warn(
-        `Nao foi possivel conectar ao MongoDB; auditoria desativada neste ambiente. Motivo: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
-      );
-      this.client = null;
-    }
+    await this.connect();
   }
 
   async onModuleDestroy() {
     await this.client?.close();
+    this.client = null;
   }
 
   async append(entrada: AuditLogEntrada): Promise<void> {
-    if (!this.client) {
+    const client = await this.connect();
+    if (!client) {
       return;
     }
     try {
-      await this.client.db().collection('log_auditoria').insertOne({
+      await this.collection().insertOne({
         id_log: randomUUID(),
         id_usuario: entrada.idUsuario,
         entidade_afetada: entrada.entidadeAfetada,
@@ -98,6 +147,7 @@ export class AuditLogService
         data_hora: new Date(),
       });
     } catch (err) {
+      this.client = null;
       this.logger.error(
         'Falha ao gravar auditoria no MongoDB (NF-12)',
         err instanceof Error ? err.stack : String(err),
@@ -106,7 +156,8 @@ export class AuditLogService
   }
 
   async list(filtro: AuditLogConsulta = {}): Promise<AuditLogListResult> {
-    if (!this.client) {
+    const client = await this.connect();
+    if (!client) {
       return { items: [], total: 0, page: 1, limit: 100 };
     }
 
@@ -147,7 +198,7 @@ export class AuditLogService
     const limit = Math.min(Math.max(filtro.limit ?? 100, 1), 500);
     const skip = (page - 1) * limit;
 
-    const collection = this.client.db().collection('log_auditoria');
+    const collection = this.collection();
     const docs = await collection.find(query).sort({ data_hora: -1 }).toArray();
 
     const mapped = docs.map((doc) => ({
@@ -186,13 +237,11 @@ export class AuditLogService
   }
 
   async getById(idLog: string): Promise<AuditLogItem | null> {
-    if (!this.client) {
+    const client = await this.connect();
+    if (!client) {
       return null;
     }
-    const doc = await this.client
-      .db()
-      .collection('log_auditoria')
-      .findOne({ id_log: idLog });
+    const doc = await this.collection().findOne({ id_log: idLog });
 
     if (!doc) return null;
 

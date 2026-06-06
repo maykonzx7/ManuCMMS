@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Inject,
+  Logger,
   Post,
   Req,
   Res,
@@ -13,6 +14,10 @@ import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
+import {
+  USUARIO_READ_PORT,
+  type IUsuarioReadPort,
+} from '../../domain/ports/usuario-read.port';
 import { SupabaseAuthService } from '../auth/supabase-auth.service';
 import { Public } from '../auth/public.decorator';
 
@@ -23,10 +28,31 @@ type CreateSessionBody = {
 
 @Controller('auth/session')
 export class AuthSessionController {
+  private readonly logger = new Logger(AuthSessionController.name);
+
   constructor(
     private readonly supabaseAuth: SupabaseAuthService,
     @Inject(AUDIT_LOG_PORT) private readonly auditLog: IAuditLogPort,
+    @Inject(USUARIO_READ_PORT) private readonly usuarioRead: IUsuarioReadPort,
   ) {}
+
+  private async resolveUsuarioIdForAudit(
+    authSub: string,
+    companySlug: string | null,
+  ): Promise<string> {
+    try {
+      const usuarioLocal = await this.usuarioRead.findByAuthSub(
+        authSub,
+        companySlug,
+      );
+      return usuarioLocal?.id ?? authSub;
+    } catch (error) {
+      this.logger.warn(
+        `Nao foi possivel resolver usuario local para auditoria; usando authSub. Motivo: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+      );
+      return authSub;
+    }
+  }
 
   @Public()
   @Post()
@@ -77,15 +103,22 @@ export class AuthSessionController {
 
     const intent = (body.intent ?? 'refresh').trim().toLowerCase();
     if (intent === 'login') {
+      const companySlugNormalized =
+        (companySlug ?? '').trim().toLowerCase() || null;
+      const idUsuario = await this.resolveUsuarioIdForAudit(
+        authUser.userId,
+        companySlugNormalized,
+      );
       await this.auditLog.append({
-        idUsuario: authUser.userId,
+        idUsuario,
         entidadeAfetada: 'AuthSession',
         idRegistro: randomUUID(),
         valorAnterior: {},
         valorNovo: {
           acao: 'LOGIN',
           origem: 'cookie_session',
-          companySlug: (companySlug ?? '').trim().toLowerCase() || null,
+          companySlug: companySlugNormalized,
+          authSub: authUser.userId,
         },
       });
     }
@@ -101,14 +134,19 @@ export class AuthSessionController {
       try {
         const authUser =
           await this.supabaseAuth.validateAccessToken(cookieToken);
+        const idUsuario = await this.resolveUsuarioIdForAudit(
+          authUser.userId,
+          null,
+        );
         await this.auditLog.append({
-          idUsuario: authUser.userId,
+          idUsuario,
           entidadeAfetada: 'AuthSession',
           idRegistro: randomUUID(),
           valorAnterior: {},
           valorNovo: {
             acao: 'LOGOUT',
             origem: 'cookie_session',
+            authSub: authUser.userId,
           },
         });
       } catch {

@@ -87,6 +87,18 @@ type UiAuditLog = {
 }
 
 function resolveAction(before: Record<string, unknown>, after: Record<string, unknown>) {
+  const explicit = String(after.acao ?? '').trim().toUpperCase()
+  if (
+    explicit === 'CREATE' ||
+    explicit === 'UPDATE' ||
+    explicit === 'DELETE' ||
+    explicit === 'SETTINGS_CHANGE' ||
+    explicit === 'LOGIN' ||
+    explicit === 'LOGOUT' ||
+    explicit === 'EXPORT'
+  ) {
+    return explicit
+  }
   if (Object.keys(before).length === 0) return 'CREATE'
   const statusAfter = String(after.status ?? '')
   if (statusAfter === 'CANCELADA') return 'DELETE'
@@ -95,6 +107,13 @@ function resolveAction(before: Record<string, unknown>, after: Record<string, un
 }
 
 function buildDescription(item: ApiAuditLog, action: string) {
+  if (item.entidadeAfetada === 'AuthSession') {
+    if (action === 'LOGIN') return 'Usuário autenticado no sistema.'
+    if (action === 'LOGOUT') return 'Usuário encerrou a sessão.'
+  }
+  if (item.entidadeAfetada === 'Auditoria' && action === 'EXPORT') {
+    return 'Exportação de logs de auditoria em CSV.'
+  }
   if (item.entidadeAfetada === 'OrdemServico') {
     const statusAfter = String(item.valorNovo?.status ?? '')
     const numero = item.idRegistro.slice(0, 8).toUpperCase()
@@ -274,7 +293,11 @@ export default function AuditoriaPage() {
                   ? 'ORDER'
                   : item.entidadeAfetada === 'Ativo'
                     ? 'ASSET'
-                    : item.entidadeAfetada?.toUpperCase() || 'ORDER',
+                    : item.entidadeAfetada === 'AuthSession'
+                      ? 'USER'
+                      : item.entidadeAfetada === 'Auditoria'
+                        ? 'REPORT'
+                        : item.entidadeAfetada?.toUpperCase() || 'ORDER',
               description: buildDescription(item, action),
               createdAt: item.dataHora,
             }

@@ -32,6 +32,34 @@ export class AuditoriaController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private async resolveUsuarioNomes(
+    userIds: string[],
+  ): Promise<Map<string, string>> {
+    const userNames = new Map<string, string>();
+    if (userIds.length === 0) {
+      return userNames;
+    }
+
+    const idParams = userIds.map((id) => Prisma.sql`${id}`);
+    const rows = await this.prisma.$queryRaw<
+      Array<{ id: string; authSub: string; nome: string }>
+    >(Prisma.sql`
+      SELECT id, auth_sub AS "authSub", nome
+      FROM usuario
+      WHERE id::text IN (${Prisma.join(idParams)})
+         OR auth_sub IN (${Prisma.join(idParams)})
+    `);
+
+    for (const row of rows) {
+      userNames.set(row.id, row.nome);
+      if (row.authSub) {
+        userNames.set(row.authSub, row.nome);
+      }
+    }
+
+    return userNames;
+  }
+
   @Get('resumo')
   async resumo(
     @Req() req: Request,
@@ -142,18 +170,7 @@ export class AuditoriaController {
           .filter((id): id is string => Boolean(id)),
       ),
     );
-    const userNames = new Map<string, string>();
-    if (userIds.length > 0) {
-      const idParams = userIds.map((id) => Prisma.sql`${id}::uuid`);
-      const rows = await this.prisma.$queryRaw<
-        Array<{ id: string; nome: string }>
-      >(Prisma.sql`
-        SELECT id, nome
-        FROM usuario
-        WHERE id IN (${Prisma.join(idParams)})
-      `);
-      for (const row of rows) userNames.set(row.id, row.nome);
-    }
+    const userNames = await this.resolveUsuarioNomes(userIds);
 
     return {
       logs: result.items.map((item) => ({
@@ -272,15 +289,8 @@ export class AuditoriaController {
     }
     let usuarioNome: string | null = null;
     if (item.idUsuario) {
-      const rows = await this.prisma.$queryRaw<
-        Array<{ nome: string }>
-      >(Prisma.sql`
-        SELECT nome
-        FROM usuario
-        WHERE id = ${item.idUsuario}::uuid
-        LIMIT 1
-      `);
-      usuarioNome = rows[0]?.nome ?? null;
+      const userNames = await this.resolveUsuarioNomes([item.idUsuario]);
+      usuarioNome = userNames.get(item.idUsuario) ?? null;
     }
     return { ...item, usuarioNome };
   }
