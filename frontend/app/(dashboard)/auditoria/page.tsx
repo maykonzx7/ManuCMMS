@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest, resolveApiBaseUrl } from '@/lib/api'
+import { apiRequest, downloadApiFile } from '@/lib/api'
 import { PageDataLoading } from '@/components/shared'
 
 type ApiAuditLog = {
@@ -184,11 +184,11 @@ export default function AuditoriaPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [summary, setSummary] = useState<ApiAuditSummary | null>(null)
   const [isPageLoading, setIsPageLoading] = useState(true)
-  const { isAuthenticated } = useAuth()
+  const { accessToken } = useAuth()
   const unit = useCurrentUnit()
 
   const exportCsv = async () => {
-    if (!isAuthenticated) return
+    if (!accessToken) return
     const to = new Date()
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const query = new URLSearchParams({
@@ -196,26 +196,15 @@ export default function AuditoriaPage() {
       to: to.toISOString(),
       limit: '2000',
     })
-    const response = await fetch(`${resolveApiBaseUrl()}/auditoria/export?${query.toString()}`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!response.ok) {
-      throw new Error(`Falha ao exportar auditoria (${response.status})`)
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `auditoria-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    await downloadApiFile(
+      `/auditoria/export?${query.toString()}`,
+      `auditoria-${new Date().toISOString().slice(0, 10)}.csv`,
+      { accessToken },
+    )
   }
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!accessToken) return
     setIsPageLoading(true)
     const to = new Date()
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -235,14 +224,14 @@ export default function AuditoriaPage() {
     void Promise.allSettled([
       apiRequest<ApiAuditResponse>(
         `/auditoria?${query.toString()}`,
-        {},
+        { accessToken },
       ),
       apiRequest<ApiAuditSummary>(
         `/auditoria/resumo?${query.toString()}`,
-        {},
+        { accessToken },
       ),
       unit?.id
-        ? apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, {})
+        ? apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, { accessToken })
         : Promise.resolve([] as ApiUsuario[]),
     ])
       .then((results) => {
@@ -304,7 +293,7 @@ export default function AuditoriaPage() {
         setLoadError(error instanceof Error ? error.message : 'Falha ao carregar auditoria')
       })
       .finally(() => setIsPageLoading(false))
-  }, [isAuthenticated, unit?.id, page, actionFilter, entityFilter, userFilter])
+  }, [accessToken, unit?.id, page, actionFilter, entityFilter, userFilter])
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch = 
@@ -314,9 +303,9 @@ export default function AuditoriaPage() {
   })
 
   const openLogDetail = async (idLog: string) => {
-    if (!isAuthenticated) return
+    if (!accessToken) return
     try {
-      const detail = await apiRequest<ApiAuditLog>(`/auditoria/${idLog}`, {})
+      const detail = await apiRequest<ApiAuditLog>(`/auditoria/${idLog}`, { accessToken })
       setSelectedLog(detail)
       setIsDetailOpen(true)
     } catch {
