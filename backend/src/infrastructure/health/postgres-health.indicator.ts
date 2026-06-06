@@ -24,9 +24,16 @@ export class PostgresHealthIndicator extends HealthIndicator {
       );
     }
 
+    const needsSsl =
+      /sslmode=require/i.test(url) ||
+      /supabase\.co/i.test(url) ||
+      /pooler\.supabase\.com/i.test(url);
+
     const client = new Client({
       connectionString: url,
       connectionTimeoutMillis: 3000,
+      // Prisma aceita sslmode=require; o driver pg exige ssl explícito no Supabase.
+      ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
     });
 
     try {
