@@ -7,6 +7,31 @@ import {
 } from '@nestjs/terminus';
 import { Client } from 'pg';
 
+/** pg v8 trata sslmode=require na URL como verify-full, ignorando rejectUnauthorized: false. */
+function pgClientConfig(url: string): {
+  connectionString: string;
+  ssl?: { rejectUnauthorized: boolean };
+} {
+  const needsSsl =
+    /sslmode=require/i.test(url) ||
+    /supabase\.co/i.test(url) ||
+    /pooler\.supabase\.com/i.test(url);
+
+  if (!needsSsl) {
+    return { connectionString: url };
+  }
+
+  const connectionString = url
+    .replace(/([?&])sslmode=[^&]*/gi, (_, sep) => sep)
+    .replace(/\?&/, '?')
+    .replace(/[?&]$/, '');
+
+  return {
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+  };
+}
+
 @Injectable()
 export class PostgresHealthIndicator extends HealthIndicator {
   constructor(private readonly config: ConfigService) {
@@ -24,16 +49,9 @@ export class PostgresHealthIndicator extends HealthIndicator {
       );
     }
 
-    const needsSsl =
-      /sslmode=require/i.test(url) ||
-      /supabase\.co/i.test(url) ||
-      /pooler\.supabase\.com/i.test(url);
-
     const client = new Client({
-      connectionString: url,
+      ...pgClientConfig(url),
       connectionTimeoutMillis: 3000,
-      // Prisma aceita sslmode=require; o driver pg exige ssl explícito no Supabase.
-      ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
     });
 
     try {
