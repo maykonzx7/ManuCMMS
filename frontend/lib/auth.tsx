@@ -93,6 +93,7 @@ interface AuthContextType {
   accessToken: string | null
   isPlatformOperator: boolean
   login: (email: string, senha: string, empresaSlug?: string) => Promise<void>
+  completeInviteAccess: (email: string, senha: string, empresaSlug?: string) => Promise<void>
   loginWithGoogle: (empresaSlug?: string, redirectPath?: string) => Promise<void>
   requestPasswordReset: (email: string, redirectPath?: string) => Promise<void>
   updatePassword: (novaSenha: string) => Promise<void>
@@ -111,6 +112,10 @@ function resolveCompanySlugFromPathname(pathname: string): string | null {
   const match = pathname.match(/^\/(?:workspace\/)?acesso\/([^/?#]+)/i)
   const slug = match?.[1] ? decodeURIComponent(match[1]).trim().toLowerCase() : ''
   return slug.length > 0 ? slug : null
+}
+
+function isInviteAuthPath(pathname: string): boolean {
+  return /\/(?:workspace\/)?convite(?:\/|$)/i.test(pathname)
 }
 
 function resolvePreferredCompanySlug(explicitSlug?: string | null): string | null {
@@ -187,6 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isPlatformOperator, setIsPlatformOperator] = useState(false)
   const syncedTokenRef = useRef<string | null>(null)
   const hydratingRef = useRef<Promise<void> | null>(null)
+  const explicitAuthRef = useRef<string | null>(null)
 
   const applySession = useCallback((token: string, nextSession: SessionData | null) => {
     setAccessToken(token)
@@ -254,14 +260,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [applySession])
 
+  const clearLocalAuthState = useCallback(async () => {
+    if (supabase) {
+      await supabase.auth.signOut()
+    }
+    await apiRequest('/auth/session', { method: 'DELETE' }).catch(() => undefined)
+    explicitAuthRef.current = null
+    syncedTokenRef.current = null
+    hydratingRef.current = null
+    clearSessionCache()
+    applySession('', null)
+    setAccessToken(null)
+  }, [applySession])
+
   const runHydration = useCallback(async (
     currentSession: Session | null,
     preferredCompanySlug?: string | null,
     options?: { intent?: 'login' | 'refresh'; useCache?: boolean },
   ) => {
+    const targetToken = currentSession?.access_token ?? ''
+
     if (hydratingRef.current) {
-      await hydratingRef.current
-      return
+      try {
+        await hydratingRef.current
+      } catch {
+        // Hidratação anterior falhou (ex.: token expirado); segue com a sessão atual.
+      }
+      if (syncedTokenRef.current === targetToken && targetToken) {
+        return
+      }
     }
 
     const promise = hydrateFromSupabase(currentSession, preferredCompanySlug, options)
@@ -269,7 +296,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await promise
     } finally {
-      hydratingRef.current = null
+      if (hydratingRef.current === promise) {
+        hydratingRef.current = null
+      }
     }
   }, [hydrateFromSupabase])
 
@@ -279,10 +308,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return
     }
 
+    const skipInitialHydration =
+      typeof window !== 'undefined' && isInviteAuthPath(window.location.pathname)
+
     setIsLoading(true)
     void supabase.auth
       .getSession()
       .then(async ({ data }) => {
+        if (skipInitialHydration) {
+          setIsLoading(false)
+          return
+        }
+
         const token = data.session?.access_token
         const cached = token ? readSessionCache(token) : null
         if (cached) {
@@ -304,6 +341,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'INITIAL_SESSION') return
 
+      const nextToken = nextSession?.access_token ?? ''
+      if (explicitAuthRef.current && explicitAuthRef.current === nextToken) {
+        return
+      }
+
       void runHydration(
         nextSession,
         undefined,
@@ -319,35 +361,72 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => subscription.unsubscribe()
   }, [applySession, runHydration])
 
-  const login = useCallback(async (email: string, senha: string, empresaSlug?: string) => {
+  const signInWithPassword = useCallback(async (
+    email: string,
+    senha: string,
+    empresaSlug?: string,
+  ) => {
     if (!supabase) {
       throw new Error('Supabase nao configurado')
     }
 
+    let emailParaLogin = email.trim().toLowerCase()
+    if (!emailParaLogin.includes('@')) {
+      const resolved = await apiRequest<{ email: string }>('/auth/resolve-login', {
+        method: 'POST',
+        body: { identificador: emailParaLogin, companySlug: empresaSlug },
+      })
+      emailParaLogin = resolved.email.trim().toLowerCase()
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: emailParaLogin,
+      password: senha,
+    })
+    if (error || !data.session?.access_token) {
+      throw new Error(error?.message ?? 'Falha de autenticacao')
+    }
+
+    return data.session
+  }, [])
+
+  const login = useCallback(async (email: string, senha: string, empresaSlug?: string) => {
     setIsLoading(true)
     try {
-      let emailParaLogin = email.trim().toLowerCase()
-      if (!emailParaLogin.includes('@')) {
-        const resolved = await apiRequest<{ email: string }>('/auth/resolve-login', {
-          method: 'POST',
-          body: { identificador: emailParaLogin, companySlug: empresaSlug },
-        })
-        emailParaLogin = resolved.email.trim().toLowerCase()
+      const session = await signInWithPassword(email, senha, empresaSlug)
+      explicitAuthRef.current = session.access_token
+      try {
+        await runHydration(session, empresaSlug ?? null, { intent: 'login', useCache: false })
+      } finally {
+        explicitAuthRef.current = null
       }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: emailParaLogin,
-        password: senha,
-      })
-      if (error || !data.session?.access_token) {
-        throw new Error(error?.message ?? 'Falha de autenticacao')
-      }
-
-      await runHydration(data.session, empresaSlug ?? null, { intent: 'login', useCache: false })
     } finally {
       setIsLoading(false)
     }
-  }, [runHydration])
+  }, [runHydration, signInWithPassword])
+
+  const completeInviteAccess = useCallback(async (
+    email: string,
+    senha: string,
+    empresaSlug?: string,
+  ) => {
+    setIsLoading(true)
+    try {
+      await clearLocalAuthState()
+      if (empresaSlug) {
+        setApiCompanySlug(empresaSlug)
+      }
+      const session = await signInWithPassword(email, senha, empresaSlug)
+      explicitAuthRef.current = session.access_token
+      try {
+        await runHydration(session, empresaSlug ?? null, { intent: 'login', useCache: false })
+      } finally {
+        explicitAuthRef.current = null
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [clearLocalAuthState, runHydration, signInWithPassword])
 
   const loginWithGoogle = useCallback(async (empresaSlug?: string, redirectPath?: string) => {
     if (!supabase) {
@@ -449,13 +528,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     accessToken,
     isPlatformOperator,
     login,
+    completeInviteAccess,
     loginWithGoogle,
     requestPasswordReset,
     updatePassword,
     logout,
     setUnidadeAtual,
     refreshSession,
-  }), [accessToken, isLoading, isPlatformOperator, login, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual, refreshSession])
+  }), [accessToken, isLoading, isPlatformOperator, login, completeInviteAccess, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual, refreshSession])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

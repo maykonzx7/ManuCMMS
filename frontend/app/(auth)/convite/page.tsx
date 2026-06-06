@@ -16,7 +16,7 @@ function normalizeEmail(value: string) {
 function InvitePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login } = useAuth()
+  const { completeInviteAccess } = useAuth()
   const [isSuccess, setIsSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const submittingRef = useRef(false)
@@ -72,7 +72,7 @@ function InvitePageContent() {
         setApiCompanySlug(slug)
       }
 
-      await login(emailLogin, data.senha, slug || undefined)
+      await completeInviteAccess(emailLogin, data.senha, slug || undefined)
 
       setIsSuccess(true)
       toast.success(
