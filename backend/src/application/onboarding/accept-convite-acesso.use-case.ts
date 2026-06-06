@@ -4,8 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import {
+  hashConviteToken,
+  normalizeConviteToken,
+} from './convite-token.shared';
 import type { AuthUserContext } from '../../presentation/auth/auth-user.types';
 import {
   AUDIT_LOG_PORT,
@@ -42,7 +45,7 @@ export class AcceptConviteAcessoUseCase {
     authUser: AuthUserContext,
     input: { token: string; nome?: string },
   ) {
-    const token = input.token?.trim() ?? '';
+    const token = normalizeConviteToken(input.token);
     if (token.length < 20) {
       throw new BadRequestException('Token de convite invalido.');
     }
@@ -54,7 +57,7 @@ export class AcceptConviteAcessoUseCase {
       );
     }
 
-    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const tokenHash = hashConviteToken(token);
     const conviteRows = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -64,6 +67,7 @@ export class AcceptConviteAcessoUseCase {
         idUnidadeDestino: string | null;
         status: string;
         expiraEm: Date;
+        usuarioCriadoId: string | null;
       }>
     >(Prisma.sql`
       SELECT
@@ -72,8 +76,9 @@ export class AcceptConviteAcessoUseCase {
         email_destino AS "emailDestino",
         cargo_codigo AS "cargoCodigo",
         id_unidade_destino AS "idUnidadeDestino",
-        status,
-        expira_em AS "expiraEm"
+        status::text AS status,
+        expira_em AS "expiraEm",
+        usuario_criado_id AS "usuarioCriadoId"
       FROM convite_acesso
       WHERE token_hash = ${tokenHash}
       LIMIT 1
@@ -84,17 +89,47 @@ export class AcceptConviteAcessoUseCase {
       throw new NotFoundException('Convite nao encontrado.');
     }
 
-    if (
-      convite.status !== 'PENDENTE' ||
-      convite.expiraEm.getTime() < Date.now()
-    ) {
-      throw new BadRequestException('Convite expirado ou indisponivel.');
-    }
-
     if (normalizeEmail(convite.emailDestino) !== emailAuth) {
       throw new BadRequestException(
         `O email autenticado nao corresponde ao convite. Este convite foi emitido para ${normalizeEmail(convite.emailDestino)}.`,
       );
+    }
+
+    if (convite.status === 'ACEITO') {
+      const usuarioAceito = await this.usuarios.findByAuthSub(authUser.userId);
+      if (
+        usuarioAceito &&
+        normalizeEmail(usuarioAceito.email) === emailAuth
+      ) {
+        return {
+          convite: {
+            id: convite.id,
+            status: 'ACEITO',
+            empresaId: convite.empresaId,
+            cargoCodigo: usuarioAceito.perfil,
+            idUnidadeDestino: convite.idUnidadeDestino,
+          },
+          usuario: usuarioAceito,
+        };
+      }
+
+      throw new BadRequestException('Convite expirado ou indisponivel.');
+    }
+
+    if (convite.status !== 'PENDENTE') {
+      throw new BadRequestException('Convite expirado ou indisponivel.');
+    }
+
+    const expiradoRows = await this.prisma.$queryRaw<Array<{ expirado: boolean }>>(
+      Prisma.sql`
+        SELECT (expira_em <= NOW()) AS expirado
+        FROM convite_acesso
+        WHERE id = ${convite.id}::uuid
+        LIMIT 1
+      `,
+    );
+    if (expiradoRows[0]?.expirado) {
+      throw new BadRequestException('Convite expirado ou indisponivel.');
     }
 
     const unidadeRows = await this.unidades.listByEmpresa(convite.empresaId);
@@ -145,14 +180,48 @@ export class AcceptConviteAcessoUseCase {
         (await this.usuarios.findByAuthSub(authUser.userId)) ?? usuarioLocal;
     }
 
-    await this.prisma.$executeRaw(Prisma.sql`
-      UPDATE convite_acesso
-      SET
-        status = 'ACEITO',
-        usuario_criado_id = ${usuarioLocal.id}::uuid,
-        updated_at = NOW()
-      WHERE id = ${convite.id}::uuid
-    `);
+    const updatedRows = await this.prisma.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`
+        UPDATE convite_acesso
+        SET
+          status = 'ACEITO',
+          usuario_criado_id = ${usuarioLocal.id}::uuid,
+          updated_at = NOW()
+        WHERE id = ${convite.id}::uuid
+          AND status = 'PENDENTE'
+          AND expira_em > NOW()
+        RETURNING id
+      `,
+    );
+
+    if (!updatedRows[0]?.id) {
+      const refreshedRows = await this.prisma.$queryRaw<
+        Array<{ status: string; usuarioCriadoId: string | null }>
+      >(Prisma.sql`
+        SELECT status::text AS status, usuario_criado_id AS "usuarioCriadoId"
+        FROM convite_acesso
+        WHERE id = ${convite.id}::uuid
+        LIMIT 1
+      `);
+      const refreshed = refreshedRows[0];
+      if (
+        refreshed?.status === 'ACEITO' &&
+        refreshed.usuarioCriadoId === usuarioLocal.id
+      ) {
+        return {
+          convite: {
+            id: convite.id,
+            status: 'ACEITO',
+            empresaId: convite.empresaId,
+            cargoCodigo: perfil,
+            idUnidadeDestino: idUnidadeCargo,
+          },
+          usuario: usuarioLocal,
+        };
+      }
+
+      throw new BadRequestException('Convite expirado ou indisponivel.');
+    }
 
     await this.auditLog.append({
       idUsuario: usuarioLocal.id,

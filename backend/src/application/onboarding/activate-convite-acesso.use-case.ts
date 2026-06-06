@@ -3,10 +3,13 @@ import {
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import type { AuthUserContext } from '../../presentation/auth/auth-user.types';
 import { AcceptConviteAcessoUseCase } from './accept-convite-acesso.use-case';
+import {
+  hashConviteToken,
+  normalizeConviteToken,
+} from './convite-token.shared';
 import { normalizeDisplayName, normalizeEmail } from './onboarding.shared';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 import { SupabaseAdminService } from '../../infrastructure/auth/supabase-admin.service';
@@ -20,7 +23,7 @@ export class ActivateConviteAcessoUseCase {
   ) {}
 
   async execute(input: { token: string; nome: string; senha: string }) {
-    const token = input.token?.trim() ?? '';
+    const token = normalizeConviteToken(input.token);
     if (token.length < 20) {
       throw new BadRequestException('Token de convite invalido.');
     }
@@ -39,7 +42,7 @@ export class ActivateConviteAcessoUseCase {
       );
     }
 
-    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const tokenHash = hashConviteToken(token);
     const conviteRows = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -47,6 +50,7 @@ export class ActivateConviteAcessoUseCase {
         status: string;
         expiraEm: Date;
         empresaSlug: string;
+        usuarioCriadoId: string | null;
       }>
     >(Prisma.sql`
       SELECT
@@ -54,6 +58,7 @@ export class ActivateConviteAcessoUseCase {
         ca.email_destino AS "emailDestino",
         ca.status::text AS status,
         ca.expira_em AS "expiraEm",
+        ca.usuario_criado_id AS "usuarioCriadoId",
         e.slug AS "empresaSlug"
       FROM convite_acesso ca
       JOIN empresa e ON e.id = ca.empresa_id
@@ -65,32 +70,38 @@ export class ActivateConviteAcessoUseCase {
     if (!convite) {
       throw new BadRequestException('Convite nao encontrado.');
     }
-    if (
-      convite.status !== 'PENDENTE' ||
-      convite.expiraEm.getTime() < Date.now()
-    ) {
-      throw new BadRequestException('Convite expirado ou indisponivel.');
-    }
 
     const emailDestino = normalizeEmail(convite.emailDestino);
     if (!emailDestino) {
       throw new BadRequestException('Convite possui email de destino invalido.');
     }
 
-    let authSub: string;
-    try {
-      authSub = await this.supabaseAdmin.provisionConfirmedUser({
+    if (convite.status === 'ACEITO') {
+      await this.provisionAuthUser(emailDestino, senha, nome);
+      return {
         email: emailDestino,
-        password: senha,
-        nome,
-      });
-    } catch (error) {
-      throw new BadRequestException(
-        error instanceof Error
-          ? error.message
-          : 'Falha ao provisionar conta de autenticacao.',
-      );
+        empresaSlug: convite.empresaSlug,
+        alreadyActivated: true,
+      };
     }
+
+    if (convite.status !== 'PENDENTE') {
+      throw new BadRequestException('Convite expirado ou indisponivel.');
+    }
+
+    const expiradoRows = await this.prisma.$queryRaw<Array<{ expirado: boolean }>>(
+      Prisma.sql`
+        SELECT (expira_em <= NOW()) AS expirado
+        FROM convite_acesso
+        WHERE id = ${convite.id}::uuid
+        LIMIT 1
+      `,
+    );
+    if (expiradoRows[0]?.expirado) {
+      throw new BadRequestException('Convite expirado ou indisponivel.');
+    }
+
+    const authSub = await this.provisionAuthUser(emailDestino, senha, nome);
 
     const authUser: AuthUserContext = {
       userId: authSub,
@@ -107,6 +118,27 @@ export class ActivateConviteAcessoUseCase {
       ...result,
       email: emailDestino,
       empresaSlug: convite.empresaSlug,
+      alreadyActivated: false,
     };
+  }
+
+  private async provisionAuthUser(
+    email: string,
+    senha: string,
+    nome: string,
+  ): Promise<string> {
+    try {
+      return await this.supabaseAdmin.provisionConfirmedUser({
+        email,
+        password: senha,
+        nome,
+      });
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'Falha ao provisionar conta de autenticacao.',
+      );
+    }
   }
 }

@@ -1,52 +1,25 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { CheckCircle } from 'lucide-react'
-import type { Session } from '@supabase/supabase-js'
 import { InviteForm } from '@/components/auth'
 import { apiRequest, setApiCompanySlug } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth'
+import { ROUTES } from '@/lib/routes'
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
 }
 
-async function syncBackendSession(session: Session, empresaSlug: string | null) {
-  const headers = empresaSlug ? { 'x-company-slug': empresaSlug } : undefined
-  await apiRequest('/auth/session', {
-    method: 'POST',
-    body: { accessToken: session.access_token },
-    headers,
-  })
-}
-
-async function signInAfterActivation(email: string, senha: string): Promise<Session> {
-  if (!supabase) {
-    throw new Error('Autenticação não configurada. Contate o suporte.')
-  }
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: normalizeEmail(email),
-    password: senha,
-  })
-
-  if (error || !data.session?.access_token) {
-    throw new Error(
-      error?.message ??
-        'Conta ativada, mas o login automático falhou. Entre em /workspace/acesso com o mesmo e-mail e senha.',
-    )
-  }
-
-  return data.session
-}
-
 function InvitePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { login } = useAuth()
   const [isSuccess, setIsSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const submittingRef = useRef(false)
 
   const inviteToken = searchParams.get('token')?.trim() ?? ''
   const inviteEmail = searchParams.get('email')?.trim() ?? ''
@@ -64,7 +37,10 @@ function InvitePageContent() {
     email: string
     senha: string
   }) => {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setIsLoading(true)
+
     try {
       if (!inviteToken) {
         throw new Error('Link de convite inválido ou incompleto (token ausente).')
@@ -79,6 +55,7 @@ function InvitePageContent() {
       const activation = await apiRequest<{
         email: string
         empresaSlug?: string
+        alreadyActivated?: boolean
       }>('/convites/ativar', {
         method: 'POST',
         body: {
@@ -89,23 +66,28 @@ function InvitePageContent() {
       })
 
       const slug = activation.empresaSlug ?? empresaSlug
-      const authSession = await signInAfterActivation(
-        activation.email ?? emailConvite,
-        data.senha,
-      )
-      await syncBackendSession(authSession, slug || null)
+      const emailLogin = activation.email ?? emailConvite
+
+      if (slug) {
+        setApiCompanySlug(slug)
+      }
+
+      await login(emailLogin, data.senha, slug || undefined)
 
       setIsSuccess(true)
-      toast.success('Conta ativada com sucesso!')
+      toast.success(
+        activation.alreadyActivated
+          ? 'Acesso confirmado! Entrando no portal...'
+          : 'Conta ativada com sucesso!',
+      )
 
       setTimeout(() => {
-        router.push(
-          slug ? `/workspace/acesso/${encodeURIComponent(slug)}` : '/workspace/acesso',
-        )
-      }, 1500)
+        router.replace(ROUTES.home)
+      }, 1200)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao aceitar convite')
     } finally {
+      submittingRef.current = false
       setIsLoading(false)
     }
   }
@@ -129,7 +111,7 @@ function InvitePageContent() {
         </div>
         <h2 className="text-2xl font-bold">Conta ativada!</h2>
         <p className="text-muted-foreground">
-          Redirecionando para o portal da empresa...
+          Redirecionando para o painel...
         </p>
       </div>
     )

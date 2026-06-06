@@ -165,6 +165,9 @@ export class ResendConviteAcessoUseCase {
         expiraEm: expiraEm.toISOString(),
         status: 'PENDENTE' as const,
       },
+      links: {
+        convite: inviteLink,
+      },
       entregaEmail,
     };
   }

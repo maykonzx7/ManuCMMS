@@ -12,6 +12,7 @@ import { mapApiAtivoToAsset, mapApiOrdemToServiceOrder, type ApiAtivo, type ApiO
 import { usePermissions } from '@/hooks/use-permissions'
 import { PageDataLoading } from '@/components/shared'
 import { ROUTES } from '@/lib/routes'
+import { getFirstName } from '@/lib/user-display'
 import { ORDER_STATUS_LABELS } from '@/lib/constants'
 import { toast } from 'sonner'
 
@@ -224,7 +225,7 @@ function TechnicianHome() {
           </h1>
           <p className="text-muted-foreground">
             {isTecnico
-              ? `Olá, ${user?.nome ?? 'técnico'}. Acompanhe suas OS atribuídas nesta unidade.`
+              ? `Olá, ${getFirstName(user?.nome, 'técnico')}. Acompanhe suas OS atribuídas nesta unidade.`
               : `Visão operacional das ordens de serviço em ${unidadeAtual?.nome ?? 'sua unidade'}.`}
           </p>
         </div>

@@ -244,6 +244,9 @@ export class CreateConviteAcessoUseCase {
         idUnidadeDestino,
         expiraEm: expiraEm.toISOString(),
       },
+      links: {
+        convite: inviteLink,
+      },
       entregaEmail,
     };
   }
