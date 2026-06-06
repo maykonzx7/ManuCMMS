@@ -20,6 +20,7 @@ export default function OrdemImprimirPage() {
   const [ordem, setOrdem] = useState<ApiOrdem | null>(null)
   const [comentarios, setComentarios] = useState<ApiOrdemComentario[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [imagesReady, setImagesReady] = useState(false)
 
   useEffect(() => {
     if (!accessToken || !unit?.id || typeof params.id !== 'string') return
@@ -119,9 +120,13 @@ export default function OrdemImprimirPage() {
             Voltar à OS
           </Link>
         </Button>
-        <Button onClick={() => window.print()}>
+        <Button
+          disabled={!imagesReady}
+          onClick={() => window.print()}
+          title={imagesReady ? undefined : 'Aguarde o carregamento das fotos'}
+        >
           <Printer className="mr-2 h-4 w-4" />
-          Imprimir documento
+          {imagesReady ? 'Imprimir documento' : 'Preparando fotos...'}
         </Button>
       </div>
 
@@ -134,6 +139,7 @@ export default function OrdemImprimirPage() {
         empresaNome={company?.nome ?? 'Empresa'}
         geradoEm={new Date().toISOString()}
         confirmacao={confirmacao}
+        onImagesReady={setImagesReady}
       />
     </div>
   )

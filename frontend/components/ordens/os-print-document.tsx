@@ -1,13 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import Image from 'next/image'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   ORDER_STATUS_LABELS,
   PRIORITY_LABELS,
   MAINTENANCE_TYPE_LABELS,
 } from '@/lib/constants'
-import { resolveMediaUrl } from '@/lib/media-url'
+import { preloadPrintImages, toAbsoluteMediaUrl } from '@/lib/printable-media'
 import type { ApiOrdem, ApiOrdemComentario } from '@/lib/backend-mappers'
 import type { OrderStatus } from '@/types'
 
@@ -29,6 +28,7 @@ export type OsPrintDocumentProps = {
   empresaNome: string
   geradoEm: string
   confirmacao: PrintConfirmacao
+  onImagesReady?: (ready: boolean) => void
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -54,13 +54,12 @@ function formatDuration(from: string, to: string | null | undefined): string {
   return remH > 0 ? `${days}d ${remH}h` : `${days}d`
 }
 
-function PhotoBlock({ url, label }: { url: string; label: string }) {
-  const src = resolveMediaUrl(url) ?? url
+function PhotoBlock({ src, label }: { src: string; label: string }) {
   return (
     <figure className="os-print-photo">
       <figcaption className="os-print-photo-label">{label}</figcaption>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={label} className="os-print-photo-img" />
+      <img src={src} alt={label} className="os-print-photo-img" loading="eager" />
     </figure>
   )
 }
@@ -83,8 +82,57 @@ export function OsPrintDocument({
   empresaNome,
   geradoEm,
   confirmacao,
+  onImagesReady,
 }: OsPrintDocumentProps) {
   const tecnicoNome = ordem.finalizadoPorNome ?? ordem.iniciadoPorNome ?? '—'
+  const [embeddedImages, setEmbeddedImages] = useState<Record<string, string | null>>({})
+  const [imagesLoading, setImagesLoading] = useState(true)
+
+  const imageSources = useMemo(
+    () => ({
+      logo: '/manucmms-icon-oficial.png',
+      fotoProblema: ordem.fotoProblema,
+      fotoSolucao: ordem.fotoSolucao,
+      fotoAnexo: ordem.fotoAnexo,
+      tecnicoFoto: confirmacao?.fotoUrl,
+      tecnicoCanvas: confirmacao?.legacyCanvas,
+    }),
+    [
+      ordem.fotoProblema,
+      ordem.fotoSolucao,
+      ordem.fotoAnexo,
+      confirmacao?.fotoUrl,
+      confirmacao?.legacyCanvas,
+    ],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setImagesLoading(true)
+
+    void preloadPrintImages(imageSources).then((loaded) => {
+      if (cancelled) return
+      setEmbeddedImages(loaded)
+      setImagesLoading(false)
+      onImagesReady?.(true)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [imageSources])
+
+  useEffect(() => {
+    onImagesReady?.(!imagesLoading)
+  }, [imagesLoading, onImagesReady])
+
+  const logoSrc = embeddedImages.logo ?? '/manucmms-icon-oficial.png'
+
+  function photoSrc(key: keyof typeof imageSources, fallback?: string | null): string | null {
+    if (embeddedImages[key]) return embeddedImages[key]
+    if (!imagesLoading && fallback) return toAbsoluteMediaUrl(fallback)
+    return null
+  }
 
   return (
     <>
@@ -92,11 +140,11 @@ export function OsPrintDocument({
         @media print {
           [data-sidebar='sidebar'],
           [data-sidebar='rail'],
-          header,
+          [data-slot='sidebar-inset'] > header,
           .os-print-toolbar {
             display: none !important;
           }
-          main {
+          [data-slot='sidebar-inset'] > main {
             padding: 0 !important;
             overflow: visible !important;
           }
@@ -105,6 +153,14 @@ export function OsPrintDocument({
             border: none !important;
             margin: 0 !important;
             max-width: none !important;
+          }
+          .os-print-photo-img,
+          .os-print-signature img,
+          .os-print-brand-logo {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            max-height: 240px !important;
+            page-break-inside: avoid;
           }
         }
 
@@ -346,12 +402,14 @@ export function OsPrintDocument({
       <article className="os-print-page">
         <header className="os-print-header">
           <div className="os-print-brand">
-            <Image
-              src="/manucmms-icon-oficial.png"
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoSrc}
               alt="ManuCMMS"
               width={48}
               height={48}
-              className="rounded-lg"
+              className="os-print-brand-logo rounded-lg"
+              loading="eager"
             />
             <div>
               <h1>ManuCMMS</h1>
@@ -439,17 +497,30 @@ export function OsPrintDocument({
           {ordem.fotoProblema || ordem.fotoSolucao || ordem.fotoAnexo ? (
             <section className="os-print-section">
               <h2>Evidências fotográficas</h2>
-              <div className="os-print-photos">
-                {ordem.fotoProblema ? (
-                  <PhotoBlock url={ordem.fotoProblema} label="Foto do problema" />
-                ) : null}
-                {ordem.fotoSolucao ? (
-                  <PhotoBlock url={ordem.fotoSolucao} label="Foto da solução" />
-                ) : null}
-                {ordem.fotoAnexo ? (
-                  <PhotoBlock url={ordem.fotoAnexo} label="Foto da intervenção" />
-                ) : null}
-              </div>
+              {imagesLoading ? (
+                <p className="text-sm text-muted-foreground">Carregando fotos...</p>
+              ) : (
+                <div className="os-print-photos">
+                  {photoSrc('fotoProblema', ordem.fotoProblema) ? (
+                    <PhotoBlock
+                      src={photoSrc('fotoProblema', ordem.fotoProblema)!}
+                      label="Foto do problema"
+                    />
+                  ) : null}
+                  {photoSrc('fotoSolucao', ordem.fotoSolucao) ? (
+                    <PhotoBlock
+                      src={photoSrc('fotoSolucao', ordem.fotoSolucao)!}
+                      label="Foto da solução"
+                    />
+                  ) : null}
+                  {photoSrc('fotoAnexo', ordem.fotoAnexo) ? (
+                    <PhotoBlock
+                      src={photoSrc('fotoAnexo', ordem.fotoAnexo)!}
+                      label="Foto da intervenção"
+                    />
+                  ) : null}
+                </div>
+              )}
             </section>
           ) : null}
 
@@ -522,12 +593,23 @@ export function OsPrintDocument({
             <section className="os-print-section">
               <h2>Confirmação de conclusão</h2>
               <div className="os-print-signature">
-                {confirmacao.fotoUrl ? (
+                {photoSrc('tecnicoFoto', confirmacao.fotoUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={confirmacao.fotoUrl} alt={confirmacao.nome ?? 'Técnico'} />
-                ) : confirmacao.legacyCanvas ? (
+                  <img
+                    src={photoSrc('tecnicoFoto', confirmacao.fotoUrl)!}
+                    alt={confirmacao.nome ?? 'Técnico'}
+                    loading="eager"
+                  />
+                ) : photoSrc('tecnicoCanvas', confirmacao.legacyCanvas) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={confirmacao.legacyCanvas} alt="Assinatura" style={{ borderRadius: 4, width: 120, height: 48 }} />
+                  <img
+                    src={photoSrc('tecnicoCanvas', confirmacao.legacyCanvas)!}
+                    alt="Assinatura"
+                    style={{ borderRadius: 4, width: 120, height: 48 }}
+                    loading="eager"
+                  />
+                ) : imagesLoading ? (
+                  <p className="text-xs text-muted-foreground">Carregando foto...</p>
                 ) : null}
                 <div>
                   <p style={{ margin: 0, fontWeight: 700 }}>{confirmacao.nome ?? '—'}</p>
