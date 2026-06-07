@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
@@ -18,26 +18,49 @@ export default function CompanyLoginPage() {
     enterCompanyWorkspace,
     isLoading,
     isAuthenticated,
+    session,
   } = useAuth()
   const companySlug = params.companySlug as string
   const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
+  const [isSwitching, setIsSwitching] = useState(false)
+  const switchedRef = useRef(false)
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      void enterCompanyWorkspace(companySlug)
-        .then(() => router.replace(redirectPath))
-        .catch((error) => {
-          const message = error instanceof Error ? error.message : 'Falha ao trocar de cliente'
-          toast.error(message)
-        })
+    if (isLoading || !isAuthenticated || switchedRef.current) return
+
+    const normalizedSlug = companySlug.trim().toLowerCase()
+    const currentSlug = session?.empresa.slug?.trim().toLowerCase() ?? ''
+    if (currentSlug === normalizedSlug) {
+      switchedRef.current = true
+      router.replace(redirectPath)
+      return
     }
-  }, [companySlug, enterCompanyWorkspace, isAuthenticated, isLoading, redirectPath, router])
+
+    switchedRef.current = true
+    setIsSwitching(true)
+    void enterCompanyWorkspace(companySlug)
+      .then(() => router.replace(redirectPath))
+      .catch((error) => {
+        switchedRef.current = false
+        const message = error instanceof Error ? error.message : 'Falha ao trocar de cliente'
+        toast.error(message)
+      })
+      .finally(() => setIsSwitching(false))
+  }, [
+    companySlug,
+    enterCompanyWorkspace,
+    isAuthenticated,
+    isLoading,
+    redirectPath,
+    router,
+    session?.empresa.slug,
+  ])
 
   const handleLogin = async (data: { email: string; senha: string }) => {
     try {
       await login(data.email, data.senha, companySlug)
       toast.success('Login realizado com sucesso!')
-      router.push(redirectPath)
+      router.replace(redirectPath)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha no login'
       toast.error(message)
@@ -52,8 +75,17 @@ export default function CompanyLoginPage() {
     }
   }
 
-  if (isLoading && !isAuthenticated) {
-    return <AuthLoadingScreen layout="embedded" message="Verificando sua sessão..." />
+  if (isLoading || isSwitching || (isAuthenticated && !switchedRef.current)) {
+    return (
+      <AuthLoadingScreen
+        layout="embedded"
+        message={isAuthenticated ? 'Entrando no cliente...' : 'Verificando sua sessão...'}
+      />
+    )
+  }
+
+  if (isAuthenticated) {
+    return <AuthLoadingScreen layout="embedded" message="Redirecionando..." />
   }
 
   return (
@@ -72,12 +104,12 @@ export default function CompanyLoginPage() {
           Entre com suas credenciais para acessar a empresa
         </p>
       </div>
-      
-      <LoginForm 
-        onSubmit={handleLogin} 
+
+      <LoginForm
+        onSubmit={handleLogin}
         onForgotPassword={(email) => requestPasswordReset(email, '/workspace/acesso/redefinir-senha')}
         empresaSlug={companySlug}
-        isLoading={isLoading} 
+        isLoading={isLoading}
       />
 
       <button
@@ -106,7 +138,7 @@ export default function CompanyLoginPage() {
         </svg>
         Google
       </button>
-      
+
       <p className="text-center text-sm text-muted-foreground">
         Não pertence a esta empresa?{' '}
         <a href="/workspace/acesso" className="text-primary hover:underline">

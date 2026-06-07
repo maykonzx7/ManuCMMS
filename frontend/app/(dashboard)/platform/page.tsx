@@ -94,11 +94,6 @@ type CreateClienteResponse = {
   entregaEmail?: { status: ConviteEmailStatus; erro?: string }
 }
 
-function resolveClientAccessLink(slug: string, backendLink?: string | null): string {
-  if (backendLink) return backendLink
-  return ROUTES.acessoEmpresa(slug)
-}
-
 function formatDate(value: string): string {
   try {
     return new Intl.DateTimeFormat('pt-BR', {
@@ -113,7 +108,8 @@ function formatDate(value: string): string {
 
 export default function PlatformPage() {
   const router = useRouter()
-  const { accessToken, isPlatformOperator } = useAuth()
+  const { accessToken, isPlatformOperator, enterCompanyWorkspace } = useAuth()
+  const [openingClienteSlug, setOpeningClienteSlug] = useState<string | null>(null)
   const [painel, setPainel] = useState<PlatformPainel | null>(null)
   const [clientes, setClientes] = useState<PlatformCliente[]>([])
   const [unidades, setUnidades] = useState<PlatformUnidade[]>([])
@@ -184,6 +180,20 @@ export default function PlatformPage() {
       toast.error(error instanceof Error ? error.message : 'Falha ao buscar usuários')
     }
   }, [accessToken, usuarioSearch])
+
+  const abrirCliente = async (slug: string) => {
+    const normalizedSlug = slug.trim().toLowerCase()
+    if (!normalizedSlug) return
+    setOpeningClienteSlug(normalizedSlug)
+    try {
+      await enterCompanyWorkspace(normalizedSlug)
+      router.push(ROUTES.home)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao abrir cliente')
+    } finally {
+      setOpeningClienteSlug(null)
+    }
+  }
 
   const criarCliente = async () => {
     if (!accessToken) return
@@ -466,11 +476,13 @@ export default function PlatformPage() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button asChild size="sm">
-                        <Link href={resolveClientAccessLink(cliente.slug, cliente.linkAcesso)}>
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Acessar cliente
-                        </Link>
+                      <Button
+                        size="sm"
+                        disabled={openingClienteSlug === cliente.slug}
+                        onClick={() => void abrirCliente(cliente.slug)}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        {openingClienteSlug === cliente.slug ? 'Abrindo...' : 'Acessar cliente'}
                       </Button>
                     </div>
                   </div>
@@ -518,10 +530,13 @@ export default function PlatformPage() {
                           {unidade.usuariosAtivos} usuários • {unidade.ativosTotal} ativos
                         </p>
                       </div>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={resolveClientAccessLink(unidade.empresaSlug, unidade.linkAcesso)}>
-                          Ir para cliente
-                        </Link>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={openingClienteSlug === unidade.empresaSlug}
+                        onClick={() => void abrirCliente(unidade.empresaSlug)}
+                      >
+                        {openingClienteSlug === unidade.empresaSlug ? 'Abrindo...' : 'Ir para cliente'}
                       </Button>
                     </div>
                   </div>

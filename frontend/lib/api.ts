@@ -53,10 +53,14 @@ export function setApiCompanySlug(slug: string | null | undefined) {
   inMemoryCompanySlug = normalized || null
 }
 
-function resolveApiCompanySlug(): string | null {
+export function getApiCompanySlug(): string | null {
   if (inMemoryCompanySlug) return inMemoryCompanySlug
   if (typeof window === 'undefined') return null
   return resolveCompanySlugFromPathname(window.location.pathname)
+}
+
+function resolveApiCompanySlug(): string | null {
+  return getApiCompanySlug()
 }
 
 type ApiRequestOptions = {
