@@ -27,6 +27,7 @@ import {
 } from '@/components/convites/convites-panel'
 import { apiRequest } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { openClientWorkspaceInNewTab } from '@/lib/open-client-workspace'
 import { ROUTES } from '@/lib/routes'
 import { toast } from 'sonner'
 
@@ -108,7 +109,7 @@ function formatDate(value: string): string {
 
 export default function PlatformPage() {
   const router = useRouter()
-  const { accessToken, isPlatformOperator, enterCompanyWorkspace } = useAuth()
+  const { accessToken, isPlatformOperator } = useAuth()
   const [openingClienteSlug, setOpeningClienteSlug] = useState<string | null>(null)
   const [painel, setPainel] = useState<PlatformPainel | null>(null)
   const [clientes, setClientes] = useState<PlatformCliente[]>([])
@@ -186,8 +187,8 @@ export default function PlatformPage() {
     if (!normalizedSlug) return
     setOpeningClienteSlug(normalizedSlug)
     try {
-      await enterCompanyWorkspace(normalizedSlug)
-      router.push(ROUTES.home)
+      await openClientWorkspaceInNewTab(normalizedSlug)
+      toast.success('Cliente aberto em nova guia.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao abrir cliente')
     } finally {
@@ -428,9 +429,13 @@ export default function PlatformPage() {
                   <strong>Admin:</strong> {ultimoClienteCriado.responsavelInicial.nome} (
                   {ultimoClienteCriado.responsavelInicial.email})
                 </p>
-                {ultimoClienteCriado.links?.acessoConta ? (
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={ultimoClienteCriado.links.acessoConta}>Abrir workspace do cliente</Link>
+                {ultimoClienteCriado.empresa.slug ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void abrirCliente(ultimoClienteCriado.empresa.slug)}
+                  >
+                    Abrir workspace do cliente
                   </Button>
                 ) : null}
               </CardContent>

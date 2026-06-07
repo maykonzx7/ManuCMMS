@@ -39,6 +39,7 @@ import {
 import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth } from '@/lib/auth'
 import { SIDEBAR_NAVIGATION } from '@/lib/constants'
+import { ROUTES } from '@/lib/routes'
 import { UnitSwitcher } from './unit-switcher'
 import { UserNav } from './user-nav'
 
@@ -66,6 +67,10 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { hasPermission } = usePermissions()
   const { isPlatformOperator, isWorkspaceImpersonation } = useAuth()
+  const isOnPlatformConsole =
+    pathname === ROUTES.platform || pathname.startsWith(`${ROUTES.platform}/`)
+  const canShowPlatformNav =
+    isPlatformOperator && isOnPlatformConsole && !isWorkspaceImpersonation
 
   return (
     <Sidebar collapsible="icon">
@@ -98,9 +103,9 @@ export function AppSidebar() {
 
       <SidebarContent>
         {SIDEBAR_NAVIGATION.map((group) => {
-          if (group.title === 'Plataforma' && !isPlatformOperator) return null
+          if (group.title === 'Plataforma' && !canShowPlatformNav) return null
           const visibleItems = group.items.filter((item) => {
-            if (item.screen === 'platform') return isPlatformOperator
+            if (item.screen === 'platform') return canShowPlatformNav
             if (item.screen === 'admin' && isWorkspaceImpersonation) return false
             return hasPermission(item.screen)
           })

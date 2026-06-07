@@ -1,22 +1,28 @@
 'use client'
 
 import { useEffect, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar, AppHeader } from '@/components/layout'
 import { AuthLoadingScreen } from '@/components/auth'
 import { useAuth } from '@/lib/auth'
 import { buildLoginRedirectUrl, resolveReturnPathFromBrowser } from '@/lib/safe-redirect'
+import { ROUTES } from '@/lib/routes'
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const { isAuthenticated, isLoading, isSessionVerified } = useAuth()
+  const isClientHandoff = pathname.startsWith(`${ROUTES.workspaceRoot}/cliente/`)
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace(buildLoginRedirectUrl(resolveReturnPathFromBrowser()))
-    }
-  }, [isAuthenticated, isLoading, router])
+    if (isClientHandoff || isLoading || isAuthenticated) return
+    router.replace(buildLoginRedirectUrl(resolveReturnPathFromBrowser()))
+  }, [isAuthenticated, isClientHandoff, isLoading, router])
+
+  if (isClientHandoff) {
+    return <>{children}</>
+  }
 
   if (isLoading || !isSessionVerified) {
     return <AuthLoadingScreen message="Verificando sua sessão..." />

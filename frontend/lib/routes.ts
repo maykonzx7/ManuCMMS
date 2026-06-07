@@ -13,6 +13,8 @@ export const ROUTES = {
   novoAtivo: '/workspace/ativos/novo',
   admin: '/workspace/admin',
   platform: '/workspace/platform',
+  clienteWorkspace: (slug: string) =>
+    `/workspace/cliente/${encodeURIComponent(slug.trim().toLowerCase())`,
   configuracoes: '/workspace/configuracoes',
   perfil: '/workspace/perfil',
   pecas: '/workspace/pecas',
