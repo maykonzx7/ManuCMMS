@@ -28,4 +28,6 @@ export type UsuarioLocalContext = {
   empresa: UsuarioEmpresaContext | null;
   cargos: UsuarioCargoContext[];
   permissoes: string[];
+  /** Operador da plataforma navegando em workspace de outro cliente (sem vínculo local). */
+  isWorkspaceImpersonation?: boolean;
 };

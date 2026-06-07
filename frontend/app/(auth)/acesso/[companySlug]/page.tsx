@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
-import { AuthLoadingScreen, LoginForm } from '@/components/auth'
+import { AuthLoadingScreen, LoginForm, ActiveSessionPrompt } from '@/components/auth'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 export default function CompanyLoginPage() {
@@ -23,38 +23,25 @@ export default function CompanyLoginPage() {
   const companySlug = params.companySlug as string
   const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
   const [isSwitching, setIsSwitching] = useState(false)
-  const switchedRef = useRef(false)
 
-  useEffect(() => {
-    if (isLoading || !isAuthenticated || switchedRef.current) return
-
+  const handleContinueSession = () => {
     const normalizedSlug = companySlug.trim().toLowerCase()
     const currentSlug = session?.empresa.slug?.trim().toLowerCase() ?? ''
+
     if (currentSlug === normalizedSlug) {
-      switchedRef.current = true
       router.replace(redirectPath)
       return
     }
 
-    switchedRef.current = true
     setIsSwitching(true)
     void enterCompanyWorkspace(companySlug)
       .then(() => router.replace(redirectPath))
       .catch((error) => {
-        switchedRef.current = false
         const message = error instanceof Error ? error.message : 'Falha ao trocar de cliente'
         toast.error(message)
       })
       .finally(() => setIsSwitching(false))
-  }, [
-    companySlug,
-    enterCompanyWorkspace,
-    isAuthenticated,
-    isLoading,
-    redirectPath,
-    router,
-    session?.empresa.slug,
-  ])
+  }
 
   const handleLogin = async (data: { email: string; senha: string }) => {
     try {
@@ -75,17 +62,22 @@ export default function CompanyLoginPage() {
     }
   }
 
-  if (isLoading || isSwitching || (isAuthenticated && !switchedRef.current)) {
+  if (isLoading || isSwitching) {
     return (
       <AuthLoadingScreen
         layout="embedded"
-        message={isAuthenticated ? 'Entrando no cliente...' : 'Verificando sua sessão...'}
+        message={isSwitching ? 'Entrando no cliente...' : 'Verificando sua sessão...'}
       />
     )
   }
 
   if (isAuthenticated) {
-    return <AuthLoadingScreen layout="embedded" message="Redirecionando..." />
+    return (
+      <ActiveSessionPrompt
+        redirectPath={redirectPath}
+        onContinue={handleContinueSession}
+      />
+    )
   }
 
   return (

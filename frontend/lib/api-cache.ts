@@ -6,8 +6,13 @@ type CacheEntry = {
 const DEFAULT_TTL_MS = 60_000
 const cache = new Map<string, CacheEntry>()
 
-export function buildApiCacheKey(method: string, path: string, companySlug: string | null): string {
-  return `${method}:${companySlug ?? ''}:${path}`
+export function buildApiCacheKey(
+  method: string,
+  path: string,
+  companySlug: string | null,
+  accessTokenScope: string | null = null,
+): string {
+  return `${method}:${accessTokenScope ?? ''}:${companySlug ?? ''}:${path}`
 }
 
 export function peekApiCache<T>(key: string): T | undefined {

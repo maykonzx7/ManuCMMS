@@ -65,7 +65,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 export function AppSidebar() {
   const pathname = usePathname()
   const { hasPermission } = usePermissions()
-  const { isPlatformOperator } = useAuth()
+  const { isPlatformOperator, isWorkspaceImpersonation } = useAuth()
 
   return (
     <Sidebar collapsible="icon">
@@ -99,11 +99,11 @@ export function AppSidebar() {
       <SidebarContent>
         {SIDEBAR_NAVIGATION.map((group) => {
           if (group.title === 'Plataforma' && !isPlatformOperator) return null
-          const visibleItems = group.items.filter((item) =>
-            item.screen === 'platform'
-              ? isPlatformOperator
-              : hasPermission(item.screen)
-          )
+          const visibleItems = group.items.filter((item) => {
+            if (item.screen === 'platform') return isPlatformOperator
+            if (item.screen === 'admin' && isWorkspaceImpersonation) return false
+            return hasPermission(item.screen)
+          })
           
           if (visibleItems.length === 0) return null
           

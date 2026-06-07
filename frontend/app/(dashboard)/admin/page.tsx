@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Shield, Users, Building2, Send, Link2, Factory, Save, Plus } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import {
   type ConviteActionResponse,
   type ConviteEmailStatus,
 } from '@/components/convites/convites-panel'
+import { ROUTES } from '@/lib/routes'
 
 type PainelResponse = {
   empresa: {
@@ -84,7 +86,8 @@ type UnidadeItem = {
 }
 
 export default function AdminPage() {
-  const { accessToken, session } = useAuth()
+  const router = useRouter()
+  const { accessToken, session, isWorkspaceImpersonation } = useAuth()
   const company = useCurrentCompany()
   const [painel, setPainel] = useState<PainelResponse | null>(null)
   const [unidades, setUnidades] = useState<UnidadeItem[]>([])
@@ -125,6 +128,12 @@ export default function AdminPage() {
   } | null>(null)
 
   const empresaId = company?.id ?? session?.empresa?.id ?? null
+
+  useEffect(() => {
+    if (isWorkspaceImpersonation) {
+      router.replace(ROUTES.home)
+    }
+  }, [isWorkspaceImpersonation, router])
 
   const carregarTudo = async () => {
     if (!accessToken || !empresaId) return
@@ -323,6 +332,10 @@ export default function AdminPage() {
       estado: prev.estado || result.uf,
     }))
     setCepEmpresaLoading(false)
+  }
+
+  if (isWorkspaceImpersonation) {
+    return <PageDataLoading variant="dashboard" message="Redirecionando..." />
   }
 
   if (isLoading && !painel) {

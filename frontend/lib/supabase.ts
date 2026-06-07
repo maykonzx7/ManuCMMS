@@ -18,6 +18,8 @@ export const supabase = supabaseConfig.isConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        // Sessão por aba: ao fechar o navegador, o próximo usuário não herda o login anterior.
+        storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
       },
     })
   : null

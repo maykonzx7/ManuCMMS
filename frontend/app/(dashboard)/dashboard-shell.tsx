@@ -10,7 +10,7 @@ import { buildLoginRedirectUrl, resolveReturnPathFromBrowser } from '@/lib/safe-
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const { isAuthenticated, isLoading, session } = useAuth()
+  const { isAuthenticated, isLoading, isSessionVerified } = useAuth()
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -18,7 +18,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, isLoading, router])
 
-  if (isLoading && !session) {
+  if (isLoading || !isSessionVerified) {
     return <AuthLoadingScreen message="Verificando sua sessão..." />
   }
 

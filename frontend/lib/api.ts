@@ -1,11 +1,28 @@
 import {
   buildApiCacheKey,
+  invalidateApiCache,
   invalidateApiCacheForMutation,
   peekApiCache,
   setApiCache,
 } from './api-cache'
 
 let inMemoryCompanySlug: string | null = null
+let inMemoryAccessTokenScope: string | null = null
+
+function resolveAccessTokenScope(explicitToken?: string): string | null {
+  const token = explicitToken?.trim()
+  if (token) return token.slice(-16)
+  return inMemoryAccessTokenScope
+}
+
+export function setApiAccessTokenScope(token: string | null | undefined) {
+  const normalized = token?.trim() ?? ''
+  const nextScope = normalized ? normalized.slice(-16) : null
+  if (inMemoryAccessTokenScope !== nextScope) {
+    inMemoryAccessTokenScope = nextScope
+    invalidateApiCache()
+  }
+}
 
 export function resolveApiBaseUrl() {
   const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? ''
@@ -82,11 +99,15 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers,
     cache = 'no-store',
     accessToken,
-    useCache = method === 'GET',
+    useCache = method === 'GET'
+      && !path.startsWith('/platform/')
+      && !path.startsWith('/me'),
   } = options
   const isFormDataBody = typeof FormData !== 'undefined' && body instanceof FormData
   const companySlug = resolveApiCompanySlug()
-  const cacheKey = buildApiCacheKey(method, path, companySlug)
+  const token = accessToken?.trim()
+  const accessTokenScope = resolveAccessTokenScope(token)
+  const cacheKey = buildApiCacheKey(method, path, companySlug, accessTokenScope)
 
   if (useCache && method === 'GET') {
     const cached = peekApiCache<T>(cacheKey)
@@ -97,7 +118,6 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     ...(headers ?? {}),
   }
 
-  const token = accessToken?.trim()
   if (token && !mergedHeaders.Authorization) {
     mergedHeaders.Authorization = `Bearer ${token}`
   }

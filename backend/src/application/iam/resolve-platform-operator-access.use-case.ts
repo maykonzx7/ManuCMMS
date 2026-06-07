@@ -97,7 +97,8 @@ export class ResolvePlatformOperatorAccessUseCase {
     return {
       ...usuarioLocal,
       idUnidade: target.unidadeId,
-      perfil: 'ADMIN',
+      // Visualização operacional do cliente — não eleva para ADMIN da empresa.
+      perfil: 'GESTOR',
       empresa: {
         id: target.empresaId,
         nomeEmpresa: target.nomeEmpresa,
@@ -106,6 +107,7 @@ export class ResolvePlatformOperatorAccessUseCase {
       },
       cargos: [cargo],
       permissoes: [...PLATFORM_OPERATOR_ADMIN_PERMISSIONS],
+      isWorkspaceImpersonation: true,
     };
   }
 }

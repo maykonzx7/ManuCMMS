@@ -132,7 +132,6 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   metricas: ['ADMIN'],
   permissoes: ['GESTOR', 'ADMIN'],
   configuracoes: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
-  platform: ['ADMIN'],
 }
 
 // ===========================================

@@ -15,6 +15,7 @@ import { extname } from 'node:path';
 import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import type { AuthUserContext } from '../auth/auth-user.types';
+import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import { UpdateMeuPerfilUseCase } from '../../application/iam/update-meu-perfil.use-case';
 import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.use-case';
 import { SupabaseStorageService } from '../../infrastructure/storage/supabase-storage.service';
@@ -36,6 +37,7 @@ export class MeController {
     private readonly updateMeuPerfil: UpdateMeuPerfilUseCase,
     private readonly listUnidades: ListUnidadesUseCase,
     private readonly supabaseStorage: SupabaseStorageService,
+    private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
   ) {}
 
   @Get()
@@ -56,6 +58,8 @@ export class MeController {
     return {
       email: u.email,
       role: u.role,
+      isPlatformOperator: this.authorizePlatformOperator.isOperator(u),
+      isWorkspaceImpersonation: local?.isWorkspaceImpersonation === true,
       usuario: local
         ? {
             id: local.id,
@@ -68,6 +72,7 @@ export class MeController {
             empresa: local.empresa,
             cargos: local.cargos,
             permissoes: local.permissoes,
+            isWorkspaceImpersonation: local.isWorkspaceImpersonation === true,
           }
         : null,
     };

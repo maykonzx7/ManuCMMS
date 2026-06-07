@@ -1,10 +1,10 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
-import { AuthLoadingScreen, LoginForm } from '@/components/auth'
+import { AuthLoadingScreen, LoginForm, ActiveSessionPrompt } from '@/components/auth'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 function LoginPageContent() {
@@ -13,11 +13,9 @@ function LoginPageContent() {
   const { login, loginWithGoogle, requestPasswordReset, isLoading, isAuthenticated } = useAuth()
   const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
 
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace(redirectPath)
-    }
-  }, [isAuthenticated, isLoading, redirectPath, router])
+  const handleContinueSession = () => {
+    router.replace(redirectPath)
+  }
 
   const handleLogin = async (data: { email: string; senha: string }) => {
     try {
@@ -40,6 +38,15 @@ function LoginPageContent() {
 
   if (isLoading && !isAuthenticated) {
     return <AuthLoadingScreen layout="embedded" message="Verificando sua sessão..." />
+  }
+
+  if (!isLoading && isAuthenticated) {
+    return (
+      <ActiveSessionPrompt
+        redirectPath={redirectPath}
+        onContinue={handleContinueSession}
+      />
+    )
   }
 
   return (

@@ -198,6 +198,8 @@ export interface SessionData {
   unidades: Unit[]
   unidadeAtual?: Unit
   isPlatformOperator?: boolean
+  /** Operador da plataforma visualizando workspace de outro cliente. */
+  isWorkspaceImpersonation?: boolean
 }
 
 // ===========================================
