@@ -53,6 +53,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { mapApiUnidadeToUnit, type ApiUnidade } from '@/lib/backend-mappers'
+import { TenantHierarchyHelp } from '@/components/gestao/tenant-hierarchy-guide'
 import { PageDataLoading } from '@/components/shared'
 
 type UnidadeStatus = 'ATIVA' | 'INATIVA'
@@ -196,10 +197,11 @@ export default function UnitsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Unidades</h1>
-          <p className="text-muted-foreground">
-            Filiais e plantas deste cliente. Para cadastrar um cliente novo, use o Painel Plataforma.
-          </p>
+          <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
+            Unidades
+            <TenantHierarchyHelp variant="empresa" empresaNome={company?.nome} />
+          </h1>
+          <p className="text-muted-foreground">Gerencie as unidades operacionais da empresa</p>
         </div>
 
         <div className="flex items-center gap-2">

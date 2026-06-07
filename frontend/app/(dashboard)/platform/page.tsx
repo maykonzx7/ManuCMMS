@@ -13,14 +13,14 @@ import {
   Search,
   Users,
 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PageDataLoading } from '@/components/shared'
-import { TenantHierarchyGuide } from '@/components/gestao/tenant-hierarchy-guide'
+import { TenantHierarchyHelp } from '@/components/gestao/tenant-hierarchy-guide'
 import {
   InviteLinkDialog,
   type ConviteEmailStatus,
@@ -268,18 +268,13 @@ export default function PlatformPage() {
           <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
             <Globe className="h-8 w-8" />
             Painel da Plataforma
+            <TenantHierarchyHelp variant="platform" />
           </h1>
-          <p className="text-muted-foreground">
-            Cadastre <strong>clientes</strong> (empresas). Cada cliente recebe uma{' '}
-            <strong>unidade inicial</strong> (Matriz) automaticamente.
-          </p>
         </div>
         <Button variant="outline" onClick={() => void carregarDados()} disabled={isLoading}>
           Atualizar
         </Button>
       </div>
-
-      <TenantHierarchyGuide variant="platform" />
 
       {loadError ? (
         <Card>
@@ -336,21 +331,16 @@ export default function PlatformPage() {
 
       <Tabs defaultValue="novo-cliente" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 lg:grid-cols-4">
-          <TabsTrigger value="novo-cliente">1. Novo cliente</TabsTrigger>
-          <TabsTrigger value="clientes">2. Clientes ({clientes.length})</TabsTrigger>
-          <TabsTrigger value="unidades">3. Unidades ({unidades.length})</TabsTrigger>
-          <TabsTrigger value="usuarios">4. Usuários ({usuarios.length})</TabsTrigger>
+          <TabsTrigger value="novo-cliente">Novo cliente</TabsTrigger>
+          <TabsTrigger value="clientes">Clientes ({clientes.length})</TabsTrigger>
+          <TabsTrigger value="unidades">Unidades ({unidades.length})</TabsTrigger>
+          <TabsTrigger value="usuarios">Usuários ({usuarios.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="novo-cliente" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Criar novo cliente</CardTitle>
-              <CardDescription>
-                Passo 1 do fluxo. Isso cria a <strong>empresa</strong>, a unidade inicial
-                (padrão: Matriz) e o convite do administrador. Para filiais extras, use o
-                Painel Admin do cliente depois.
-              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
@@ -451,11 +441,7 @@ export default function PlatformPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Base de clientes</CardTitle>
-              <CardDescription>
-                Passo 2: após o admin aceitar o convite, acesse o workspace de cada cliente.
-                Filiais novas são <strong>unidades</strong>, não clientes.
-              </CardDescription>
+              <CardTitle>Clientes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {clientesFiltrados.length === 0 ? (
@@ -508,10 +494,6 @@ export default function PlatformPage() {
           <Card>
             <CardHeader>
               <CardTitle>Unidades do sistema</CardTitle>
-              <CardDescription>
-                Passo 3 (visão global): unidades de todos os clientes. Para cadastrar filial
-                nova, entre no cliente e use Gestão → Unidades.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {unidadesFiltradas.length === 0 ? (
@@ -569,9 +551,6 @@ export default function PlatformPage() {
           <Card>
             <CardHeader>
               <CardTitle>Usuários cadastrados</CardTitle>
-              <CardDescription>
-                Visão consolidada de todos os colaboradores por cliente.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {usuarios.length === 0 ? (

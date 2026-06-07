@@ -20,7 +20,7 @@ import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
-import { TenantHierarchyGuide } from '@/components/gestao/tenant-hierarchy-guide'
+import { TenantHierarchyHelp } from '@/components/gestao/tenant-hierarchy-guide'
 import {
   ConvitesPanel,
   InviteLinkDialog,
@@ -332,16 +332,14 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Painel de Gestão</h1>
-        <p className="text-muted-foreground">
-          Gestão do cliente atual: unidades operacionais, convites e dados da empresa.
-        </p>
+        <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
+          Painel de Gestão
+          <TenantHierarchyHelp
+            variant="empresa"
+            empresaNome={painel?.empresa.nomeEmpresa ?? company?.nome ?? undefined}
+          />
+        </h1>
       </div>
-
-      <TenantHierarchyGuide
-        variant="empresa"
-        empresaNome={painel?.empresa.nomeEmpresa ?? company?.nome ?? undefined}
-      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Usuários</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.total}</p></CardContent></Card>
@@ -362,10 +360,6 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5" />Nova unidade</CardTitle>
-              <CardDescription>
-                Cadastre uma filial ou planta dentro deste cliente. Não use esta tela para criar
-                um cliente novo — isso é feito no Painel Plataforma.
-              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-6">
               <div className="space-y-2 md:col-span-1"><Label>Nome</Label><Input value={novaBaseNome} onChange={(e) => setNovaBaseNome(e.target.value)} placeholder="Ex: Base Recife" /></div>
@@ -415,7 +409,6 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle>Unidades deste cliente</CardTitle>
-              <CardDescription>Filial, planta ou polo operacional vinculado à empresa atual.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {unidades.map((unidade) => (
