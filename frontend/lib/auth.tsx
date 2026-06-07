@@ -199,15 +199,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const hydratingRef = useRef<Promise<void> | null>(null)
   const explicitAuthRef = useRef<string | null>(null)
 
+  const syncPlatformOperatorStatus = useCallback(async (token: string) => {
+    if (!token) {
+      setIsPlatformOperator(false)
+      return
+    }
+    try {
+      await apiRequest('/platform/painel', { accessToken: token })
+      setIsPlatformOperator(true)
+    } catch {
+      setIsPlatformOperator(false)
+    }
+  }, [])
+
   const applySession = useCallback((token: string, nextSession: SessionData | null) => {
     setAccessToken(token)
     setSessionData(nextSession)
     setApiCompanySlug(nextSession?.empresa.slug ?? null)
-    setIsPlatformOperator(false)
     if (nextSession) {
       writeSessionCache(token, nextSession)
     } else {
       clearSessionCache()
+      setIsPlatformOperator(false)
     }
   }, [])
 
@@ -254,6 +267,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       bootstrap.unidades,
     )
     applySession(token, nextSession)
+    await syncPlatformOperatorStatus(token)
 
     // Evita reprocessar hash OAuth antigo em refreshes seguintes.
     if (
@@ -263,7 +277,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const cleanUrl = `${window.location.pathname}${window.location.search}`
       window.history.replaceState({}, document.title, cleanUrl)
     }
-  }, [applySession])
+  }, [applySession, syncPlatformOperatorStatus])
 
   const clearLocalAuthState = useCallback(async () => {
     if (supabase) {

@@ -20,6 +20,7 @@ import {
   Plug,
   Cpu,
   Settings,
+  Globe,
   ChevronRight,
 } from 'lucide-react'
 import {
@@ -36,6 +37,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useAuth } from '@/lib/auth'
 import { SIDEBAR_NAVIGATION } from '@/lib/constants'
 import { UnitSwitcher } from './unit-switcher'
 import { UserNav } from './user-nav'
@@ -57,11 +59,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Plug,
   Cpu,
   Settings,
+  Globe,
 }
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { hasPermission } = usePermissions()
+  const { isPlatformOperator } = useAuth()
 
   return (
     <Sidebar collapsible="icon">
@@ -94,8 +98,11 @@ export function AppSidebar() {
 
       <SidebarContent>
         {SIDEBAR_NAVIGATION.map((group) => {
+          if (group.title === 'Plataforma' && !isPlatformOperator) return null
           const visibleItems = group.items.filter((item) =>
-            hasPermission(item.screen)
+            item.screen === 'platform'
+              ? isPlatformOperator
+              : hasPermission(item.screen)
           )
           
           if (visibleItems.length === 0) return null

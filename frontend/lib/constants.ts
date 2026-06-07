@@ -132,6 +132,7 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   metricas: ['ADMIN'],
   permissoes: ['GESTOR', 'ADMIN'],
   configuracoes: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
+  platform: ['ADMIN'],
 }
 
 // ===========================================
@@ -165,6 +166,12 @@ export const SIDEBAR_NAVIGATION = [
       { title: 'Métricas Admin', url: ROUTES.metricas, icon: 'LineChart', screen: 'metricas' },
       { title: 'Relatórios', url: '/workspace/relatorios', icon: 'FileText', screen: 'relatorios' },
       { title: 'Auditoria', url: '/workspace/auditoria', icon: 'History', screen: 'auditoria' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { title: 'Painel Plataforma', url: ROUTES.platform, icon: 'Globe', screen: 'platform' },
     ],
   },
   {
