@@ -1,96 +1,83 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { Suspense, useEffect, useRef, useState } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { AuthLoadingScreen } from '@/components/auth'
 import { useAuth } from '@/lib/auth'
-import {
-  isClientWorkspaceSessionMessage,
-  type ClientWorkspaceOpenedMessage,
-  type ClientWorkspaceReadyMessage,
-} from '@/lib/open-client-workspace'
+import { consumeClientHandoff } from '@/lib/open-client-workspace'
 import { ROUTES } from '@/lib/routes'
 import { supabase } from '@/lib/supabase'
 
-export default function ClientWorkspaceHandoffPage() {
+function ClientWorkspaceHandoffContent() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { enterCompanyWorkspace } = useAuth()
-  const companySlug = (params.companySlug as string).trim().toLowerCase()
+  const paramSlug = Array.isArray(params.companySlug)
+    ? params.companySlug[0]
+    : params.companySlug
+  const companySlug = (paramSlug ?? '').trim().toLowerCase()
+  const handoffId = searchParams.get('h')?.trim() ?? ''
   const startedRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (startedRef.current || !companySlug) return
-    startedRef.current = true
-
-    if (!window.opener) {
-      setError('Abra o cliente a partir do Painel Plataforma.')
+    if (startedRef.current) return
+    if (!companySlug) {
+      setError('Slug da empresa não informado na URL.')
+      return
+    }
+    if (!handoffId) {
+      setError('Link de abertura inválido. Use "Acessar cliente" no Painel Plataforma.')
       return
     }
 
-    const ready: ClientWorkspaceReadyMessage = {
-      type: 'CLIENT_WORKSPACE_READY',
-      slug: companySlug,
-    }
-    window.opener.postMessage(ready, window.location.origin)
+    startedRef.current = true
 
-    const timeout = window.setTimeout(() => {
-      setError('Não foi possível receber a sessão da guia do Painel Plataforma.')
-    }, 15_000)
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-      if (!isClientWorkspaceSessionMessage(event.data)) return
-      if (event.data.slug !== companySlug) return
-
-      window.clearTimeout(timeout)
-      window.removeEventListener('message', onMessage)
-
-      void (async () => {
-        try {
-          if (!supabase) {
-            throw new Error('Supabase não configurado')
-          }
-
-          const { data, error: sessionError } = await supabase.auth.setSession({
-            access_token: event.data.accessToken,
-            refresh_token: event.data.refreshToken,
-          })
-          if (sessionError || !data.session?.access_token) {
-            throw new Error(sessionError?.message ?? 'Falha ao aplicar sessão')
-          }
-
-          await enterCompanyWorkspace(companySlug)
-
-          const opened: ClientWorkspaceOpenedMessage = {
-            type: 'CLIENT_WORKSPACE_OPENED',
-            slug: companySlug,
-          }
-          window.opener?.postMessage(opened, window.location.origin)
-
-          router.replace(ROUTES.home)
-        } catch (handoffError) {
-          const message =
-            handoffError instanceof Error ? handoffError.message : 'Falha ao abrir cliente'
-          setError(message)
-          toast.error(message)
+    void (async () => {
+      try {
+        if (!supabase) {
+          throw new Error('Supabase não configurado')
         }
-      })()
-    }
 
-    window.addEventListener('message', onMessage)
-    return () => {
-      window.clearTimeout(timeout)
-      window.removeEventListener('message', onMessage)
-    }
-  }, [companySlug, enterCompanyWorkspace, router])
+        let handoff: ReturnType<typeof consumeClientHandoff> = null
+        for (let attempt = 0; attempt < 20 && !handoff; attempt += 1) {
+          handoff = consumeClientHandoff(handoffId, companySlug)
+          if (!handoff) {
+            await new Promise((resolve) => window.setTimeout(resolve, 100))
+          }
+        }
+        if (!handoff) {
+          throw new Error('Não foi possível carregar a sessão para este cliente.')
+        }
+
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: handoff.accessToken,
+          refresh_token: handoff.refreshToken,
+        })
+        if (sessionError || !data.session?.access_token) {
+          throw new Error(sessionError?.message ?? 'Falha ao aplicar sessão')
+        }
+
+        await enterCompanyWorkspace(companySlug)
+        router.replace(ROUTES.home)
+      } catch (handoffError) {
+        const message =
+          handoffError instanceof Error ? handoffError.message : 'Falha ao abrir cliente'
+        setError(message)
+        toast.error(message)
+      }
+    })()
+  }, [companySlug, enterCompanyWorkspace, handoffId, router])
 
   if (error) {
     return (
       <div className="mx-auto max-w-md space-y-4 py-12 text-center">
         <p className="text-sm text-destructive">{error}</p>
+        {companySlug ? (
+          <p className="text-xs text-muted-foreground">Cliente: {companySlug}</p>
+        ) : null}
         <button
           type="button"
           className="text-sm text-primary hover:underline"
@@ -102,5 +89,13 @@ export default function ClientWorkspaceHandoffPage() {
     )
   }
 
-  return <AuthLoadingScreen message="Abrindo workspace do cliente..." />
+  return <AuthLoadingScreen message={`Abrindo workspace ${companySlug || 'do cliente'}...`} />
+}
+
+export default function ClientWorkspaceHandoffPage() {
+  return (
+    <Suspense fallback={<AuthLoadingScreen message="Preparando workspace do cliente..." />}>
+      <ClientWorkspaceHandoffContent />
+    </Suspense>
+  )
 }

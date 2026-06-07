@@ -19,3 +19,14 @@ export const ROUTES = {
   perfil: '/workspace/perfil',
   pecas: '/workspace/pecas',
 }
+
+/** Rota interna do Next usa `/cliente/...`; a URL pública usa `/workspace/cliente/...`. */
+export function isClientHandoffPath(pathname: string): boolean {
+  return pathname.startsWith('/workspace/cliente/') || pathname.startsWith('/cliente/')
+}
+
+export function resolveClientSlugFromPathname(pathname: string): string | null {
+  const match = pathname.match(/^\/(?:workspace\/)?cliente\/([^/?#]+)/i)
+  const slug = match?.[1] ? decodeURIComponent(match[1]).trim().toLowerCase() : ''
+  return slug.length > 0 ? slug : null
+}

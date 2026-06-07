@@ -7,13 +7,13 @@ import { AppSidebar, AppHeader } from '@/components/layout'
 import { AuthLoadingScreen } from '@/components/auth'
 import { useAuth } from '@/lib/auth'
 import { buildLoginRedirectUrl, resolveReturnPathFromBrowser } from '@/lib/safe-redirect'
-import { ROUTES } from '@/lib/routes'
+import { ROUTES, isClientHandoffPath } from '@/lib/routes'
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { isAuthenticated, isLoading, isSessionVerified } = useAuth()
-  const isClientHandoff = pathname.startsWith(`${ROUTES.workspaceRoot}/cliente/`)
+  const isClientHandoff = isClientHandoffPath(pathname)
 
   useEffect(() => {
     if (isClientHandoff || isLoading || isAuthenticated) return

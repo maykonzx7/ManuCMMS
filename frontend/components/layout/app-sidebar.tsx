@@ -68,7 +68,10 @@ export function AppSidebar() {
   const { hasPermission } = usePermissions()
   const { isPlatformOperator, isWorkspaceImpersonation } = useAuth()
   const isOnPlatformConsole =
-    pathname === ROUTES.platform || pathname.startsWith(`${ROUTES.platform}/`)
+    pathname === '/platform' ||
+    pathname.startsWith('/platform/') ||
+    pathname === ROUTES.platform ||
+    pathname.startsWith(`${ROUTES.platform}/`)
   const canShowPlatformNav =
     isPlatformOperator && isOnPlatformConsole && !isWorkspaceImpersonation
 

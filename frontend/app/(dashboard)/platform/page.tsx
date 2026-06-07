@@ -182,9 +182,12 @@ export default function PlatformPage() {
     }
   }, [accessToken, usuarioSearch])
 
-  const abrirCliente = async (slug: string) => {
-    const normalizedSlug = slug.trim().toLowerCase()
-    if (!normalizedSlug) return
+  const abrirCliente = async (slug: string | null | undefined) => {
+    const normalizedSlug = (slug ?? '').trim().toLowerCase()
+    if (!normalizedSlug) {
+      toast.error('Slug do cliente não encontrado.')
+      return
+    }
     setOpeningClienteSlug(normalizedSlug)
     try {
       await openClientWorkspaceInNewTab(normalizedSlug)
