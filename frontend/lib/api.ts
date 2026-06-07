@@ -73,7 +73,7 @@ type ApiRequestOptions = {
   useCache?: boolean
 }
 
-export { peekApiCache, invalidateApiCacheForMutation as invalidateApiCache } from './api-cache'
+export { peekApiCache, invalidateApiCache, invalidateApiCacheForMutation } from './api-cache'
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const {
