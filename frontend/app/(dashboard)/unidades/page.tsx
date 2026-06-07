@@ -197,7 +197,9 @@ export default function UnitsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Unidades</h1>
-          <p className="text-muted-foreground">Gerencie as unidades operacionais da empresa</p>
+          <p className="text-muted-foreground">
+            Filiais e plantas deste cliente. Para cadastrar um cliente novo, use o Painel Plataforma.
+          </p>
         </div>
 
         <div className="flex items-center gap-2">

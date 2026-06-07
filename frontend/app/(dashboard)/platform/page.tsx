@@ -16,9 +16,15 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PageDataLoading } from '@/components/shared'
+import { TenantHierarchyGuide } from '@/components/gestao/tenant-hierarchy-guide'
+import {
+  InviteLinkDialog,
+  type ConviteEmailStatus,
+} from '@/components/convites/convites-panel'
 import { apiRequest } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ROUTES } from '@/lib/routes'
@@ -80,6 +86,14 @@ type PlatformUsuario = {
   empresaSlug: string
 }
 
+type CreateClienteResponse = {
+  empresa: { id: string; nomeEmpresa: string; slug: string }
+  unidadeInicial: { id: string; nome: string; localizacao: string }
+  responsavelInicial: { nome: string; email: string }
+  links?: { convite?: string | null; acessoConta?: string | null }
+  entregaEmail?: { status: ConviteEmailStatus; erro?: string }
+}
+
 function resolveClientAccessLink(slug: string, backendLink?: string | null): string {
   if (backendLink) return backendLink
   return ROUTES.acessoEmpresa(slug)
@@ -109,6 +123,19 @@ export default function PlatformPage() {
   const [clienteSearch, setClienteSearch] = useState('')
   const [unidadeSearch, setUnidadeSearch] = useState('')
   const [usuarioSearch, setUsuarioSearch] = useState('')
+  const [novoClienteNome, setNovoClienteNome] = useState('')
+  const [novoClienteSlug, setNovoClienteSlug] = useState('')
+  const [novoClienteEmail, setNovoClienteEmail] = useState('')
+  const [novoClienteResponsavel, setNovoClienteResponsavel] = useState('')
+  const [novoClienteUnidade, setNovoClienteUnidade] = useState('Matriz')
+  const [novoClienteLocalizacao, setNovoClienteLocalizacao] = useState('')
+  const [isCreatingCliente, setIsCreatingCliente] = useState(false)
+  const [ultimoClienteCriado, setUltimoClienteCriado] = useState<CreateClienteResponse | null>(null)
+  const [inviteLinkDialog, setInviteLinkDialog] = useState<{
+    emailDestino: string
+    link: string
+    emailStatus?: ConviteEmailStatus
+  } | null>(null)
 
   const carregarDados = useCallback(async () => {
     if (!accessToken) return
@@ -158,6 +185,50 @@ export default function PlatformPage() {
     }
   }, [accessToken, usuarioSearch])
 
+  const criarCliente = async () => {
+    if (!accessToken) return
+    if (!novoClienteNome.trim() || !novoClienteEmail.trim()) {
+      toast.error('Informe o nome do cliente e o e-mail do administrador.')
+      return
+    }
+
+    setIsCreatingCliente(true)
+    try {
+      const response = await apiRequest<CreateClienteResponse>('/empresas', {
+        method: 'POST',
+        accessToken,
+        body: {
+          nomeEmpresa: novoClienteNome.trim(),
+          slug: novoClienteSlug.trim() || undefined,
+          emailResponsavel: novoClienteEmail.trim().toLowerCase(),
+          nomeResponsavel: novoClienteResponsavel.trim() || undefined,
+          nomeUnidadeInicial: novoClienteUnidade.trim() || undefined,
+          localizacaoUnidadeInicial: novoClienteLocalizacao.trim() || undefined,
+        },
+      })
+      setUltimoClienteCriado(response)
+      toast.success(`Cliente "${response.empresa.nomeEmpresa}" criado com unidade inicial "${response.unidadeInicial.nome}".`)
+      if (response.links?.convite) {
+        setInviteLinkDialog({
+          emailDestino: response.responsavelInicial.email,
+          link: response.links.convite,
+          emailStatus: response.entregaEmail?.status,
+        })
+      }
+      setNovoClienteNome('')
+      setNovoClienteSlug('')
+      setNovoClienteEmail('')
+      setNovoClienteResponsavel('')
+      setNovoClienteUnidade('Matriz')
+      setNovoClienteLocalizacao('')
+      await carregarDados()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao criar cliente')
+    } finally {
+      setIsCreatingCliente(false)
+    }
+  }
+
   const clientesFiltrados = useMemo(() => {
     const term = clienteSearch.trim().toLowerCase()
     if (!term) return clientes
@@ -199,13 +270,16 @@ export default function PlatformPage() {
             Painel da Plataforma
           </h1>
           <p className="text-muted-foreground">
-            Visão global de clientes, usuários e unidades do ManuCMMS.
+            Cadastre <strong>clientes</strong> (empresas). Cada cliente recebe uma{' '}
+            <strong>unidade inicial</strong> (Matriz) automaticamente.
           </p>
         </div>
         <Button variant="outline" onClick={() => void carregarDados()} disabled={isLoading}>
           Atualizar
         </Button>
       </div>
+
+      <TenantHierarchyGuide variant="platform" />
 
       {loadError ? (
         <Card>
@@ -260,12 +334,109 @@ export default function PlatformPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="clientes" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="clientes">Clientes ({clientes.length})</TabsTrigger>
-          <TabsTrigger value="unidades">Unidades ({unidades.length})</TabsTrigger>
-          <TabsTrigger value="usuarios">Usuários ({usuarios.length})</TabsTrigger>
+      <Tabs defaultValue="novo-cliente" className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 lg:grid-cols-4">
+          <TabsTrigger value="novo-cliente">1. Novo cliente</TabsTrigger>
+          <TabsTrigger value="clientes">2. Clientes ({clientes.length})</TabsTrigger>
+          <TabsTrigger value="unidades">3. Unidades ({unidades.length})</TabsTrigger>
+          <TabsTrigger value="usuarios">4. Usuários ({usuarios.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="novo-cliente" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Criar novo cliente</CardTitle>
+              <CardDescription>
+                Passo 1 do fluxo. Isso cria a <strong>empresa</strong>, a unidade inicial
+                (padrão: Matriz) e o convite do administrador. Para filiais extras, use o
+                Painel Admin do cliente depois.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label>Nome do cliente *</Label>
+                <Input
+                  value={novoClienteNome}
+                  onChange={(e) => setNovoClienteNome(e.target.value)}
+                  placeholder="Ex: Metalúrgica Silva Ltda."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Slug (opcional)</Label>
+                <Input
+                  value={novoClienteSlug}
+                  onChange={(e) => setNovoClienteSlug(e.target.value)}
+                  placeholder="metalurgica-silva"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail do administrador *</Label>
+                <Input
+                  type="email"
+                  value={novoClienteEmail}
+                  onChange={(e) => setNovoClienteEmail(e.target.value)}
+                  placeholder="admin@empresa.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nome do responsável</Label>
+                <Input
+                  value={novoClienteResponsavel}
+                  onChange={(e) => setNovoClienteResponsavel(e.target.value)}
+                  placeholder="Nome do admin"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unidade inicial</Label>
+                <Input
+                  value={novoClienteUnidade}
+                  onChange={(e) => setNovoClienteUnidade(e.target.value)}
+                  placeholder="Matriz"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Localização da unidade inicial</Label>
+                <Input
+                  value={novoClienteLocalizacao}
+                  onChange={(e) => setNovoClienteLocalizacao(e.target.value)}
+                  placeholder="Ex: São Paulo/SP — Sede"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Button onClick={() => void criarCliente()} disabled={isCreatingCliente}>
+                  {isCreatingCliente ? 'Criando...' : 'Criar cliente e enviar convite'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {ultimoClienteCriado ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Último cliente criado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  <strong>Cliente:</strong> {ultimoClienteCriado.empresa.nomeEmpresa} (
+                  {ultimoClienteCriado.empresa.slug})
+                </p>
+                <p>
+                  <strong>Unidade inicial:</strong> {ultimoClienteCriado.unidadeInicial.nome} —{' '}
+                  {ultimoClienteCriado.unidadeInicial.localizacao}
+                </p>
+                <p>
+                  <strong>Admin:</strong> {ultimoClienteCriado.responsavelInicial.nome} (
+                  {ultimoClienteCriado.responsavelInicial.email})
+                </p>
+                {ultimoClienteCriado.links?.acessoConta ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={ultimoClienteCriado.links.acessoConta}>Abrir workspace do cliente</Link>
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+        </TabsContent>
 
         <TabsContent value="clientes" className="space-y-4">
           <div className="relative max-w-md">
@@ -282,7 +453,8 @@ export default function PlatformPage() {
             <CardHeader>
               <CardTitle>Base de clientes</CardTitle>
               <CardDescription>
-                Acesse o workspace de cada cliente pelo link de direcionamento.
+                Passo 2: após o admin aceitar o convite, acesse o workspace de cada cliente.
+                Filiais novas são <strong>unidades</strong>, não clientes.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -337,7 +509,8 @@ export default function PlatformPage() {
             <CardHeader>
               <CardTitle>Unidades do sistema</CardTitle>
               <CardDescription>
-                Todas as bases operacionais cadastradas, agrupadas por cliente.
+                Passo 3 (visão global): unidades de todos os clientes. Para cadastrar filial
+                nova, entre no cliente e use Gestão → Unidades.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -433,6 +606,14 @@ export default function PlatformPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <InviteLinkDialog
+        open={Boolean(inviteLinkDialog)}
+        onOpenChange={(open) => !open && setInviteLinkDialog(null)}
+        emailDestino={inviteLinkDialog?.emailDestino ?? ''}
+        link={inviteLinkDialog?.link ?? ''}
+        emailStatus={inviteLinkDialog?.emailStatus}
+      />
     </div>
   )
 }

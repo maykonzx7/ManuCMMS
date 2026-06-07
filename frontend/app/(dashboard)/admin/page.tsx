@@ -20,6 +20,7 @@ import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
+import { TenantHierarchyGuide } from '@/components/gestao/tenant-hierarchy-guide'
 import {
   ConvitesPanel,
   InviteLinkDialog,
@@ -168,7 +169,7 @@ export default function AdminPage() {
       total: usuarios.length,
       ativos: usuarios.filter((u) => u.status === 'ATIVO').length,
       bloqueados: usuarios.filter((u) => u.status === 'BLOQUEADO').length,
-      bases: unidades.length,
+      unidades: unidades.length,
     }
   }, [painel, unidades])
 
@@ -210,7 +211,7 @@ export default function AdminPage() {
   const criarBase = async () => {
     if (!accessToken) return
     if (!novaBaseNome.trim() || !novaBaseLocalizacao.trim()) {
-      toast.error('Informe nome e localização da base.')
+      toast.error('Informe nome e localização da unidade.')
       return
     }
     try {
@@ -229,7 +230,7 @@ export default function AdminPage() {
           estado: novaBaseEstado || undefined,
         },
       })
-      toast.success('Base criada com sucesso.')
+      toast.success('Unidade criada com sucesso.')
       setNovaBaseNome('')
       setNovaBaseLocalizacao('')
       setNovaBaseCep('')
@@ -241,7 +242,7 @@ export default function AdminPage() {
       setNovaBaseStatus('ATIVA')
       await carregarTudo()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Falha ao criar base')
+      toast.error(error instanceof Error ? error.message : 'Falha ao criar unidade')
     }
   }
 
@@ -265,10 +266,10 @@ export default function AdminPage() {
           referencia: patch.referencia ?? unidade.referencia ?? null,
         },
       })
-      toast.success('Base atualizada com sucesso.')
+      toast.success('Unidade atualizada com sucesso.')
       await carregarTudo()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Falha ao atualizar base')
+      toast.error(error instanceof Error ? error.message : 'Falha ao atualizar unidade')
     }
   }
 
@@ -332,29 +333,39 @@ export default function AdminPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Painel de Gestão</h1>
-        <p className="text-muted-foreground">Criação e gestão de bases, convites e dados do cliente.</p>
+        <p className="text-muted-foreground">
+          Gestão do cliente atual: unidades operacionais, convites e dados da empresa.
+        </p>
       </div>
+
+      <TenantHierarchyGuide
+        variant="empresa"
+        empresaNome={painel?.empresa.nomeEmpresa ?? company?.nome ?? undefined}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Usuários</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.total}</p></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Ativos</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.ativos}</p></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Bloqueados</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.bloqueados}</p></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Bases</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.bases}</p></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Unidades</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.unidades}</p></CardContent></Card>
       </div>
 
-      <Tabs defaultValue="bases" className="space-y-4">
+      <Tabs defaultValue="unidades" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="bases"><Factory className="mr-2 h-4 w-4" />Bases</TabsTrigger>
+          <TabsTrigger value="unidades"><Factory className="mr-2 h-4 w-4" />Unidades</TabsTrigger>
           <TabsTrigger value="convites"><Send className="mr-2 h-4 w-4" />Convites</TabsTrigger>
           <TabsTrigger value="usuarios"><Users className="mr-2 h-4 w-4" />Usuários</TabsTrigger>
           <TabsTrigger value="empresa"><Building2 className="mr-2 h-4 w-4" />Empresa</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="bases" className="space-y-4">
+        <TabsContent value="unidades" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5" />Criar Base</CardTitle>
-              <CardDescription>Cadastre uma nova base/unidade para o cliente.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5" />Nova unidade</CardTitle>
+              <CardDescription>
+                Cadastre uma filial ou planta dentro deste cliente. Não use esta tela para criar
+                um cliente novo — isso é feito no Painel Plataforma.
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-6">
               <div className="space-y-2 md:col-span-1"><Label>Nome</Label><Input value={novaBaseNome} onChange={(e) => setNovaBaseNome(e.target.value)} placeholder="Ex: Base Recife" /></div>
@@ -395,7 +406,7 @@ export default function AdminPage() {
                 </Select>
               </div>
               <div className="md:col-span-4 flex items-center gap-2">
-                <Button onClick={() => void criarBase()} disabled={isLoading}>Criar Base</Button>
+                <Button onClick={() => void criarBase()} disabled={isLoading}>Criar unidade</Button>
                 <Button variant="outline" onClick={() => void carregarTudo()} disabled={isLoading}>Atualizar</Button>
               </div>
             </CardContent>
@@ -403,8 +414,8 @@ export default function AdminPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Bases do Cliente</CardTitle>
-              <CardDescription>Visualize e manipule dados principais das bases.</CardDescription>
+              <CardTitle>Unidades deste cliente</CardTitle>
+              <CardDescription>Filial, planta ou polo operacional vinculado à empresa atual.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {unidades.map((unidade) => (
@@ -435,7 +446,7 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
-              {unidades.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma base cadastrada.</p>}
+              {unidades.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma unidade cadastrada.</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -443,7 +454,7 @@ export default function AdminPage() {
         <TabsContent value="convites" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Convidar Usuário para Base</CardTitle>
+              <CardTitle>Convidar usuário para uma unidade</CardTitle>
               <CardDescription>
                 O convite é criado na hora. Se o e-mail não estiver configurado, copie o link gerado e envie manualmente.
               </CardDescription>
@@ -463,9 +474,9 @@ export default function AdminPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Base/Unidade</Label>
+                <Label>Unidade de destino</Label>
                 <Select value={idUnidadeDestino || '__none__'} onValueChange={(value) => setIdUnidadeDestino(value === '__none__' ? '' : value)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a base" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Sem unidade específica</SelectItem>
                     {unidades.map((unidade) => (
@@ -494,7 +505,7 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle>Usuários da Empresa</CardTitle>
-              <CardDescription>Visão consolidada de perfis e bases.</CardDescription>
+              <CardDescription>Visão consolidada de perfis e unidades.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">

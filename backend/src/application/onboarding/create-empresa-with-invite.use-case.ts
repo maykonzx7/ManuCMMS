@@ -13,6 +13,7 @@ import {
 } from '../../domain/ports/audit-log.port';
 import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
+import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import {
   buildInviteEmailTemplate,
   buildInviteLink,
@@ -249,6 +250,18 @@ export class CreateEmpresaWithInviteUseCase {
       }
     }
 
+    const frontendBase = resolveFrontendBaseUrl({
+      frontendNgrokBaseUrl: this.config.get<string>(
+        'FRONTEND_NGROK_PUBLIC_BASE_URL',
+      ),
+      frontendPublicBaseUrl: this.config.get<string>(
+        'FRONTEND_PUBLIC_BASE_URL',
+      ),
+    });
+    const accessPath =
+      this.config.get<string>('FRONTEND_ACCESS_PORTAL_PATH')?.trim() ||
+      '/workspace/acesso';
+
     return {
       empresa: {
         id: empresaId,
@@ -268,6 +281,12 @@ export class CreateEmpresaWithInviteUseCase {
         id: conviteId,
         expiraEm: expiraEm.toISOString(),
         cargoCodigo: 'ADMIN',
+      },
+      links: {
+        convite: inviteLink,
+        acessoConta: frontendBase
+          ? `${frontendBase}${accessPath}/${slug}`
+          : null,
       },
       entregaEmail,
     };
