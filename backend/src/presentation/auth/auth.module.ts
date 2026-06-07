@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import { EnsureUsuarioLocalUseCase } from '../../application/iam/ensure-usuario-local.use-case';
+import { ResolvePlatformOperatorAccessUseCase } from '../../application/iam/resolve-platform-operator-access.use-case';
 import { PrismaModule } from '../../infrastructure/persistence/prisma.module';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ApiKeyGuard } from './api-key.guard';
@@ -12,6 +14,8 @@ import { UsuarioBootstrapGuard } from './usuario-bootstrap.guard';
     SupabaseAuthService,
     JwtAuthGuard,
     ApiKeyGuard,
+    AuthorizePlatformOperatorUseCase,
+    ResolvePlatformOperatorAccessUseCase,
     EnsureUsuarioLocalUseCase,
     UsuarioBootstrapGuard,
   ],

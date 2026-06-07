@@ -43,9 +43,17 @@ export class UsuarioBootstrapGuard implements CanActivate {
 
     try {
       const preferredEmpresaSlug = this.resolvePreferredEmpresaSlug(req);
-      req.usuarioLocal = await this.ensureUsuario.execute(user, {
-        preferredEmpresaSlug,
-      });
+      req.usuarioLocal = await this.ensureUsuario.execute(
+        {
+          userId: user.userId,
+          email: user.email,
+          role: user.role,
+          emailConfirmedAt: user.emailConfirmedAt,
+          appMetadata: user.appMetadata,
+          userMetadata: user.userMetadata,
+        },
+        { preferredEmpresaSlug },
+      );
     } catch (error) {
       if (allowPendingUser && error instanceof ForbiddenException) {
         req.usuarioLocal = undefined;

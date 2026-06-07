@@ -105,6 +105,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   setUnidadeAtual: (unidade: Unit) => void
   refreshSession: () => Promise<void>
+  enterCompanyWorkspace: (empresaSlug: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -562,6 +563,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [accessToken, sessionData?.empresa.slug, sessionData?.unidadeAtual])
 
+  const enterCompanyWorkspace = useCallback(async (empresaSlug: string) => {
+    if (!supabase) {
+      throw new Error('Supabase nao configurado')
+    }
+    const normalizedSlug = empresaSlug.trim().toLowerCase()
+    if (!normalizedSlug) {
+      throw new Error('Slug da empresa invalido')
+    }
+
+    setIsLoading(true)
+    try {
+      const { data } = await supabase.auth.getSession()
+      const currentSession = data.session
+      if (!currentSession?.access_token) {
+        throw new Error('Sessao nao encontrada')
+      }
+      setApiCompanySlug(normalizedSlug)
+      await runHydration(currentSession, normalizedSlug, {
+        intent: 'login',
+        useCache: false,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [runHydration])
+
   const value = useMemo<AuthContextType>(() => ({
     session: sessionData,
     isAuthenticated: !!sessionData,
@@ -576,7 +603,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     setUnidadeAtual,
     refreshSession,
-  }), [accessToken, isLoading, isPlatformOperator, login, completeInviteAccess, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual, refreshSession])
+    enterCompanyWorkspace,
+  }), [accessToken, isLoading, isPlatformOperator, login, completeInviteAccess, loginWithGoogle, requestPasswordReset, updatePassword, logout, sessionData, setUnidadeAtual, refreshSession, enterCompanyWorkspace])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

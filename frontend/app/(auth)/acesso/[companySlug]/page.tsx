@@ -11,15 +11,27 @@ export default function CompanyLoginPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, loginWithGoogle, requestPasswordReset, isLoading, isAuthenticated } = useAuth()
+  const {
+    login,
+    loginWithGoogle,
+    requestPasswordReset,
+    enterCompanyWorkspace,
+    isLoading,
+    isAuthenticated,
+  } = useAuth()
   const companySlug = params.companySlug as string
   const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace(redirectPath)
+      void enterCompanyWorkspace(companySlug)
+        .then(() => router.replace(redirectPath))
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : 'Falha ao trocar de cliente'
+          toast.error(message)
+        })
     }
-  }, [isAuthenticated, isLoading, redirectPath, router])
+  }, [companySlug, enterCompanyWorkspace, isAuthenticated, isLoading, redirectPath, router])
 
   const handleLogin = async (data: { email: string; senha: string }) => {
     try {

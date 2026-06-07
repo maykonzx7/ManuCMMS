@@ -34,7 +34,14 @@ describe('EnsureUsuarioLocalUseCase', () => {
       ensureAccessContext: jest.fn(),
     } as any;
 
-    const useCase = new EnsureUsuarioLocalUseCase(config, usuarios);
+    const resolvePlatformOperatorAccess = {
+      execute: jest.fn().mockResolvedValue(null),
+    } as any;
+    const useCase = new EnsureUsuarioLocalUseCase(
+      config,
+      usuarios,
+      resolvePlatformOperatorAccess,
+    );
 
     await expect(
       useCase.execute({
@@ -42,6 +49,8 @@ describe('EnsureUsuarioLocalUseCase', () => {
         email: 'teste@empresa.com',
         role: 'authenticated',
         emailConfirmedAt: '2026-05-10T10:00:00.000Z',
+        appMetadata: null,
+        userMetadata: null,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
@@ -64,12 +73,21 @@ describe('EnsureUsuarioLocalUseCase', () => {
       ensureAccessContext: jest.fn().mockResolvedValue(undefined),
     } as any;
 
-    const useCase = new EnsureUsuarioLocalUseCase(config, usuarios);
+    const resolvePlatformOperatorAccess = {
+      execute: jest.fn().mockResolvedValue(null),
+    } as any;
+    const useCase = new EnsureUsuarioLocalUseCase(
+      config,
+      usuarios,
+      resolvePlatformOperatorAccess,
+    );
     const result = await useCase.execute({
       userId: 'novo-sub',
       email: 'teste@empresa.com',
       role: 'authenticated',
       emailConfirmedAt: '2026-05-10T10:00:00.000Z',
+      appMetadata: null,
+      userMetadata: null,
     });
 
     expect(usuarios.findByEmail).toHaveBeenCalledWith(
@@ -95,7 +113,14 @@ describe('EnsureUsuarioLocalUseCase', () => {
       ensureAccessContext: jest.fn(),
     } as any;
 
-    const useCase = new EnsureUsuarioLocalUseCase(config, usuarios);
+    const resolvePlatformOperatorAccess = {
+      execute: jest.fn().mockResolvedValue(null),
+    } as any;
+    const useCase = new EnsureUsuarioLocalUseCase(
+      config,
+      usuarios,
+      resolvePlatformOperatorAccess,
+    );
 
     await expect(
       useCase.execute({
@@ -103,6 +128,8 @@ describe('EnsureUsuarioLocalUseCase', () => {
         email: 'teste@empresa.com',
         role: 'authenticated',
         emailConfirmedAt: '2026-05-10T10:00:00.000Z',
+        appMetadata: null,
+        userMetadata: null,
       }),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
     expect(usuarios.findByEmail).not.toHaveBeenCalled();
@@ -119,7 +146,14 @@ describe('EnsureUsuarioLocalUseCase', () => {
       ensureAccessContext: jest.fn(),
     } as any;
 
-    const useCase = new EnsureUsuarioLocalUseCase(config, usuarios);
+    const resolvePlatformOperatorAccess = {
+      execute: jest.fn().mockResolvedValue(null),
+    } as any;
+    const useCase = new EnsureUsuarioLocalUseCase(
+      config,
+      usuarios,
+      resolvePlatformOperatorAccess,
+    );
 
     await expect(
       useCase.execute({
@@ -127,6 +161,8 @@ describe('EnsureUsuarioLocalUseCase', () => {
         email: 'teste@empresa.com',
         role: 'authenticated',
         emailConfirmedAt: null,
+        appMetadata: null,
+        userMetadata: null,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(usuarios.findByEmail).not.toHaveBeenCalled();

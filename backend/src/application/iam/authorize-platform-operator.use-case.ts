@@ -25,37 +25,42 @@ export class AuthorizePlatformOperatorUseCase {
   constructor(private readonly config: ConfigService) {}
 
   execute(user: AuthUserContext): void {
-    if (!user?.userId) {
-      throw new ForbiddenException('Sessao de usuario invalida.');
-    }
-    if (!user.emailConfirmedAt) {
+    if (!this.isOperator(user)) {
       throw new ForbiddenException(
-        'Confirme seu email antes de operar o onboarding da plataforma.',
+        'Acesso restrito ao operador da plataforma.',
       );
+    }
+  }
+
+  /** Verificação não-destrutiva para impersonação de workspace de clientes. */
+  isOperator(user: AuthUserContext | null | undefined): boolean {
+    if (!user?.userId || !user.emailConfirmedAt) {
+      return false;
     }
 
     if (this.hasPlatformOwnerClaim(user)) {
-      return;
+      return true;
     }
 
     const allowEmailFallback = parseEnabled(
       this.config.get<string>('PLATFORM_ALLOW_EMAIL_FALLBACK'),
     );
     if (!allowEmailFallback) {
-      throw new ForbiddenException(
-        'Acesso restrito ao operador da plataforma.',
-      );
+      return false;
     }
 
-    const allowed = this.parseAllowedEmails();
-    const actorEmail = normalize(user.email);
-    const isBreakGlass = actorEmail
-      ? BREAK_GLASS_PLATFORM_EMAILS.has(actorEmail)
-      : false;
-    if (!actorEmail || (!allowed.has(actorEmail) && !isBreakGlass)) {
-      throw new ForbiddenException(
-        'Acesso restrito ao operador da plataforma.',
-      );
+    try {
+      const allowed = this.parseAllowedEmails();
+      const actorEmail = normalize(user.email);
+      const isBreakGlass = actorEmail
+        ? BREAK_GLASS_PLATFORM_EMAILS.has(actorEmail)
+        : false;
+      return Boolean(actorEmail && (allowed.has(actorEmail) || isBreakGlass));
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      return false;
     }
   }
 

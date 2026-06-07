@@ -11,6 +11,8 @@ import {
   type IUsuarioReadPort,
   type PerfilUsuarioCodigo,
 } from '../../domain/ports/usuario-read.port';
+import type { AuthUserContext } from '../../presentation/auth/auth-user.types';
+import { ResolvePlatformOperatorAccessUseCase } from './resolve-platform-operator-access.use-case';
 
 /**
  * Garante contexto local de usuário previamente cadastrado/vinculado.
@@ -22,34 +24,41 @@ export class EnsureUsuarioLocalUseCase {
     private readonly config: ConfigService,
     @Inject(USUARIO_READ_PORT)
     private readonly usuarios: IUsuarioReadPort,
+    private readonly resolvePlatformOperatorAccess: ResolvePlatformOperatorAccessUseCase,
   ) {}
 
   async execute(
-    jwt: {
-      userId: string;
-      email: string | null;
-      role: string | null;
-      emailConfirmedAt: string | null;
-    },
+    authUser: AuthUserContext,
     options?: { preferredEmpresaSlug?: string | null },
   ): Promise<UsuarioLocalContext> {
     const preferredEmpresaSlug = options?.preferredEmpresaSlug ?? null;
     const existentePorSub = await this.usuarios.findByAuthSub(
-      jwt.userId,
+      authUser.userId,
       preferredEmpresaSlug,
     );
     if (existentePorSub) {
+      const platformContext = preferredEmpresaSlug
+        ? await this.resolvePlatformOperatorAccess.execute(
+            authUser,
+            existentePorSub,
+            preferredEmpresaSlug,
+          )
+        : null;
+      const resolved = platformContext ?? existentePorSub;
+
       await this.usuarios.ensureAccessContext({
-        idUsuario: existentePorSub.id,
-        idUnidade: existentePorSub.idUnidade,
-        idUnidadeCargo: existentePorSub.idUnidade,
-        empresaId: existentePorSub.empresa?.id ?? null,
-        perfil: existentePorSub.perfil as PerfilUsuarioCodigo,
+        idUsuario: resolved.id,
+        idUnidade: resolved.idUnidade,
+        idUnidadeCargo: resolved.idUnidade,
+        empresaId: resolved.empresa?.id ?? null,
+        perfil: resolved.perfil as PerfilUsuarioCodigo,
       });
 
-      this.assertPreferredEmpresaScope(existentePorSub, preferredEmpresaSlug);
-      this.assertAccessIsActive(existentePorSub);
-      return existentePorSub;
+      if (!platformContext) {
+        this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
+      }
+      this.assertAccessIsActive(resolved);
+      return resolved;
     }
 
     const allowAuthSubLinkByEmail =
@@ -64,9 +73,9 @@ export class EnsureUsuarioLocalUseCase {
       );
     }
 
-    const emailJwt = jwt.email?.trim().toLowerCase();
+    const emailJwt = authUser.email?.trim().toLowerCase();
     if (allowAuthSubLinkByEmail && emailJwt) {
-      if (!jwt.emailConfirmedAt) {
+      if (!authUser.emailConfirmedAt) {
         throw new ForbiddenException(
           'Nao foi possivel vincular login sem email confirmado no provedor de autenticacao.',
         );
@@ -76,7 +85,7 @@ export class EnsureUsuarioLocalUseCase {
         preferredEmpresaSlug,
       );
       if (existentePorEmail) {
-        await this.usuarios.updateAuthSub(existentePorEmail.id, jwt.userId);
+        await this.usuarios.updateAuthSub(existentePorEmail.id, authUser.userId);
 
         await this.usuarios.ensureAccessContext({
           idUsuario: existentePorEmail.id,
@@ -87,21 +96,38 @@ export class EnsureUsuarioLocalUseCase {
         });
 
         const atualizado = await this.usuarios.findByAuthSub(
-          jwt.userId,
+          authUser.userId,
           preferredEmpresaSlug,
         );
         if (atualizado) {
-          this.assertPreferredEmpresaScope(atualizado, preferredEmpresaSlug);
-          this.assertAccessIsActive(atualizado);
-          return atualizado;
+          const platformContext = preferredEmpresaSlug
+            ? await this.resolvePlatformOperatorAccess.execute(
+                authUser,
+                atualizado,
+                preferredEmpresaSlug,
+              )
+            : null;
+          const resolved = platformContext ?? atualizado;
+          if (!platformContext) {
+            this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
+          }
+          this.assertAccessIsActive(resolved);
+          return resolved;
         }
 
-        this.assertPreferredEmpresaScope(
-          existentePorEmail,
-          preferredEmpresaSlug,
-        );
-        this.assertAccessIsActive(existentePorEmail);
-        return existentePorEmail;
+        const platformContext = preferredEmpresaSlug
+          ? await this.resolvePlatformOperatorAccess.execute(
+              authUser,
+              existentePorEmail,
+              preferredEmpresaSlug,
+            )
+          : null;
+        const resolved = platformContext ?? existentePorEmail;
+        if (!platformContext) {
+          this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
+        }
+        this.assertAccessIsActive(resolved);
+        return resolved;
       }
     }
 
