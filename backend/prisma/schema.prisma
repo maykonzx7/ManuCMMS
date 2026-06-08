@@ -176,6 +176,7 @@ model Ativo {
   localizacao   String?        @db.VarChar(255)
   latitude      Float?
   longitude     Float?
+  fotoUrl       String?        @map("foto_url") @db.VarChar(2048)
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   ordensServico OrdemServico[]

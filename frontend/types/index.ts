@@ -74,6 +74,7 @@ export interface Asset {
   fabricante?: string
   modelo?: string
   numeroSerie?: string
+  fotoUrl?: string
   dataAquisicao?: string
   status: AssetStatus
   unidadeId: string

@@ -23,11 +23,12 @@ type AssetLocationMapProps = {
   selectedId?: string | null
 }
 
-function FitBounds({ pins }: { pins: AssetMapPin[] }) {
+function FitBounds({ pins, selectedId }: { pins: AssetMapPin[]; selectedId?: string | null }) {
   const map = useMap()
 
   useEffect(() => {
     if (pins.length === 0) return
+    if (selectedId) return
     if (pins.length === 1) {
       map.setView([pins[0].latitude, pins[0].longitude], 15)
       return
@@ -39,7 +40,28 @@ function FitBounds({ pins }: { pins: AssetMapPin[] }) {
       [Math.max(...lats), Math.max(...lngs)],
     ]
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 })
-  }, [map, pins])
+  }, [map, pins, selectedId])
+
+  return null
+}
+
+function FocusSelectedPin({
+  pins,
+  selectedId,
+}: {
+  pins: AssetMapPin[]
+  selectedId?: string | null
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!selectedId) return
+    const pin = pins.find((p) => p.id === selectedId)
+    if (!pin) return
+    map.flyTo([pin.latitude, pin.longitude], Math.max(map.getZoom(), 15), {
+      duration: 0.45,
+    })
+  }, [map, pins, selectedId])
 
   return null
 }
@@ -82,7 +104,8 @@ export function AssetLocationMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds pins={pins} />
+        <FitBounds pins={pins} selectedId={selectedId} />
+        <FocusSelectedPin pins={pins} selectedId={selectedId} />
         {pins.map((pin) => {
           const color = STATUS_COLORS[pin.status ?? 'ATIVO'] ?? '#3b82f6'
           const isSelected = selectedId === pin.id

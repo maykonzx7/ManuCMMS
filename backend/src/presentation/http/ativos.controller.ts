@@ -31,12 +31,17 @@ import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authori
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { ListAtivosByUnidadeUseCase } from '../../application/ativos/list-ativos-by-unidade.use-case';
 import { UpdateAtivoUseCase } from '../../application/ativos/update-ativo.use-case';
+import { UpdateAtivoFotoUseCase } from '../../application/ativos/update-ativo-foto.use-case';
 import { ListOrdensServicoByAtivoUseCase } from '../../application/ordens-servico/list-ordens-servico-by-ativo.use-case';
 import { buildUploadPublicPath } from '../../application/shared/upload-url.shared';
 import {
   assertAllowedDocumentFile,
   MAX_DOCUMENT_SIZE_BYTES,
 } from '../../application/shared/document-upload.shared';
+import {
+  assertAllowedImageFile,
+  MAX_IMAGE_SIZE_BYTES,
+} from '../../application/shared/image-upload.shared';
 
 type CreateAtivoBody = {
   nome: string;
@@ -76,7 +81,9 @@ type UploadAtivoDocumentoBody = {
 
 const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
 const ativoDocumentoUploadDir = join(process.cwd(), UPLOADS_DIR, 'documentos');
+const ativoFotoUploadDir = join(process.cwd(), UPLOADS_DIR, 'ativos');
 mkdirSync(ativoDocumentoUploadDir, { recursive: true });
+mkdirSync(ativoFotoUploadDir, { recursive: true });
 
 /**
  * CRUD mínimo de ativos por unidade (RF-04).
@@ -89,6 +96,7 @@ export class AtivosController {
     private readonly getAtivoById: GetAtivoByIdUseCase,
     private readonly createAtivo: CreateAtivoUseCase,
     private readonly updateAtivo: UpdateAtivoUseCase,
+    private readonly updateAtivoFoto: UpdateAtivoFotoUseCase,
     private readonly deleteAtivo: DeleteAtivoUseCase,
     private readonly listOrdensByAtivo: ListOrdensServicoByAtivoUseCase,
     private readonly listAtivoDocumentos: ListAtivoDocumentosUseCase,
@@ -210,6 +218,62 @@ export class AtivosController {
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.visualizar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.getAtivoById.execute(unidadeId, ativoId);
+  }
+
+  @Patch(':ativoId/foto')
+  @UseInterceptors(
+    FileInterceptor('foto', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, ativoFotoUploadDir),
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname) || '.jpg';
+          cb(null, `${randomUUID()}${ext}`);
+        },
+      }),
+      limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
+    }),
+  )
+  async uploadFoto(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ativoId') ativoId: string,
+    @Body() body: { removerFoto?: string },
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req: Request,
+  ) {
+    this.assertTecnicoCannotMutateAssets(req);
+    this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+
+    const removerFoto =
+      body.removerFoto === 'true' ||
+      String(body.removerFoto ?? '').toLowerCase() === 'true';
+
+    if (removerFoto) {
+      return this.updateAtivoFoto.execute(
+        unidadeId,
+        ativoId,
+        { fotoUrl: null },
+        req.usuarioLocal!.id,
+      );
+    }
+
+    if (!file) {
+      throw new BadRequestException('foto é obrigatória');
+    }
+    try {
+      assertAllowedImageFile(file);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Imagem inválida',
+      );
+    }
+
+    return this.updateAtivoFoto.execute(
+      unidadeId,
+      ativoId,
+      { fotoUrl: '', filename: file.filename },
+      req.usuarioLocal!.id,
+    );
   }
 
   @Patch(':ativoId')

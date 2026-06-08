@@ -7,6 +7,7 @@ import { DeleteAtivoUseCase } from '../application/ativos/delete-ativo.use-case'
 import { GetAtivoByIdUseCase } from '../application/ativos/get-ativo-by-id.use-case';
 import { ListAtivosByUnidadeUseCase } from '../application/ativos/list-ativos-by-unidade.use-case';
 import { UpdateAtivoUseCase } from '../application/ativos/update-ativo.use-case';
+import { UpdateAtivoFotoUseCase } from '../application/ativos/update-ativo-foto.use-case';
 import {
   CreateAtivoDocumentoUseCase,
   DeleteAtivoDocumentoUseCase,
@@ -132,6 +133,7 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     CreateAtivoUseCase,
     GetAtivoByIdUseCase,
     UpdateAtivoUseCase,
+    UpdateAtivoFotoUseCase,
     DeleteAtivoUseCase,
     ListAtivoDocumentosUseCase,
     CreateAtivoDocumentoUseCase,

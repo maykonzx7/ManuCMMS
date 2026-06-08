@@ -38,6 +38,7 @@ export type UpdateAtivoInput = {
   localizacao?: string;
   latitude?: number | null;
   longitude?: number | null;
+  fotoUrl?: string | null;
 };
 
 export interface IAtivoRepositoryPort {
@@ -67,4 +68,10 @@ export interface IAtivoRepositoryPort {
     idAtivo: string,
     idUnidade: string,
   ): Promise<StatusAtivoPersistido | null>;
+  updateFotoUrl(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+    fotoUrl: string | null,
+  ): Promise<AtivoListaItem | null>;
 }

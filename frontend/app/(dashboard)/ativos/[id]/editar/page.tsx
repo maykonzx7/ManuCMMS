@@ -23,6 +23,7 @@ import { apiRequest } from '@/lib/api'
 import type { ApiAtivo } from '@/lib/backend-mappers'
 import { usePermissions } from '@/hooks/use-permissions'
 import { AssetLocationFormSection } from '@/components/ativos/asset-location-form-section'
+import { AssetPhotoSection } from '@/components/ativos/asset-photo-section'
 import type { AssetMapCoords } from '@/components/ativos/asset-location-picker'
 
 type BackendStatus = 'OPERACIONAL' | 'MANUTENCAO' | 'FALHA' | 'INATIVO'
@@ -68,6 +69,7 @@ export default function EditAssetPage() {
     latitude: null,
     longitude: null,
   })
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (canManageAssets) return
@@ -95,6 +97,7 @@ export default function EditAssetPage() {
         latitude: res.latitude ?? null,
         longitude: res.longitude ?? null,
       })
+      setFotoUrl(res.fotoUrl ?? null)
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar ativo')
@@ -164,6 +167,24 @@ export default function EditAssetPage() {
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      {accessToken && unit?.id && typeof params.id === 'string' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Foto do Ativo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AssetPhotoSection
+              unidadeId={unit.id}
+              ativoId={params.id}
+              accessToken={accessToken}
+              fotoUrl={fotoUrl}
+              canManage={canManageAssets}
+              onChange={setFotoUrl}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

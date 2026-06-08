@@ -53,6 +53,7 @@ import type { AssetStatus } from '@/types'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiAtivoToAsset, type ApiAtivo } from '@/lib/backend-mappers'
+import { resolveMediaUrl } from '@/lib/media-url'
 import { ROUTES } from '@/lib/routes'
 import { toast } from 'sonner'
 
@@ -239,6 +240,7 @@ export default function AssetsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-14"></TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead className="hidden md:table-cell">Localização</TableHead>
@@ -251,6 +253,22 @@ export default function AssetsPage() {
             <TableBody>
               {filteredAssets.map((asset) => (
                 <TableRow key={asset.id}>
+                  <TableCell>
+                    <div className="h-10 w-10 overflow-hidden rounded-md border bg-muted">
+                      {asset.fotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={resolveMediaUrl(asset.fotoUrl)}
+                          alt={asset.nome}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono text-sm">
                     {asset.codigo}
                   </TableCell>

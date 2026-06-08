@@ -18,6 +18,7 @@ export type ApiAtivo = {
   localizacao?: string | null
   latitude?: number | null
   longitude?: number | null
+  fotoUrl?: string | null
 }
 
 export type ApiAtivoDocumento = {
@@ -141,6 +142,7 @@ export function mapApiAtivoToAsset(input: ApiAtivo, unidadeId: string): Asset {
     fabricante: input.fabricante ?? undefined,
     modelo: input.modelo ?? undefined,
     numeroSerie: input.numeroSerie ?? undefined,
+    fotoUrl: resolveMediaUrl(input.fotoUrl) ?? undefined,
     status,
     unidadeId,
     createdAt: new Date().toISOString(),

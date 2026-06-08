@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { BookOpen, FileText, ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
+import { Download, Loader2, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,19 +14,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { apiRequest } from '@/lib/api'
-import { resolveMediaUrl } from '@/lib/media-url'
+import { resolveMediaUrl, downloadMediaFile } from '@/lib/media-url'
+import { getDocumentFormatMeta } from '@/lib/document-format'
 import type { ApiAtivoDocumento } from '@/lib/backend-mappers'
+import { cn } from '@/lib/utils'
 
 const TIPO_LABELS: Record<ApiAtivoDocumento['tipo'], string> = {
   MANUAL: 'Manual',
   DIAGRAMA: 'Diagrama',
   DOCUMENTACAO: 'Documentação',
-}
-
-const TIPO_ICONS: Record<ApiAtivoDocumento['tipo'], typeof FileText> = {
-  MANUAL: BookOpen,
-  DIAGRAMA: ImageIcon,
-  DOCUMENTACAO: FileText,
 }
 
 function formatFileSize(bytes: number): string {
@@ -55,27 +51,59 @@ export function AssetDocumentsPanel({
   const fileRef = useRef<HTMLInputElement>(null)
   const [tipo, setTipo] = useState<ApiAtivoDocumento['tipo']>('MANUAL')
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  )
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  const handleUpload = async (file: File) => {
+  const uploadSingle = async (file: File) => {
+    const formData = new FormData()
+    formData.append('arquivo', file)
+    formData.append('tipo', tipo)
+    formData.append('nome', file.name)
+    await apiRequest(`/unidades/${unidadeId}/ativos/${ativoId}/documentos`, {
+      method: 'POST',
+      accessToken,
+      body: formData,
+    })
+  }
+
+  const handleUploadBatch = async (files: FileList | File[]) => {
+    const list = Array.from(files)
+    if (list.length === 0) return
+
     setIsUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('arquivo', file)
-      formData.append('tipo', tipo)
-      formData.append('nome', file.name)
-      await apiRequest(`/unidades/${unidadeId}/ativos/${ativoId}/documentos`, {
-        method: 'POST',
-        accessToken,
-        body: formData,
-      })
-      toast.success('Documento enviado')
+    setUploadProgress({ done: 0, total: list.length })
+    let success = 0
+    let failed = 0
+
+    for (const file of list) {
+      try {
+        await uploadSingle(file)
+        success += 1
+      } catch {
+        failed += 1
+      }
+      setUploadProgress({ done: success + failed, total: list.length })
+    }
+
+    setIsUploading(false)
+    setUploadProgress(null)
+    if (fileRef.current) fileRef.current.value = ''
+
+    if (success > 0) {
+      toast.success(
+        success === 1 ? 'Documento enviado' : `${success} documento(s) enviado(s)`,
+      )
       onChange()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao enviar documento')
-    } finally {
-      setIsUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
+    }
+    if (failed > 0) {
+      toast.error(
+        failed === 1
+          ? 'Falha ao enviar 1 arquivo'
+          : `Falha ao enviar ${failed} arquivo(s)`,
+      )
     }
   }
 
@@ -92,6 +120,17 @@ export function AssetDocumentsPanel({
       toast.error(e instanceof Error ? e.message : 'Falha ao remover documento')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleDownload = async (doc: ApiAtivoDocumento) => {
+    setDownloadingId(doc.id)
+    try {
+      await downloadMediaFile(doc.url, doc.nome)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao baixar documento')
+    } finally {
+      setDownloadingId(null)
     }
   }
 
@@ -123,11 +162,12 @@ export function AssetDocumentsPanel({
             <input
               ref={fileRef}
               type="file"
+              multiple
               className="hidden"
               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) void handleUpload(file)
+                const files = e.target.files
+                if (files && files.length > 0) void handleUploadBatch(files)
               }}
             />
             <Button
@@ -140,7 +180,9 @@ export function AssetDocumentsPanel({
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
               )}
-              Anexar
+              {uploadProgress
+                ? `Enviando ${uploadProgress.done}/${uploadProgress.total}...`
+                : 'Anexar em lote'}
             </Button>
           </div>
         )}
@@ -154,51 +196,98 @@ export function AssetDocumentsPanel({
           (Object.keys(grouped) as ApiAtivoDocumento['tipo'][]).map((key) => {
             const items = grouped[key]
             if (items.length === 0) return null
-            const Icon = TIPO_ICONS[key]
             return (
               <div key={key} className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {TIPO_LABELS[key]}
                 </p>
                 <div className="space-y-2">
-                  {items.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0">
-                          <a
-                            href={resolveMediaUrl(doc.url)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="truncate font-medium text-primary hover:underline"
+                  {items.map((doc) => {
+                    const format = getDocumentFormatMeta(doc.mimeType, doc.nome)
+                    const FormatIcon = format.icon
+                    const isImage = doc.mimeType.startsWith('image/')
+                    const mediaUrl = resolveMediaUrl(doc.url)
+
+                    return (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div
+                            className={cn(
+                              'flex h-10 w-10 shrink-0 items-center justify-center rounded-md',
+                              format.badgeClass,
+                            )}
                           >
-                            {doc.nome}
-                          </a>
-                          <p className="text-xs text-muted-foreground">
-                            {formatFileSize(doc.tamanhoBytes)} ·{' '}
-                            {new Date(doc.createdAt).toLocaleDateString('pt-BR')}
-                          </p>
+                            <FormatIcon className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <a
+                                href={mediaUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="truncate font-medium text-primary hover:underline"
+                              >
+                                {doc.nome}
+                              </a>
+                              <span
+                                className={cn(
+                                  'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase',
+                                  format.badgeClass,
+                                )}
+                              >
+                                {format.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(doc.tamanhoBytes)} ·{' '}
+                              {new Date(doc.createdAt).toLocaleDateString('pt-BR')}
+                            </p>
+                            {isImage && mediaUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={mediaUrl}
+                                alt={doc.nome}
+                                className="mt-2 max-h-24 rounded border object-contain"
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Baixar"
+                            disabled={downloadingId === doc.id}
+                            onClick={() => void handleDownload(doc)}
+                          >
+                            {downloadingId === doc.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                          {canManage && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Remover"
+                              disabled={deletingId === doc.id}
+                              onClick={() => void handleDelete(doc.id)}
+                            >
+                              {deletingId === doc.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      {canManage && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={deletingId === doc.id}
-                          onClick={() => void handleDelete(doc.id)}
-                        >
-                          {deletingId === doc.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )

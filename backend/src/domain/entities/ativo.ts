@@ -36,6 +36,7 @@ export type AtivoListaItem = {
   localizacao?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  fotoUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

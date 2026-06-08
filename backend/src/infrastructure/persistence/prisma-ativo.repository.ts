@@ -25,6 +25,7 @@ type AtivoRow = {
   localizacao: string | null;
   latitude: number | null;
   longitude: number | null;
+  fotoUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -54,6 +55,7 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         localizacao,
         latitude,
         longitude,
+        foto_url AS "fotoUrl",
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM ativo
@@ -137,6 +139,7 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         localizacao,
         latitude,
         longitude,
+        foto_url AS "fotoUrl",
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM ativo
@@ -229,6 +232,22 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     return Number(count) > 0;
   }
 
+  async updateFotoUrl(
+    empresaId: string,
+    idUnidade: string,
+    idAtivo: string,
+    fotoUrl: string | null,
+  ): Promise<AtivoListaItem | null> {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ativo
+      SET foto_url = ${fotoUrl}, updated_at = NOW()
+      WHERE id = ${idAtivo}::uuid
+        AND empresa_id = ${empresaId}::uuid
+        AND id_unidade = ${idUnidade}::uuid
+    `);
+    return this.findByIdInUnidade(empresaId, idUnidade, idAtivo);
+  }
+
   async existsInUnidade(
     empresaId: string,
     idAtivo: string,
@@ -288,6 +307,7 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         localizacao,
         latitude,
         longitude,
+        foto_url AS "fotoUrl",
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM ativo
@@ -315,6 +335,7 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
       localizacao: r.localizacao,
       latitude: r.latitude,
       longitude: r.longitude,
+      fotoUrl: r.fotoUrl,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     };
