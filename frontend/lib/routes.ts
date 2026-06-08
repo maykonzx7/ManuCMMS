@@ -15,13 +15,12 @@ export const ROUTES = {
   admin: '/workspace/admin',
   platform: '/workspace/platform',
   clienteWorkspace: (slug: string) =>
-    `/workspace/cliente/${encodeURIComponent(slug.trim().toLowerCase())`,
+    '/workspace/cliente/' + encodeURIComponent(slug.trim().toLowerCase()),
   configuracoes: '/workspace/configuracoes',
   perfil: '/workspace/perfil',
   pecas: '/workspace/pecas',
 }
 
-/** Rota interna do Next usa `/cliente/...`; a URL pública usa `/workspace/cliente/...`. */
 export function isClientHandoffPath(pathname: string): boolean {
   return pathname.startsWith('/workspace/cliente/') || pathname.startsWith('/cliente/')
 }
