@@ -168,6 +168,23 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return payload as T
 }
 
+/** GET que retorna fallback quando a rota ainda não existe na API (deploy pendente). */
+export async function apiRequestWithFallback<T>(
+  path: string,
+  fallback: T,
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  try {
+    return await apiRequest<T>(path, options)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message.includes('Cannot GET') || message.includes('(404)')) {
+      return fallback
+    }
+    throw error
+  }
+}
+
 type ApiDownloadOptions = {
   accessToken?: string
   headers?: Record<string, string>

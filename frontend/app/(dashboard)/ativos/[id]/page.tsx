@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, apiRequestWithFallback } from '@/lib/api'
 import {
   mapApiAtivoToAsset,
   mapApiOrdemToServiceOrder,
@@ -49,7 +49,11 @@ export default function AssetDetailPage() {
       const [res, ordensRes, docsRes] = await Promise.all([
         apiRequest<ApiAtivoDetalhe>(`/unidades/${unit.id}/ativos/${params.id}`, { accessToken }),
         apiRequest<ApiOrdem[]>(`/unidades/${unit.id}/ativos/${params.id}/ordens-servico`, { accessToken }),
-        apiRequest<ApiAtivoDocumento[]>(`/unidades/${unit.id}/ativos/${params.id}/documentos`, { accessToken }),
+        apiRequestWithFallback<ApiAtivoDocumento[]>(
+          `/unidades/${unit.id}/ativos/${params.id}/documentos`,
+          [],
+          { accessToken },
+        ),
       ])
       setAsset(mapApiAtivoToAsset(res, unit.id))
       setHistorico(ordensRes.map((item) => mapApiOrdemToServiceOrder(item, unit.id)))
