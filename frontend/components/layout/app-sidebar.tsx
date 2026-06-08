@@ -21,6 +21,7 @@ import {
   Cpu,
   Settings,
   Globe,
+  Map,
   ChevronRight,
 } from 'lucide-react'
 import {
@@ -61,6 +62,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Cpu,
   Settings,
   Globe,
+  Map,
 }
 
 export function AppSidebar() {

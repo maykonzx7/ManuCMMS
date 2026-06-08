@@ -69,6 +69,8 @@ export interface Asset {
   codigo: string
   descricao?: string
   localizacao?: string
+  latitude?: number | null
+  longitude?: number | null
   fabricante?: string
   modelo?: string
   numeroSerie?: string

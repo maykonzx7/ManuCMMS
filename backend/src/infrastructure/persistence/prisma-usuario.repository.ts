@@ -35,6 +35,7 @@ type UsuarioEmpresaRow = {
   nomeEmpresa: string;
   slug: string;
   status: string;
+  statusMembros: string;
 };
 
 type UsuarioCargoRow = {
@@ -581,6 +582,7 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       email: r.email,
       perfil: r.perfil,
       status: r.status,
+      statusMembros: empresa?.statusMembros ?? 'ATIVO',
       empresa,
       cargos,
       permissoes,
@@ -608,8 +610,12 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       const bySlug = await this.prisma.$queryRaw<
         UsuarioEmpresaRow[]
       >(Prisma.sql`
-        SELECT e.id, e.nome_empresa AS "nomeEmpresa", e.slug
-             , e.status::text AS status
+        SELECT
+          e.id,
+          e.nome_empresa AS "nomeEmpresa",
+          e.slug,
+          e.status::text AS status,
+          ue.status::text AS "statusMembros"
         FROM empresa e
         JOIN usuario_empresa ue ON ue.empresa_id = e.id
         WHERE ue.usuario_id = ${usuarioId}::uuid
@@ -624,7 +630,12 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
 
     // Prefer the company from the user's current unit to avoid cross-tenant mix-ups.
     const byUnit = await this.prisma.$queryRaw<UsuarioEmpresaRow[]>(Prisma.sql`
-      SELECT e.id, e.nome_empresa AS "nomeEmpresa", e.slug, e.status::text AS status
+      SELECT
+        e.id,
+        e.nome_empresa AS "nomeEmpresa",
+        e.slug,
+        e.status::text AS status,
+        ue.status::text AS "statusMembros"
       FROM empresa e
       JOIN unidade_fabril uf ON uf.empresa_id = e.id
       JOIN usuario_empresa ue ON ue.empresa_id = e.id
@@ -639,7 +650,12 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     }
 
     const rows = await this.prisma.$queryRaw<UsuarioEmpresaRow[]>(Prisma.sql`
-      SELECT e.id, e.nome_empresa AS "nomeEmpresa", e.slug, e.status::text AS status
+      SELECT
+        e.id,
+        e.nome_empresa AS "nomeEmpresa",
+        e.slug,
+        e.status::text AS status,
+        ue.status::text AS "statusMembros"
       FROM empresa e
       JOIN usuario_empresa ue ON ue.empresa_id = e.id
       WHERE ue.usuario_id = ${usuarioId}::uuid
@@ -654,7 +670,12 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     const fallback = await this.prisma.$queryRaw<
       UsuarioEmpresaRow[]
     >(Prisma.sql`
-      SELECT e.id, e.nome_empresa AS "nomeEmpresa", e.slug, e.status::text AS status
+      SELECT
+        e.id,
+        e.nome_empresa AS "nomeEmpresa",
+        e.slug,
+        e.status::text AS status,
+        'ATIVO'::text AS "statusMembros"
       FROM empresa e
       JOIN unidade_fabril uf ON uf.empresa_id = e.id
       WHERE uf.id = ${idUnidade}::uuid

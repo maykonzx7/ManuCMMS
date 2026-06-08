@@ -63,6 +63,7 @@ import {
 } from '@/components/ordens/os-execution-wizard'
 import { OsProximoPassoBanner } from '@/components/ordens/os-proximo-passo-banner'
 import { PageDataLoading } from '@/components/shared'
+import { OsAnexosPanel } from '@/components/ordens/os-anexos-panel'
 import { getPodeConcluirOrdem, ordemPrecisaEvidenciaProblema } from '@/lib/os-flow-utils'
 import { ROUTES } from '@/lib/routes'
 import type { UserRole } from '@/types'
@@ -836,6 +837,18 @@ export default function OrderDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {unit?.id && accessToken && rawOrder ? (
+            <OsAnexosPanel
+              unidadeId={unit.id}
+              ordemId={typeof params.id === 'string' ? params.id : ''}
+              accessToken={accessToken}
+              anexos={rawOrder.anexos ?? []}
+              canUpload
+              canDelete={canEditOrder}
+              onChange={() => void loadOrder()}
+            />
+          ) : null}
 
           {/* Transferências */}
           {(rawOrder?.transferencias?.length ?? 0) > 0 && (

@@ -2,18 +2,21 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
   Query,
   Req,
   Res,
+  UploadedFile,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { mkdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
@@ -21,6 +24,15 @@ import { randomUUID } from 'node:crypto';
 import { diskStorage } from 'multer';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { buildUploadPublicPath } from '../../application/shared/upload-url.shared';
+import {
+  assertAllowedDocumentFile,
+  MAX_DOCUMENT_SIZE_BYTES,
+} from '../../application/shared/document-upload.shared';
+import {
+  CreateOrdemServicoAnexoUseCase,
+  DeleteOrdemServicoAnexoUseCase,
+  ListOrdemServicoAnexosUseCase,
+} from '../../application/ordens-servico/ordem-servico-anexos.use-cases';
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 import { CancelarOrdemServicoUseCase } from '../../application/ordens-servico/cancelar-ordem-servico.use-case';
 import { CreateOrdemServicoComentarioUseCase } from '../../application/ordens-servico/create-ordem-servico-comentario.use-case';
@@ -78,6 +90,11 @@ type CreateComentarioBody = {
   texto: string;
 };
 
+type UploadOrdemServicoAnexoBody = {
+  categoria: string;
+  nome?: string;
+};
+
 type FecharOrdemServicoFiles = {
   fotoAnexo?: Express.Multer.File[];
   fotoProblema?: Express.Multer.File[];
@@ -90,7 +107,9 @@ type IniciarOrdemServicoFiles = {
 
 const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
 const fotoUploadDir = join(process.cwd(), UPLOADS_DIR, 'ordens-servico');
+const osAnexoUploadDir = join(process.cwd(), UPLOADS_DIR, 'documentos');
 mkdirSync(fotoUploadDir, { recursive: true });
+mkdirSync(osAnexoUploadDir, { recursive: true });
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
 function isImagemMimeType(mimeType: string): boolean {
@@ -128,6 +147,9 @@ export class OrdensServicoController {
     private readonly listComentarios: ListOrdemServicoComentariosUseCase,
     private readonly createComentario: CreateOrdemServicoComentarioUseCase,
     private readonly exportOrdem: ExportOrdemServicoUseCase,
+    private readonly listAnexos: ListOrdemServicoAnexosUseCase,
+    private readonly createAnexo: CreateOrdemServicoAnexoUseCase,
+    private readonly deleteAnexo: DeleteOrdemServicoAnexoUseCase,
   ) {}
 
   @Get()
@@ -269,6 +291,82 @@ export class OrdensServicoController {
       `attachment; filename="os_${ordemServicoId}.csv"`,
     );
     res.send(csv);
+  }
+
+  @Get(':ordemServicoId/anexos')
+  async listAnexosByOrdem(
+    @Req() req: Request,
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    return this.listAnexos.execute(unidadeId, ordemServicoId);
+  }
+
+  @Post(':ordemServicoId/anexos')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, osAnexoUploadDir),
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname) || '';
+          cb(null, `${randomUUID()}${ext}`);
+        },
+      }),
+      limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES },
+    }),
+  )
+  async uploadAnexo(
+    @Req() req: Request,
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+    @Body() body: UploadOrdemServicoAnexoBody,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
+    this.assertTecnicoCanAccessOrdem(req, ordem);
+    if (!file) {
+      throw new BadRequestException('arquivo é obrigatório');
+    }
+    try {
+      assertAllowedDocumentFile(file);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Arquivo inválido',
+      );
+    }
+    const nome = body.nome?.trim() || file.originalname;
+    return this.createAnexo.execute(
+      unidadeId,
+      ordemServicoId,
+      {
+        categoria: body.categoria,
+        nome,
+        url: buildUploadPublicPath('documentos', file.filename),
+        mimeType: file.mimetype,
+        tamanhoBytes: file.size,
+      },
+      req.usuarioLocal!.id,
+    );
+  }
+
+  @Delete(':ordemServicoId/anexos/:anexoId')
+  @HttpCode(204)
+  async deleteAnexoByOrdem(
+    @Req() req: Request,
+    @Param('unidadeId') unidadeId: string,
+    @Param('ordemServicoId') ordemServicoId: string,
+    @Param('anexoId') anexoId: string,
+  ) {
+    this.assertTecnicoCannotCreateOrEdit(req);
+    this.authorizePermission.execute(req.usuarioLocal, 'os.criar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    await this.deleteAnexo.execute(unidadeId, ordemServicoId, anexoId);
   }
 
   @Get(':ordemServicoId/comentarios')

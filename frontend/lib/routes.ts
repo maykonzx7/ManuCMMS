@@ -10,6 +10,7 @@ export const ROUTES = {
   ordemImprimir: (id: string) => `/workspace/ordens/${id}/imprimir`,
   metricas: '/workspace/metricas',
   ativos: '/workspace/ativos',
+  ativosMapa: '/workspace/ativos/mapa',
   novoAtivo: '/workspace/ativos/novo',
   admin: '/workspace/admin',
   platform: '/workspace/platform',

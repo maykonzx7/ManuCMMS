@@ -36,6 +36,20 @@ export type OrdemServicoComentarioItem = {
   createdAt: Date;
 };
 
+export type CategoriaOrdemServicoAnexoCodigo = 'PROBLEMA' | 'RESOLUCAO' | 'GERAL';
+
+export type OrdemServicoAnexoItem = {
+  id: string;
+  ordemServicoId: string;
+  categoria: CategoriaOrdemServicoAnexoCodigo;
+  nome: string;
+  url: string;
+  mimeType: string;
+  tamanhoBytes: number;
+  uploadedPorUsuarioId: string | null;
+  createdAt: Date;
+};
+
 export type OrdemServicoListaItem = {
   id: string;
   idAtivo: string;
@@ -64,6 +78,7 @@ export type OrdemServicoListaItem = {
   finalizadoPorNome: string | null;
   transferencias: OrdemServicoTransferenciaItem[];
   pecasConsumidas?: OrdemServicoPecaConsumidaItem[];
+  anexos?: OrdemServicoAnexoItem[];
 };
 
 /** Dados mínimos para aplicar regras de fechamento (RN-02, RN-13). */

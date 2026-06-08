@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Body,
   Controller,
@@ -9,9 +10,21 @@ import {
   Patch,
   Post,
   Req,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
+import { mkdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { diskStorage } from 'multer';
 import { CreateAtivoUseCase } from '../../application/ativos/create-ativo.use-case';
+import {
+  CreateAtivoDocumentoUseCase,
+  DeleteAtivoDocumentoUseCase,
+  ListAtivoDocumentosUseCase,
+} from '../../application/ativos/ativo-documentos.use-cases';
 import { DeleteAtivoUseCase } from '../../application/ativos/delete-ativo.use-case';
 import { GetAtivoByIdUseCase } from '../../application/ativos/get-ativo-by-id.use-case';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
@@ -19,6 +32,11 @@ import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidad
 import { ListAtivosByUnidadeUseCase } from '../../application/ativos/list-ativos-by-unidade.use-case';
 import { UpdateAtivoUseCase } from '../../application/ativos/update-ativo.use-case';
 import { ListOrdensServicoByAtivoUseCase } from '../../application/ordens-servico/list-ordens-servico-by-ativo.use-case';
+import { buildUploadPublicPath } from '../../application/shared/upload-url.shared';
+import {
+  assertAllowedDocumentFile,
+  MAX_DOCUMENT_SIZE_BYTES,
+} from '../../application/shared/document-upload.shared';
 
 type CreateAtivoBody = {
   nome: string;
@@ -30,6 +48,9 @@ type CreateAtivoBody = {
   observacoes?: string;
   custoHoraParada?: number;
   custoManutencaoMensal?: number;
+  localizacao?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type UpdateAtivoBody = {
@@ -43,7 +64,19 @@ type UpdateAtivoBody = {
   observacoes?: string;
   custoHoraParada?: number;
   custoManutencaoMensal?: number;
+  localizacao?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
+
+type UploadAtivoDocumentoBody = {
+  tipo: string;
+  nome?: string;
+};
+
+const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
+const ativoDocumentoUploadDir = join(process.cwd(), UPLOADS_DIR, 'documentos');
+mkdirSync(ativoDocumentoUploadDir, { recursive: true });
 
 /**
  * CRUD mínimo de ativos por unidade (RF-04).
@@ -58,6 +91,9 @@ export class AtivosController {
     private readonly updateAtivo: UpdateAtivoUseCase,
     private readonly deleteAtivo: DeleteAtivoUseCase,
     private readonly listOrdensByAtivo: ListOrdensServicoByAtivoUseCase,
+    private readonly listAtivoDocumentos: ListAtivoDocumentosUseCase,
+    private readonly createAtivoDocumento: CreateAtivoDocumentoUseCase,
+    private readonly deleteAtivoDocumento: DeleteAtivoDocumentoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly enforceUnidadeScope: EnforceUnidadeScopeUseCase,
   ) {}
@@ -79,6 +115,79 @@ export class AtivosController {
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.createAtivo.execute(unidadeId, body, req.usuarioLocal!.id);
+  }
+
+  @Get(':ativoId/documentos')
+  async listDocumentos(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ativoId') ativoId: string,
+    @Req() req: Request,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'ativo.visualizar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    return this.listAtivoDocumentos.execute(unidadeId, ativoId);
+  }
+
+  @Post(':ativoId/documentos')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, ativoDocumentoUploadDir),
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname) || '';
+          cb(null, `${randomUUID()}${ext}`);
+        },
+      }),
+      limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES },
+    }),
+  )
+  async uploadDocumento(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ativoId') ativoId: string,
+    @Body() body: UploadAtivoDocumentoBody,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req: Request,
+  ) {
+    this.assertTecnicoCannotMutateAssets(req);
+    this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    if (!file) {
+      throw new BadRequestException('arquivo é obrigatório');
+    }
+    try {
+      assertAllowedDocumentFile(file);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Arquivo inválido',
+      );
+    }
+    const nome = body.nome?.trim() || file.originalname;
+    return this.createAtivoDocumento.execute(
+      unidadeId,
+      ativoId,
+      {
+        tipo: body.tipo,
+        nome,
+        url: buildUploadPublicPath('documentos', file.filename),
+        mimeType: file.mimetype,
+        tamanhoBytes: file.size,
+      },
+      req.usuarioLocal!.id,
+    );
+  }
+
+  @Delete(':ativoId/documentos/:documentoId')
+  @HttpCode(204)
+  async deleteDocumento(
+    @Param('unidadeId') unidadeId: string,
+    @Param('ativoId') ativoId: string,
+    @Param('documentoId') documentoId: string,
+    @Req() req: Request,
+  ) {
+    this.assertTecnicoCannotMutateAssets(req);
+    this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+    await this.deleteAtivoDocumento.execute(unidadeId, ativoId, documentoId);
   }
 
   @Get(':ativoId/ordens-servico')

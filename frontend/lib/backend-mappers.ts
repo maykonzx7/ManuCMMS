@@ -15,6 +15,33 @@ export type ApiAtivo = {
   observacoes?: string | null
   custoHoraParada?: number
   custoManutencaoMensal?: number
+  localizacao?: string | null
+  latitude?: number | null
+  longitude?: number | null
+}
+
+export type ApiAtivoDocumento = {
+  id: string
+  ativoId: string
+  tipo: 'MANUAL' | 'DIAGRAMA' | 'DOCUMENTACAO'
+  nome: string
+  url: string
+  mimeType: string
+  tamanhoBytes: number
+  uploadedPorUsuarioId?: string | null
+  createdAt: string
+}
+
+export type ApiOrdemAnexo = {
+  id: string
+  ordemServicoId: string
+  categoria: 'PROBLEMA' | 'RESOLUCAO' | 'GERAL'
+  nome: string
+  url: string
+  mimeType: string
+  tamanhoBytes: number
+  uploadedPorUsuarioId?: string | null
+  createdAt: string
 }
 
 export type ApiOrdem = {
@@ -62,6 +89,7 @@ export type ApiOrdem = {
     quantidade: number
   }>
   observacaoCancelamento?: string | null
+  anexos?: ApiOrdemAnexo[]
 }
 
 export type ApiOrdemComentario = {
@@ -107,7 +135,9 @@ export function mapApiAtivoToAsset(input: ApiAtivo, unidadeId: string): Asset {
     nome: input.nome,
     codigo: input.tag?.trim() || id.slice(0, 8).toUpperCase(),
     descricao: input.observacoes ?? undefined,
-    localizacao: undefined,
+    localizacao: input.localizacao ?? undefined,
+    latitude: input.latitude ?? undefined,
+    longitude: input.longitude ?? undefined,
     fabricante: input.fabricante ?? undefined,
     modelo: input.modelo ?? undefined,
     numeroSerie: input.numeroSerie ?? undefined,

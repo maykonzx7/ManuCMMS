@@ -22,6 +22,9 @@ type AtivoRow = {
   custoManutencaoMensal: number;
   status: string;
   limiteTemp: number;
+  localizacao: string | null;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -48,6 +51,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         custo_manutencao_mensal AS "custoManutencaoMensal",
         status,
         limite_temp AS "limiteTemp",
+        localizacao,
+        latitude,
+        longitude,
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM ativo
@@ -77,6 +83,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         custo_manutencao_mensal,
         status,
         limite_temp,
+        localizacao,
+        latitude,
+        longitude,
         created_at,
         updated_at
       )
@@ -94,6 +103,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         ${input.custoManutencaoMensal ?? 0},
         'OPERACIONAL',
         ${input.limiteTemp ?? 48},
+        ${input.localizacao ?? null},
+        ${input.latitude ?? null},
+        ${input.longitude ?? null},
         NOW(),
         NOW()
       )
@@ -122,6 +134,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         custo_manutencao_mensal AS "custoManutencaoMensal",
         status,
         limite_temp AS "limiteTemp",
+        localizacao,
+        latitude,
+        longitude,
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM ativo
@@ -166,6 +181,15 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
     }
     if (input.status !== undefined) {
       fields.push(Prisma.sql`status = ${input.status}::"StatusAtivo"`);
+    }
+    if (input.localizacao !== undefined) {
+      fields.push(Prisma.sql`localizacao = ${input.localizacao}`);
+    }
+    if (input.latitude !== undefined) {
+      fields.push(Prisma.sql`latitude = ${input.latitude}`);
+    }
+    if (input.longitude !== undefined) {
+      fields.push(Prisma.sql`longitude = ${input.longitude}`);
     }
     if (fields.length === 0) {
       return this.findByIdInUnidade(
@@ -261,6 +285,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
         custo_manutencao_mensal AS "custoManutencaoMensal",
         status,
         limite_temp AS "limiteTemp",
+        localizacao,
+        latitude,
+        longitude,
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM ativo
@@ -285,6 +312,9 @@ export class PrismaAtivoRepository implements IAtivoRepositoryPort {
       custoManutencaoMensal: r.custoManutencaoMensal,
       status: r.status as AtivoListaItem['status'],
       limiteTemp: r.limiteTemp,
+      localizacao: r.localizacao,
+      latitude: r.latitude,
+      longitude: r.longitude,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     };

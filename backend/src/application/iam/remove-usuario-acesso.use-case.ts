@@ -9,12 +9,15 @@ import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 import { CreateConviteAcessoUseCase } from '../onboarding/create-convite-acesso.use-case';
 import { normalizeEmail } from '../onboarding/onboarding.shared';
+import { AuthorizePlatformOperatorUseCase } from './authorize-platform-operator.use-case';
+import { assertUsuarioGestaoTargetAllowed } from './usuario-gestao-guards.shared';
 
 @Injectable()
 export class RemoveUsuarioAcessoUseCase {
   constructor(
     private readonly prisma: PrismaService,
     private readonly createConvite: CreateConviteAcessoUseCase,
+    private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
   ) {}
 
   async execute(
@@ -75,6 +78,15 @@ export class RemoveUsuarioAcessoUseCase {
       throw new NotFoundException('Usuario nao encontrado nesta empresa.');
     }
 
+    assertUsuarioGestaoTargetAllowed({
+      actor: usuarioLocal,
+      targetId: target.id,
+      targetEmail: target.email,
+      targetPerfil: target.perfil,
+      authorizePlatformOperator: this.authorizePlatformOperator,
+      action: 'remover o acesso de',
+    });
+
     const membrosAtivosRows = await this.prisma.$queryRaw<
       Array<{ total: number; admins: number }>
     >(Prisma.sql`
@@ -87,7 +99,6 @@ export class RemoveUsuarioAcessoUseCase {
       JOIN usuario u ON u.id = ue.usuario_id
       WHERE ue.empresa_id = ${empresaId}::uuid
         AND ue.status = 'ATIVO'
-        AND u.status = 'ATIVO'
     `);
     const membrosAtivos = membrosAtivosRows[0]?.total ?? 0;
     const adminsAtivos = membrosAtivosRows[0]?.admins ?? 0;
@@ -140,7 +151,6 @@ export class RemoveUsuarioAcessoUseCase {
             JOIN usuario u ON u.id = ue2.usuario_id
             WHERE ue2.empresa_id = ${empresaId}::uuid
               AND ue2.status = 'ATIVO'
-              AND u.status = 'ATIVO'
               AND u.id <> ${usuarioId}::uuid
             ORDER BY
               CASE WHEN u.perfil = 'ADMIN' THEN 0 WHEN u.perfil = 'GESTOR' THEN 1 ELSE 2 END,
@@ -151,20 +161,32 @@ export class RemoveUsuarioAcessoUseCase {
       }
 
       await tx.$executeRaw(Prisma.sql`
-        UPDATE usuario
-        SET
-          status = 'INATIVO',
-          updated_at = NOW()
-        WHERE id = ${usuarioId}::uuid
-      `);
-
-      await tx.$executeRaw(Prisma.sql`
         UPDATE convite_acesso
         SET status = 'CANCELADO', updated_at = NOW()
         WHERE empresa_id = ${empresaId}::uuid
           AND lower(email_destino) = ${emailDestino}
           AND status IN ('PENDENTE', 'ACEITO')
       `);
+
+      const outrosVinculosRows = await tx.$queryRaw<
+        Array<{ total: number }>
+      >(Prisma.sql`
+        SELECT COUNT(*)::int AS total
+        FROM usuario_empresa
+        WHERE usuario_id = ${usuarioId}::uuid
+          AND status = 'ATIVO'
+      `);
+      const outrosVinculosAtivos = outrosVinculosRows[0]?.total ?? 0;
+
+      if (outrosVinculosAtivos === 0) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE usuario
+          SET
+            status = 'INATIVO',
+            updated_at = NOW()
+          WHERE id = ${usuarioId}::uuid
+        `);
+      }
     });
 
     let conviteReenviado:

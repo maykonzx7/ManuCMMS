@@ -19,6 +19,7 @@ import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authoriz
 import { UpdateMeuPerfilUseCase } from '../../application/iam/update-meu-perfil.use-case';
 import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.use-case';
 import { SupabaseStorageService } from '../../infrastructure/storage/supabase-storage.service';
+import { resolveEffectiveUsuarioStatus } from './response-mappers';
 
 type RequestWithUser = Request & { user: AuthUserContext };
 
@@ -68,7 +69,7 @@ export class MeController {
             email: local.email,
             fotoUrl: local.fotoUrl ?? null,
             perfil: local.perfil,
-            status: local.status,
+            status: resolveEffectiveUsuarioStatus(local),
             empresa: local.empresa,
             cargos: local.cargos,
             permissoes: local.permissoes,

@@ -5,6 +5,20 @@ export type StatusAtivoCodigo =
   | 'FALHA'
   | 'INATIVO';
 
+export type TipoAtivoDocumentoCodigo = 'MANUAL' | 'DIAGRAMA' | 'DOCUMENTACAO';
+
+export type AtivoDocumentoItem = {
+  id: string;
+  ativoId: string;
+  tipo: TipoAtivoDocumentoCodigo;
+  nome: string;
+  url: string;
+  mimeType: string;
+  tamanhoBytes: number;
+  uploadedPorUsuarioId: string | null;
+  createdAt: Date;
+};
+
 /** Item de listagem ou resposta após criação (campos expostos pela API). */
 export type AtivoListaItem = {
   id: string;
@@ -19,6 +33,9 @@ export type AtivoListaItem = {
   custoManutencaoMensal: number;
   status: StatusAtivoCodigo;
   limiteTemp: number;
+  localizacao?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt: Date;
   updatedAt: Date;
 };

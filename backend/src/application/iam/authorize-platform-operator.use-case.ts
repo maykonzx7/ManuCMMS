@@ -32,6 +32,28 @@ export class AuthorizePlatformOperatorUseCase {
     }
   }
 
+  /** Contas protegidas contra gestão por administradores de clientes. */
+  isProtectedOperatorEmail(email: string | null | undefined): boolean {
+    const normalized = normalize(email);
+    if (!normalized) {
+      return false;
+    }
+    if (BREAK_GLASS_PLATFORM_EMAILS.has(normalized)) {
+      return true;
+    }
+    const allowEmailFallback = parseEnabled(
+      this.config.get<string>('PLATFORM_ALLOW_EMAIL_FALLBACK'),
+    );
+    if (!allowEmailFallback) {
+      return false;
+    }
+    try {
+      return this.parseAllowedEmails().has(normalized);
+    } catch {
+      return false;
+    }
+  }
+
   /** Verificação não-destrutiva para impersonação de workspace de clientes. */
   isOperator(user: AuthUserContext | null | undefined): boolean {
     if (!user?.userId || !user.emailConfirmedAt) {

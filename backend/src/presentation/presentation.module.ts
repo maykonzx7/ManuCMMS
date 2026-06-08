@@ -7,8 +7,14 @@ import { DeleteAtivoUseCase } from '../application/ativos/delete-ativo.use-case'
 import { GetAtivoByIdUseCase } from '../application/ativos/get-ativo-by-id.use-case';
 import { ListAtivosByUnidadeUseCase } from '../application/ativos/list-ativos-by-unidade.use-case';
 import { UpdateAtivoUseCase } from '../application/ativos/update-ativo.use-case';
+import {
+  CreateAtivoDocumentoUseCase,
+  DeleteAtivoDocumentoUseCase,
+  ListAtivoDocumentosUseCase,
+} from '../application/ativos/ativo-documentos.use-cases';
 import { AuthorizeUsuarioPermissionUseCase } from '../application/iam/authorize-usuario-permission.use-case';
 import { RemoveUsuarioAcessoUseCase } from '../application/iam/remove-usuario-acesso.use-case';
+import { UpdateUsuarioEmpresaStatusUseCase } from '../application/iam/update-usuario-empresa-status.use-case';
 import { AuthorizePlatformOperatorUseCase } from '../application/iam/authorize-platform-operator.use-case';
 import { EnforceUnidadeScopeUseCase } from '../application/iam/enforce-unidade-scope.use-case';
 import { GetUsuarioByIdInUnidadeUseCase } from '../application/iam/get-usuario-by-id-in-unidade.use-case';
@@ -42,6 +48,11 @@ import {
 import { EscalarOrdemServicoUseCase } from '../application/ordens-servico/escalar-ordem-servico.use-case';
 import { OrdemServicoSlaMonitorService } from '../application/ordens-servico/sla-monitor.service';
 import { UpdateOrdemServicoUseCase } from '../application/ordens-servico/update-ordem-servico.use-case';
+import {
+  CreateOrdemServicoAnexoUseCase,
+  DeleteOrdemServicoAnexoUseCase,
+  ListOrdemServicoAnexosUseCase,
+} from '../application/ordens-servico/ordem-servico-anexos.use-cases';
 import { GetUnidadeByIdUseCase } from '../application/unidades/get-unidade-by-id.use-case';
 import { ListUnidadesUseCase } from '../application/unidades/list-unidades.use-case';
 import { AppController } from './http/app.controller';
@@ -104,6 +115,7 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     UpdateMeuPerfilUseCase,
     AuthorizeUsuarioPermissionUseCase,
     RemoveUsuarioAcessoUseCase,
+    UpdateUsuarioEmpresaStatusUseCase,
     AuthorizePlatformOperatorUseCase,
     EnforceUnidadeScopeUseCase,
     CreateEmpresaWithInviteUseCase,
@@ -121,6 +133,9 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     GetAtivoByIdUseCase,
     UpdateAtivoUseCase,
     DeleteAtivoUseCase,
+    ListAtivoDocumentosUseCase,
+    CreateAtivoDocumentoUseCase,
+    DeleteAtivoDocumentoUseCase,
     GetDashboardExecutivoUseCase,
     ListOrdensServicoByUnidadeUseCase,
     ListOrdensServicoByAtivoUseCase,
@@ -140,6 +155,9 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     ListOrdemServicoComentariosUseCase,
     CreateOrdemServicoComentarioUseCase,
     ExportOrdemServicoUseCase,
+    ListOrdemServicoAnexosUseCase,
+    CreateOrdemServicoAnexoUseCase,
+    DeleteOrdemServicoAnexoUseCase,
     PostgresHealthIndicator,
     MongoHealthIndicator,
     RabbitmqHealthIndicator,

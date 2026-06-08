@@ -7,6 +7,7 @@ import {
   Plus, 
   Search, 
   Filter,
+  MapPin,
   Package,
   MoreHorizontal,
   Pencil,
@@ -128,14 +129,22 @@ export default function AssetsPage() {
             Gerencie os equipamentos e máquinas da sua unidade
           </p>
         </div>
-        {canManageAssets && (
-          <Button asChild>
-            <Link href="/ativos/novo">
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Ativo
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/ativos/mapa">
+              <MapPin className="mr-2 h-4 w-4" />
+              Mapa
             </Link>
           </Button>
-        )}
+          {canManageAssets && (
+            <Button asChild>
+              <Link href="/ativos/novo">
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Ativo
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}

@@ -12,6 +12,7 @@ import {
   type PerfilUsuarioCodigo,
 } from '../../domain/ports/usuario-read.port';
 import type { AuthUserContext } from '../../presentation/auth/auth-user.types';
+import { AuthorizePlatformOperatorUseCase } from './authorize-platform-operator.use-case';
 import { ResolvePlatformOperatorAccessUseCase } from './resolve-platform-operator-access.use-case';
 
 /**
@@ -25,6 +26,7 @@ export class EnsureUsuarioLocalUseCase {
     @Inject(USUARIO_READ_PORT)
     private readonly usuarios: IUsuarioReadPort,
     private readonly resolvePlatformOperatorAccess: ResolvePlatformOperatorAccessUseCase,
+    private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
   ) {}
 
   async execute(
@@ -57,7 +59,7 @@ export class EnsureUsuarioLocalUseCase {
       if (!platformContext) {
         this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
       }
-      this.assertAccessIsActive(resolved);
+      this.assertAccessIsActive(resolved, authUser);
       return resolved;
     }
 
@@ -111,7 +113,7 @@ export class EnsureUsuarioLocalUseCase {
           if (!platformContext) {
             this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
           }
-          this.assertAccessIsActive(resolved);
+          this.assertAccessIsActive(resolved, authUser);
           return resolved;
         }
 
@@ -126,7 +128,7 @@ export class EnsureUsuarioLocalUseCase {
         if (!platformContext) {
           this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
         }
-        this.assertAccessIsActive(resolved);
+        this.assertAccessIsActive(resolved, authUser);
         return resolved;
       }
     }
@@ -149,12 +151,36 @@ export class EnsureUsuarioLocalUseCase {
     );
   }
 
-  private assertAccessIsActive(usuarioLocal: UsuarioLocalContext): void {
-    const usuarioStatus = usuarioLocal.status?.trim().toUpperCase() ?? 'ATIVO';
-    if (usuarioStatus !== 'ATIVO') {
+  private assertAccessIsActive(
+    usuarioLocal: UsuarioLocalContext,
+    authUser: AuthUserContext,
+  ): void {
+    const isPlatformOperator =
+      this.authorizePlatformOperator.isOperator(authUser);
+    const globalStatus = usuarioLocal.status?.trim().toUpperCase() ?? 'ATIVO';
+
+    if (globalStatus === 'BLOQUEADO') {
+      throw new ForbiddenException(
+        'Seu usuário está bloqueado. Contate o administrador da plataforma.',
+      );
+    }
+
+    if (!isPlatformOperator && globalStatus !== 'ATIVO') {
       throw new ForbiddenException(
         'Seu usuário está inativo ou bloqueado. Contate o administrador da empresa.',
       );
+    }
+
+    if (!usuarioLocal.isWorkspaceImpersonation) {
+      const membershipStatus =
+        usuarioLocal.statusMembros?.trim().toUpperCase() ??
+        usuarioLocal.empresa?.statusMembros?.trim().toUpperCase() ??
+        'ATIVO';
+      if (membershipStatus !== 'ATIVO') {
+        throw new ForbiddenException(
+          'Seu acesso nesta empresa está inativo ou pendente. Contate o administrador da empresa.',
+        );
+      }
     }
 
     const empresaStatus =

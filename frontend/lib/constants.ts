@@ -146,6 +146,7 @@ export const SIDEBAR_NAVIGATION = [
       { title: 'Ordens de Serviço', url: ROUTES.ordens, icon: 'ClipboardList', screen: 'ordens-lista' },
       { title: 'Agenda / Kanban', url: ROUTES.ordensAgenda, icon: 'CalendarDays', screen: 'ordens-agenda' },
       { title: 'Ativos', url: ROUTES.ativos, icon: 'Package', screen: 'ativos-lista' },
+      { title: 'Mapa de Ativos', url: ROUTES.ativosMapa, icon: 'Map', screen: 'ativos-lista' },
       { title: 'Peças / Estoque', url: ROUTES.pecas, icon: 'Boxes', screen: 'pecas-estoque' },
     ],
   },

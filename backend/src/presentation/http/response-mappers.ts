@@ -1,10 +1,27 @@
 import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 
+export function resolveEffectiveUsuarioStatus(
+  usuario: UsuarioLocalContext,
+): string {
+  const globalStatus = usuario.status?.trim().toUpperCase() ?? 'ATIVO';
+  if (globalStatus === 'BLOQUEADO') {
+    return 'BLOQUEADO';
+  }
+  return (
+    usuario.statusMembros?.trim().toUpperCase() ??
+    usuario.empresa?.statusMembros?.trim().toUpperCase() ??
+    'ATIVO'
+  );
+}
+
 export function toUsuarioPublicResponse(
   usuario: UsuarioLocalContext,
 ): Omit<UsuarioLocalContext, 'authSub'> {
   const { authSub: _authSub, ...rest } = usuario;
-  return rest;
+  return {
+    ...rest,
+    status: resolveEffectiveUsuarioStatus(usuario),
+  };
 }
 
 export function maskApiKeyIntegracao(

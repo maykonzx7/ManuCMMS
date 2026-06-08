@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import type {
+  OrdemServicoAnexoItem,
   OrdemServicoComentarioItem,
   OrdemServicoListaItem,
   OrdemServicoParaFechamento,
@@ -98,11 +99,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       this.buildUnidadeWhere(empresaId, idUnidade, filters),
     );
 
-    return Promise.all(
-      rows.map(async (row) =>
-        this.toListaItem(row, await this.listTransferencias(row.id)),
-      ),
-    );
+    return rows.map((row) => this.toListaItem(row));
   }
 
   async listByAtivo(
@@ -114,11 +111,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       this.buildUnidadeWhere(empresaId, idUnidade, { idAtivo }),
     );
 
-    return Promise.all(
-      rows.map(async (row) =>
-        this.toListaItem(row, await this.listTransferencias(row.id)),
-      ),
-    );
+    return rows.map((row) => this.toListaItem(row));
   }
 
   private buildUnidadeWhere(
@@ -228,9 +221,12 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       AND a.id_unidade = ${idUnidade}::uuid
     `);
     if (!rows[0]) return null;
-    const transferencias = await this.listTransferencias(rows[0].id);
-    const pecasConsumidas = await this.listPecasConsumidas(rows[0].id);
-    return this.toListaItem(rows[0], transferencias, pecasConsumidas);
+    const [transferencias, pecasConsumidas, anexos] = await Promise.all([
+      this.listTransferencias(rows[0].id),
+      this.listPecasConsumidas(rows[0].id),
+      this.listAnexos(rows[0].id),
+    ]);
+    return this.toListaItem(rows[0], transferencias, pecasConsumidas, anexos);
   }
 
   async updateDados(input: {
@@ -729,6 +725,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     r: OrdemServicoRow,
     transferencias: OrdemServicoTransferenciaItem[] = [],
     pecasConsumidas: OrdemServicoPecaConsumidaItem[] = [],
+    anexos: OrdemServicoAnexoItem[] = [],
   ): OrdemServicoListaItem {
     return {
       id: r.id,
@@ -758,7 +755,52 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       finalizadoPorNome: r.finalizadoPorNome,
       transferencias,
       pecasConsumidas,
+      anexos: anexos.length > 0 ? anexos : undefined,
     };
+  }
+
+  private async listAnexos(
+    ordemServicoId: string,
+  ): Promise<OrdemServicoAnexoItem[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        ordemServicoId: string;
+        categoria: OrdemServicoAnexoItem['categoria'];
+        nome: string;
+        url: string;
+        mimeType: string;
+        tamanhoBytes: number;
+        uploadedPorUsuarioId: string | null;
+        createdAt: Date;
+      }>
+    >(Prisma.sql`
+      SELECT
+        id,
+        ordem_servico_id AS "ordemServicoId",
+        categoria,
+        nome,
+        url,
+        mime_type AS "mimeType",
+        tamanho_bytes AS "tamanhoBytes",
+        uploaded_por_usuario_id AS "uploadedPorUsuarioId",
+        created_at AS "createdAt"
+      FROM ordem_servico_anexo
+      WHERE ordem_servico_id = ${ordemServicoId}::uuid
+      ORDER BY created_at DESC
+    `);
+
+    return rows.map((row) => ({
+      id: row.id,
+      ordemServicoId: row.ordemServicoId,
+      categoria: row.categoria,
+      nome: row.nome,
+      url: row.url,
+      mimeType: row.mimeType,
+      tamanhoBytes: row.tamanhoBytes,
+      uploadedPorUsuarioId: row.uploadedPorUsuarioId,
+      createdAt: row.createdAt,
+    }));
   }
 
   private async listTransferencias(

@@ -22,6 +22,7 @@ const nextConfig = {
       { source: '/ordens/nova', destination: '/workspace/ordens/nova', permanent: false },
       { source: '/metricas', destination: '/workspace/metricas', permanent: false },
       { source: '/ativos', destination: '/workspace/ativos', permanent: false },
+      { source: '/ativos/mapa', destination: '/workspace/ativos/mapa', permanent: false },
       { source: '/ativos/novo', destination: '/workspace/ativos/novo', permanent: false },
       { source: '/usuarios', destination: '/workspace/usuarios', permanent: false },
       { source: '/unidades', destination: '/workspace/unidades', permanent: false },

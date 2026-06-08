@@ -119,7 +119,10 @@ export default function MetricasAdminPage() {
         `/unidades/${unit.id}/dashboard/executivo?${query.toString()}`,
         { accessToken },
       ),
-      apiRequest<ApiOrdem[]>(`/unidades/${unit.id}/ordens-servico`, { accessToken }),
+      apiRequest<ApiOrdem[]>(
+        `/unidades/${unit.id}/ordens-servico?${query.toString()}`,
+        { accessToken },
+      ),
     ])
       .then(([dashRes, ordensRes]) => {
         setDashboard(dashRes)

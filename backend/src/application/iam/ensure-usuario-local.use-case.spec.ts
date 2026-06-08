@@ -37,10 +37,15 @@ describe('EnsureUsuarioLocalUseCase', () => {
     const resolvePlatformOperatorAccess = {
       execute: jest.fn().mockResolvedValue(null),
     } as any;
+    const authorizePlatformOperator = {
+      isOperator: jest.fn().mockReturnValue(false),
+      isProtectedOperatorEmail: jest.fn().mockReturnValue(false),
+    } as any;
     const useCase = new EnsureUsuarioLocalUseCase(
       config,
       usuarios,
       resolvePlatformOperatorAccess,
+      authorizePlatformOperator,
     );
 
     await expect(
@@ -76,10 +81,15 @@ describe('EnsureUsuarioLocalUseCase', () => {
     const resolvePlatformOperatorAccess = {
       execute: jest.fn().mockResolvedValue(null),
     } as any;
+    const authorizePlatformOperator = {
+      isOperator: jest.fn().mockReturnValue(false),
+      isProtectedOperatorEmail: jest.fn().mockReturnValue(false),
+    } as any;
     const useCase = new EnsureUsuarioLocalUseCase(
       config,
       usuarios,
       resolvePlatformOperatorAccess,
+      authorizePlatformOperator,
     );
     const result = await useCase.execute({
       userId: 'novo-sub',
@@ -116,10 +126,15 @@ describe('EnsureUsuarioLocalUseCase', () => {
     const resolvePlatformOperatorAccess = {
       execute: jest.fn().mockResolvedValue(null),
     } as any;
+    const authorizePlatformOperator = {
+      isOperator: jest.fn().mockReturnValue(false),
+      isProtectedOperatorEmail: jest.fn().mockReturnValue(false),
+    } as any;
     const useCase = new EnsureUsuarioLocalUseCase(
       config,
       usuarios,
       resolvePlatformOperatorAccess,
+      authorizePlatformOperator,
     );
 
     await expect(
@@ -149,10 +164,15 @@ describe('EnsureUsuarioLocalUseCase', () => {
     const resolvePlatformOperatorAccess = {
       execute: jest.fn().mockResolvedValue(null),
     } as any;
+    const authorizePlatformOperator = {
+      isOperator: jest.fn().mockReturnValue(false),
+      isProtectedOperatorEmail: jest.fn().mockReturnValue(false),
+    } as any;
     const useCase = new EnsureUsuarioLocalUseCase(
       config,
       usuarios,
       resolvePlatformOperatorAccess,
+      authorizePlatformOperator,
     );
 
     await expect(

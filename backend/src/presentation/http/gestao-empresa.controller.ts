@@ -12,10 +12,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { Prisma, StatusEmpresa, StatusUsuario } from '@prisma/client';
+import { Prisma, StatusEmpresa } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { RemoveUsuarioAcessoUseCase } from '../../application/iam/remove-usuario-acesso.use-case';
+import { UpdateUsuarioEmpresaStatusUseCase } from '../../application/iam/update-usuario-empresa-status.use-case';
 import {
   buildAcessoPortalEmail,
   buildResetSenhaEmail,
@@ -38,6 +39,7 @@ export class GestaoEmpresaController {
     private readonly config: ConfigService,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly removeUsuarioAcesso: RemoveUsuarioAcessoUseCase,
+    private readonly updateUsuarioEmpresaStatus: UpdateUsuarioEmpresaStatusUseCase,
     private readonly integracaoWebhook: IntegracaoWebhookService,
     @Inject(EMAIL_PORT) private readonly emailPort: IEmailPort,
   ) {}
@@ -91,7 +93,10 @@ export class GestaoEmpresaController {
           u.credencial AS "usuarioAcesso",
           u.email,
           u.perfil::text AS perfil,
-          u.status::text AS status,
+          CASE
+            WHEN u.status = 'BLOQUEADO' THEN 'BLOQUEADO'
+            ELSE ue.status::text
+          END AS status,
           u.id_unidade AS "idUnidade",
           uf.nome AS "unidadeNome"
         FROM usuario u
@@ -317,31 +322,12 @@ export class GestaoEmpresaController {
     this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
     this.ensureEmpresaScope(req, empresaId);
 
-    const nextStatus = (body.status ?? '')
-      .trim()
-      .toUpperCase() as StatusUsuario;
-    if (!['ATIVO', 'INATIVO', 'BLOQUEADO'].includes(nextStatus)) {
-      throw new BadRequestException(
-        'status inválido. Use: ATIVO, INATIVO ou BLOQUEADO.',
-      );
-    }
-
-    const updated = await this.prisma.$executeRaw(Prisma.sql`
-      UPDATE usuario u
-      SET
-        status = ${nextStatus}::"StatusUsuario",
-        updated_at = NOW()
-      FROM usuario_empresa ue
-      WHERE ue.usuario_id = u.id
-        AND ue.empresa_id = ${empresaId}::uuid
-        AND u.id = ${usuarioId}::uuid
-    `);
-
-    if (!updated) {
-      throw new BadRequestException('Usuário não encontrado na empresa.');
-    }
-
-    return { ok: true, status: nextStatus };
+    return this.updateUsuarioEmpresaStatus.execute(
+      req.usuarioLocal,
+      empresaId,
+      usuarioId,
+      body.status ?? '',
+    );
   }
 
   @Patch('usuarios/:usuarioId/perfil')

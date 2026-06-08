@@ -16,6 +16,9 @@ export type CreateAtivoInput = {
   observacoes?: string;
   custoHoraParada?: number;
   custoManutencaoMensal?: number;
+  localizacao?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type UpdateAtivoInput = {
@@ -32,6 +35,9 @@ export type UpdateAtivoInput = {
   observacoes?: string;
   custoHoraParada?: number;
   custoManutencaoMensal?: number;
+  localizacao?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export interface IAtivoRepositoryPort {

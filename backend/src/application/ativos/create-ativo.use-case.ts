@@ -19,6 +19,10 @@ import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
+import {
+  normalizeAtivoCoordenada,
+  normalizeAtivoLocalizacao,
+} from './ativo-location.shared';
 
 const NOME_MAX = 100;
 const TAG_MAX = 80;
@@ -54,6 +58,9 @@ export class CreateAtivoUseCase {
       observacoes?: string;
       custoHoraParada?: number;
       custoManutencaoMensal?: number;
+      localizacao?: string;
+      latitude?: number | null;
+      longitude?: number | null;
     },
     criadoPorUsuarioId: string,
   ): Promise<AtivoListaItem> {
@@ -124,6 +131,9 @@ export class CreateAtivoUseCase {
       OBSERVACOES_MAX,
       'observacoes',
     );
+    const localizacao = normalizeAtivoLocalizacao(input.localizacao);
+    const latitude = normalizeAtivoCoordenada(input.latitude, 'latitude');
+    const longitude = normalizeAtivoCoordenada(input.longitude, 'longitude');
 
     const unidadeOk = await this.unidades.findById(idUnidade);
     if (!unidadeOk) {
@@ -166,6 +176,9 @@ export class CreateAtivoUseCase {
     if (custoManutencaoMensal !== undefined) {
       payload.custoManutencaoMensal = custoManutencaoMensal;
     }
+    if (localizacao !== undefined) payload.localizacao = localizacao;
+    if (latitude !== undefined) payload.latitude = latitude;
+    if (longitude !== undefined) payload.longitude = longitude;
 
     try {
       const ativo = await this.ativos.create(payload);

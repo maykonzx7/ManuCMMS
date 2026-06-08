@@ -61,6 +61,9 @@ export default function EditAssetPage() {
   const [observacoes, setObservacoes] = useState('')
   const [custoHoraParada, setCustoHoraParada] = useState('0')
   const [custoManutencaoMensal, setCustoManutencaoMensal] = useState('0')
+  const [localizacao, setLocalizacao] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
 
   useEffect(() => {
     if (canManageAssets) return
@@ -83,6 +86,9 @@ export default function EditAssetPage() {
       setObservacoes(res.observacoes || '')
       setCustoHoraParada(String(res.custoHoraParada ?? 0))
       setCustoManutencaoMensal(String(res.custoManutencaoMensal ?? 0))
+      setLocalizacao(res.localizacao || '')
+      setLatitude(res.latitude != null ? String(res.latitude) : '')
+      setLongitude(res.longitude != null ? String(res.longitude) : '')
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar ativo')
@@ -119,6 +125,9 @@ export default function EditAssetPage() {
           observacoes: observacoes.trim(),
           custoHoraParada: Number(custoHoraParada || 0),
           custoManutencaoMensal: Number(custoManutencaoMensal || 0),
+          localizacao: localizacao.trim(),
+          latitude: latitude.trim() ? Number(latitude) : null,
+          longitude: longitude.trim() ? Number(longitude) : null,
         },
       })
       toast.success('Ativo atualizado com sucesso')
@@ -187,6 +196,37 @@ export default function EditAssetPage() {
           <div className="space-y-2 sm:col-span-2">
             <Label>Número de Série</Label>
             <Input value={numeroSerie} onChange={(e) => setNumeroSerie(e.target.value)} disabled={isLoading || isSaving} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Localização (setor, linha, sala)</Label>
+            <Input
+              value={localizacao}
+              onChange={(e) => setLocalizacao(e.target.value)}
+              placeholder="Ex.: Setor B, Linha 3"
+              disabled={isLoading || isSaving}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Latitude</Label>
+            <Input
+              type="number"
+              step="any"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              placeholder="-23.5505"
+              disabled={isLoading || isSaving}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Longitude</Label>
+            <Input
+              type="number"
+              step="any"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              placeholder="-46.6333"
+              disabled={isLoading || isSaving}
+            />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Observações</Label>
