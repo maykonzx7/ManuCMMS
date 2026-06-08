@@ -22,6 +22,8 @@ import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import type { ApiAtivo } from '@/lib/backend-mappers'
 import { usePermissions } from '@/hooks/use-permissions'
+import { AssetLocationFormSection } from '@/components/ativos/asset-location-form-section'
+import type { AssetMapCoords } from '@/components/ativos/asset-location-picker'
 
 type BackendStatus = 'OPERACIONAL' | 'MANUTENCAO' | 'FALHA' | 'INATIVO'
 
@@ -62,8 +64,10 @@ export default function EditAssetPage() {
   const [custoHoraParada, setCustoHoraParada] = useState('0')
   const [custoManutencaoMensal, setCustoManutencaoMensal] = useState('0')
   const [localizacao, setLocalizacao] = useState('')
-  const [latitude, setLatitude] = useState('')
-  const [longitude, setLongitude] = useState('')
+  const [mapCoords, setMapCoords] = useState<AssetMapCoords>({
+    latitude: null,
+    longitude: null,
+  })
 
   useEffect(() => {
     if (canManageAssets) return
@@ -87,8 +91,10 @@ export default function EditAssetPage() {
       setCustoHoraParada(String(res.custoHoraParada ?? 0))
       setCustoManutencaoMensal(String(res.custoManutencaoMensal ?? 0))
       setLocalizacao(res.localizacao || '')
-      setLatitude(res.latitude != null ? String(res.latitude) : '')
-      setLongitude(res.longitude != null ? String(res.longitude) : '')
+      setMapCoords({
+        latitude: res.latitude ?? null,
+        longitude: res.longitude ?? null,
+      })
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar ativo')
@@ -126,8 +132,8 @@ export default function EditAssetPage() {
           custoHoraParada: Number(custoHoraParada || 0),
           custoManutencaoMensal: Number(custoManutencaoMensal || 0),
           localizacao: localizacao.trim(),
-          latitude: latitude.trim() ? Number(latitude) : null,
-          longitude: longitude.trim() ? Number(longitude) : null,
+          latitude: mapCoords.latitude,
+          longitude: mapCoords.longitude,
         },
       })
       toast.success('Ativo atualizado com sucesso')
@@ -153,7 +159,7 @@ export default function EditAssetPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Editar Ativo</h1>
-          <p className="text-sm text-muted-foreground">Atualize os dados com integração real ao backend</p>
+          <p className="text-sm text-muted-foreground">Atualize os dados do equipamento</p>
         </div>
       </div>
 
@@ -166,15 +172,15 @@ export default function EditAssetPage() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Nome</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} disabled={isLoading || isSaving} />
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2">
             <Label>Tag</Label>
-            <Input value={tag} onChange={(e) => setTag(e.target.value)} disabled={isLoading || isSaving} />
+            <Input value={tag} onChange={(e) => setTag(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as BackendStatus)} disabled={isLoading || isSaving}>
+            <Select value={status} onValueChange={(v) => setStatus(v as BackendStatus)} disabled={isSaving}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
@@ -183,54 +189,23 @@ export default function EditAssetPage() {
           </div>
           <div className="space-y-2">
             <Label>Limite de temperatura</Label>
-            <Input type="number" value={limiteTemp} onChange={(e) => setLimiteTemp(e.target.value)} disabled={isLoading || isSaving} />
+            <Input type="number" value={limiteTemp} onChange={(e) => setLimiteTemp(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2">
             <Label>Fabricante</Label>
-            <Input value={fabricante} onChange={(e) => setFabricante(e.target.value)} disabled={isLoading || isSaving} />
+            <Input value={fabricante} onChange={(e) => setFabricante(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2">
             <Label>Modelo</Label>
-            <Input value={modelo} onChange={(e) => setModelo(e.target.value)} disabled={isLoading || isSaving} />
+            <Input value={modelo} onChange={(e) => setModelo(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Número de Série</Label>
-            <Input value={numeroSerie} onChange={(e) => setNumeroSerie(e.target.value)} disabled={isLoading || isSaving} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Localização (setor, linha, sala)</Label>
-            <Input
-              value={localizacao}
-              onChange={(e) => setLocalizacao(e.target.value)}
-              placeholder="Ex.: Setor B, Linha 3"
-              disabled={isLoading || isSaving}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Latitude</Label>
-            <Input
-              type="number"
-              step="any"
-              value={latitude}
-              onChange={(e) => setLatitude(e.target.value)}
-              placeholder="-23.5505"
-              disabled={isLoading || isSaving}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Longitude</Label>
-            <Input
-              type="number"
-              step="any"
-              value={longitude}
-              onChange={(e) => setLongitude(e.target.value)}
-              placeholder="-46.6333"
-              disabled={isLoading || isSaving}
-            />
+            <Input value={numeroSerie} onChange={(e) => setNumeroSerie(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Observações</Label>
-            <Textarea rows={4} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} disabled={isLoading || isSaving} />
+            <Textarea rows={4} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} disabled={isSaving} />
           </div>
           <div className="space-y-2">
             <Label>Custo de parada por hora (R$)</Label>
@@ -240,7 +215,7 @@ export default function EditAssetPage() {
               step="0.01"
               value={custoHoraParada}
               onChange={(e) => setCustoHoraParada(e.target.value)}
-              disabled={isLoading || isSaving}
+              disabled={isSaving}
             />
           </div>
           <div className="space-y-2">
@@ -251,14 +226,22 @@ export default function EditAssetPage() {
               step="0.01"
               value={custoManutencaoMensal}
               onChange={(e) => setCustoManutencaoMensal(e.target.value)}
-              disabled={isLoading || isSaving}
+              disabled={isSaving}
             />
           </div>
         </CardContent>
       </Card>
 
+      <AssetLocationFormSection
+        localizacao={localizacao}
+        onLocalizacaoChange={setLocalizacao}
+        mapCoords={mapCoords}
+        onMapCoordsChange={setMapCoords}
+        disabled={isSaving}
+      />
+
       <div className="flex items-center gap-3">
-        <Button onClick={() => void onSave()} disabled={isLoading || isSaving}>
+        <Button onClick={() => void onSave()} disabled={isSaving}>
           {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : 'Salvar alterações'}
         </Button>
         <Button variant="outline" asChild>

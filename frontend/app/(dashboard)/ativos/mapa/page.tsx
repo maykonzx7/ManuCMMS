@@ -176,7 +176,7 @@ export default function AtivosMapaPage() {
               <Card>
                 <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
                   <Package className="h-8 w-8 opacity-50" />
-                  <p>Cadastre latitude e longitude nos ativos para exibi-los no mapa.</p>
+                  <p>Marque a posição dos ativos no mapa ao cadastrar ou editar para exibi-los aqui.</p>
                 </CardContent>
               </Card>
             ) : null}

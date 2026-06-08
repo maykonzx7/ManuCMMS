@@ -25,12 +25,13 @@ import { cn } from '@/lib/utils'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { usePermissions } from '@/hooks/use-permissions'
+import { AssetLocationFormSection } from '@/components/ativos/asset-location-form-section'
+import type { AssetMapCoords } from '@/components/ativos/asset-location-picker'
 
 const assetSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
   codigo: z.string().min(2, 'Código deve ter no mínimo 2 caracteres'),
   descricao: z.string().optional(),
-  localizacao: z.string().optional(),
   fabricante: z.string().optional(),
   modelo: z.string().optional(),
   numeroSerie: z.string().optional(),
@@ -45,6 +46,11 @@ type AssetFormData = z.infer<typeof assetSchema>
 export default function NewAssetPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [localizacao, setLocalizacao] = useState('')
+  const [mapCoords, setMapCoords] = useState<AssetMapCoords>({
+    latitude: null,
+    longitude: null,
+  })
   const { accessToken } = useAuth()
   const { canManageAssets } = usePermissions()
   const unit = useCurrentUnit()
@@ -85,7 +91,10 @@ export default function NewAssetPage() {
           numeroSerie: data.numeroSerie || undefined,
           custoHoraParada: data.custoHoraParada ?? 0,
           custoManutencaoMensal: data.custoManutencaoMensal ?? 0,
-          observacoes: [data.descricao, data.localizacao].filter(Boolean).join(' | ') || undefined,
+          observacoes: data.descricao || undefined,
+          localizacao: localizacao.trim() || undefined,
+          latitude: mapCoords.latitude,
+          longitude: mapCoords.longitude,
         },
       })
       
@@ -158,16 +167,6 @@ export default function NewAssetPage() {
                   placeholder="Descreva o ativo..."
                   rows={3}
                   {...register('descricao')}
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="localizacao">Localização</Label>
-                <Input
-                  id="localizacao"
-                  placeholder="Ex: Setor A - Linha 1"
-                  {...register('localizacao')}
                   disabled={isLoading}
                 />
               </div>
@@ -264,6 +263,14 @@ export default function NewAssetPage() {
             </CardContent>
           </Card>
         </div>
+
+        <AssetLocationFormSection
+          localizacao={localizacao}
+          onLocalizacaoChange={setLocalizacao}
+          mapCoords={mapCoords}
+          onMapCoordsChange={setMapCoords}
+          disabled={isLoading}
+        />
 
         {/* Actions */}
         <div className="flex items-center gap-4">

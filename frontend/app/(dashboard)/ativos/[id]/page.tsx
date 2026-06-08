@@ -130,15 +130,15 @@ export default function AssetDetailPage() {
         </CardContent>
       </Card>
 
-      {hasCoords ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Mapa do Ativo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            Mapa do Ativo
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {hasCoords ? (
             <AssetLocationMap
               pins={[{
                 id: asset.id,
@@ -151,9 +151,18 @@ export default function AssetDetailPage() {
               }]}
               height="240px"
             />
-          </CardContent>
-        </Card>
-      ) : null}
+          ) : (
+            <div className="flex flex-col items-center gap-3 rounded-lg border bg-muted/20 py-8 text-center text-sm text-muted-foreground">
+              <p>Este ativo ainda não foi marcado no mapa.</p>
+              {canManageAssets ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/ativos/${asset.id}/editar`}>Marcar localização no mapa</Link>
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {unit?.id && accessToken ? (
         <AssetDocumentsPanel

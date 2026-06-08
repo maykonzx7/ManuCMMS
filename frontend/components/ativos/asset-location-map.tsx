@@ -65,7 +65,7 @@ export function AssetLocationMap({
         className="flex items-center justify-center rounded-lg border bg-muted/30 text-sm text-muted-foreground"
         style={{ height }}
       >
-        Nenhum ativo com coordenadas cadastradas.
+        Nenhum ativo marcado no mapa ainda.
       </div>
     )
   }
