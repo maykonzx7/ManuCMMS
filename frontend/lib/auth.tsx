@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js'
 import type { User, Company, Unit, SessionData } from '@/types'
 import { apiRequest, getApiCompanySlug, invalidateApiCache, setApiAccessTokenScope, setApiCompanySlug } from '@/lib/api'
+import { loadPersistedAuthSnapshot, persistAuthSnapshot, type PersistedAuthSnapshot } from '@/lib/session-persistence'
 import { resolveMediaUrl } from '@/lib/media-url'
 import { supabase, supabaseConfig } from '@/lib/supabase'
 
@@ -53,6 +54,8 @@ interface AuthContextType {
   isLoading: boolean
   /** Sessão validada pelo servidor (/me/bootstrap) — evita UI com permissões obsoletas. */
   isSessionVerified: boolean
+  /** Bootstrap em background após restauração otimista da sessão. */
+  isSessionSyncing: boolean
   accessToken: string | null
   isPlatformOperator: boolean
   isWorkspaceImpersonation: boolean
@@ -172,6 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(supabaseConfig.isConfigured)
   const [isSessionVerified, setIsSessionVerified] = useState(false)
+  const [isSessionSyncing, setIsSessionSyncing] = useState(false)
   const [isPlatformOperator, setIsPlatformOperator] = useState(false)
   const [isWorkspaceImpersonation, setIsWorkspaceImpersonation] = useState(false)
   const syncedAuthContextRef = useRef<{ token: string; companySlug: string | null } | null>(null)
@@ -188,10 +192,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSessionData(null)
     setAccessToken(null)
     setIsSessionVerified(false)
+    setIsSessionSyncing(false)
     setIsPlatformOperator(false)
     setIsWorkspaceImpersonation(false)
     setApiCompanySlug(null)
     setApiAccessTokenScope(null)
+    persistAuthSnapshot(null)
+  }, [])
+
+  const applyOptimisticSession = useCallback((
+    token: string,
+    snapshot: PersistedAuthSnapshot,
+  ) => {
+    setAccessToken(token)
+    setSessionData(snapshot.session)
+    setIsSessionVerified(true)
+    setIsPlatformOperator(snapshot.isPlatformOperator)
+    setIsWorkspaceImpersonation(snapshot.isWorkspaceImpersonation)
+    setApiAccessTokenScope(token)
+    setApiCompanySlug(snapshot.session.empresa.slug)
   }, [])
 
   const applySession = useCallback((
@@ -203,10 +222,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAccessToken(token)
     setSessionData(nextSession)
     setIsSessionVerified(!!nextSession)
+    setIsSessionSyncing(false)
     setIsPlatformOperator(platformOperator)
     setIsWorkspaceImpersonation(workspaceImpersonation)
     setApiAccessTokenScope(token)
     setApiCompanySlug(nextSession?.empresa.slug ?? null)
+    if (nextSession) {
+      persistAuthSnapshot({
+        session: nextSession,
+        isPlatformOperator: platformOperator,
+        isWorkspaceImpersonation: workspaceImpersonation,
+        savedAt: Date.now(),
+      })
+    } else {
+      persistAuthSnapshot(null)
+    }
   }, [])
 
   const hydrateFromSupabase = useCallback(async (
@@ -253,7 +283,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error('Nao foi possivel carregar o workspace deste cliente.')
     }
     const platformOperator = bootstrap.isPlatformOperator === true
-    applySession(token, nextSession, platformOperator, workspaceImpersonation)
+    const previousUnit = sessionDataRef.current?.unidadeAtual
+    const mergedSession = previousUnit
+      ? { ...nextSession, unidadeAtual: previousUnit }
+      : nextSession
+    applySession(token, mergedSession, platformOperator, workspaceImpersonation)
     syncedAuthContextRef.current = { token, companySlug: companySlug ?? null }
 
     // Evita reprocessar hash OAuth antigo em refreshes seguintes.
@@ -280,10 +314,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const runHydration = useCallback(async (
     currentSession: Session | null,
     preferredCompanySlug?: string | null,
-    options?: { intent?: 'login' | 'refresh'; useCache?: boolean },
+    options?: { intent?: 'login' | 'refresh'; useCache?: boolean; background?: boolean },
   ) => {
     const targetToken = currentSession?.access_token ?? ''
     const targetCompanySlug = resolvePreferredCompanySlug(preferredCompanySlug)
+    const isBackground = options?.background === true
 
     if (hydratingRef.current) {
       try {
@@ -297,14 +332,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         targetToken &&
         (synced.companySlug ?? null) === (targetCompanySlug ?? null)
       ) {
+        if (isBackground) setIsSessionSyncing(false)
         return
       }
     }
+
+    if (isBackground) setIsSessionSyncing(true)
 
     const promise = hydrateFromSupabase(currentSession, preferredCompanySlug, options)
     hydratingRef.current = promise
     try {
       await promise
+    } catch (error) {
+      if (isBackground) setIsSessionSyncing(false)
+      throw error
     } finally {
       if (hydratingRef.current === promise) {
         hydratingRef.current = null
@@ -322,6 +363,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       typeof window !== 'undefined' && isInviteAuthPath(window.location.pathname)
 
     setIsLoading(true)
+    const persisted = loadPersistedAuthSnapshot()
     void supabase.auth
       .getSession()
       .then(async ({ data }) => {
@@ -330,9 +372,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return
         }
 
+        const supabaseSession = data.session ?? null
+        const token = supabaseSession?.access_token ?? ''
+
+        if (!token) {
+          resetAuthState()
+          return
+        }
+
         const initialCompanySlug = resolvePreferredCompanySlug()
-        await runHydration(data.session ?? null, initialCompanySlug ?? undefined, {
+        if (persisted) {
+          applyOptimisticSession(token, persisted)
+          setIsLoading(false)
+          void runHydration(supabaseSession, initialCompanySlug ?? undefined, {
+            intent: 'refresh',
+            background: true,
+          }).catch((error) => {
+            console.warn('[auth] falha ao sincronizar sessao em background', error)
+            resetAuthState()
+          })
+          return
+        }
+
+        setAccessToken(token)
+        setApiAccessTokenScope(token)
+        setIsLoading(false)
+
+        void runHydration(supabaseSession, initialCompanySlug ?? undefined, {
           intent: 'refresh',
+          background: true,
+        }).catch((error) => {
+          console.warn('[auth] falha ao validar sessao inicial', error)
+          resetAuthState()
         })
       })
       .catch((error) => {
@@ -373,7 +444,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       void runHydration(
         nextSession,
         getApiCompanySlug() ?? sessionDataRef.current?.empresa.slug ?? undefined,
-        { intent: event === 'SIGNED_IN' ? 'login' : 'refresh' },
+        {
+          intent: event === 'SIGNED_IN' ? 'login' : 'refresh',
+          background: event !== 'SIGNED_IN' && !!sessionDataRef.current,
+        },
       ).catch((error) => {
         console.warn('[auth] falha ao hidratar sessao apos evento', error)
         if (event === 'SIGNED_OUT') {
@@ -383,7 +457,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     })
 
     return () => subscription.unsubscribe()
-  }, [resetAuthState, runHydration])
+  }, [applyOptimisticSession, resetAuthState, runHydration])
 
   const signInWithPassword = useCallback(async (
     email: string,
@@ -555,8 +629,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [resetAuthState])
 
   const setUnidadeAtual = useCallback((unidade: Unit) => {
-    setSessionData((prev) => (prev ? { ...prev, unidadeAtual: unidade } : prev))
-  }, [])
+    setSessionData((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, unidadeAtual: unidade }
+      persistAuthSnapshot({
+        session: next,
+        isPlatformOperator,
+        isWorkspaceImpersonation,
+        savedAt: Date.now(),
+      })
+      return next
+    })
+  }, [isPlatformOperator, isWorkspaceImpersonation])
 
   const refreshSession = useCallback(async () => {
     if (!accessToken) return
@@ -611,6 +695,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await runHydration(currentSession, normalizedSlug, {
         intent: 'login',
         useCache: false,
+        background: !!sessionDataRef.current,
       })
     } finally {
       setIsLoading(false)
@@ -622,6 +707,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated: isSessionVerified && !!sessionData,
     isLoading,
     isSessionVerified,
+    isSessionSyncing,
     accessToken,
     isPlatformOperator,
     isWorkspaceImpersonation,
@@ -639,6 +725,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     isPlatformOperator,
     isSessionVerified,
+    isSessionSyncing,
     isWorkspaceImpersonation,
     login,
     completeInviteAccess,

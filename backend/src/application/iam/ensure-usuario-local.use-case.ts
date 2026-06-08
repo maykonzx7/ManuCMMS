@@ -22,7 +22,8 @@ import { ResolvePlatformOperatorAccessUseCase } from './resolve-platform-operato
  */
 @Injectable()
 export class EnsureUsuarioLocalUseCase {
-  private static readonly CACHE_TTL_SECONDS = 60;
+  private static readonly CACHE_TTL_SECONDS = 120;
+  private static readonly ACCESS_ENSURED_TTL_SECONDS = 3600;
 
   constructor(
     private readonly config: ConfigService,
@@ -92,13 +93,7 @@ export class EnsureUsuarioLocalUseCase {
         : null;
       const resolved = platformContext ?? existentePorSub;
 
-      await this.usuarios.ensureAccessContext({
-        idUsuario: resolved.id,
-        idUnidade: resolved.idUnidade,
-        idUnidadeCargo: resolved.idUnidade,
-        empresaId: resolved.empresa?.id ?? null,
-        perfil: resolved.perfil as PerfilUsuarioCodigo,
-      });
+      await this.ensureAccessContextOnce(resolved);
 
       if (!platformContext) {
         this.assertPreferredEmpresaScope(resolved, preferredEmpresaSlug);
@@ -133,13 +128,7 @@ export class EnsureUsuarioLocalUseCase {
       if (existentePorEmail) {
         await this.usuarios.updateAuthSub(existentePorEmail.id, authUser.userId);
 
-        await this.usuarios.ensureAccessContext({
-          idUsuario: existentePorEmail.id,
-          idUnidade: existentePorEmail.idUnidade,
-          idUnidadeCargo: existentePorEmail.idUnidade,
-          empresaId: existentePorEmail.empresa?.id ?? null,
-          perfil: existentePorEmail.perfil as PerfilUsuarioCodigo,
-        });
+        await this.ensureAccessContextOnce(existentePorEmail);
 
         const atualizado = await this.usuarios.findByAuthSub(
           authUser.userId,
@@ -179,6 +168,31 @@ export class EnsureUsuarioLocalUseCase {
 
     throw new ForbiddenException(
       'Usuario sem vinculo local. Solicite convite de acesso da empresa.',
+    );
+  }
+
+  private async ensureAccessContextOnce(
+    usuarioLocal: UsuarioLocalContext,
+  ): Promise<void> {
+    const empresaId = usuarioLocal.empresa?.id ?? null;
+    if (!empresaId) return;
+
+    const cacheKey = `access-ensured:${usuarioLocal.id}:${empresaId}`;
+    if (await this.cache.get<boolean>(cacheKey)) {
+      return;
+    }
+
+    await this.usuarios.ensureAccessContext({
+      idUsuario: usuarioLocal.id,
+      idUnidade: usuarioLocal.idUnidade,
+      idUnidadeCargo: usuarioLocal.idUnidade,
+      empresaId,
+      perfil: usuarioLocal.perfil as PerfilUsuarioCodigo,
+    });
+    await this.cache.set(
+      cacheKey,
+      true,
+      EnsureUsuarioLocalUseCase.ACCESS_ENSURED_TTL_SECONDS,
     );
   }
 

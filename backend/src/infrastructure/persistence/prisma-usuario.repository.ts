@@ -103,16 +103,43 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
       return [];
     }
 
+    const ids = usuarioIds.map((row) => row.id);
     const rows = await this.prisma.usuario.findMany({
-      where: {
-        id: {
-          in: usuarioIds.map((row) => row.id),
-        },
-      },
+      where: { id: { in: ids } },
       orderBy: [{ nome: 'asc' }, { email: 'asc' }],
     });
 
-    return Promise.all(rows.map((row) => this.toLocalContext(row)));
+    const empresaRows = await this.prisma.$queryRaw<
+      Array<UsuarioEmpresaRow & { usuarioId: string }>
+    >(Prisma.sql`
+      SELECT
+        ue.usuario_id AS "usuarioId",
+        e.id,
+        e.nome_empresa AS "nomeEmpresa",
+        e.slug,
+        e.status::text AS status,
+        ue.status::text AS "statusMembros"
+      FROM usuario_empresa ue
+      JOIN empresa e ON e.id = ue.empresa_id
+      JOIN unidade_fabril uf ON uf.empresa_id = e.id AND uf.id = ${idUnidade}::uuid
+      WHERE ue.usuario_id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+    `);
+
+    const empresaByUser = new Map(
+      empresaRows.map((row) => [row.usuarioId, row]),
+    );
+    const empresaId = empresaRows[0]?.id ?? null;
+    const cargosByUser = empresaId
+      ? await this.loadCargoContextsBatch(ids, empresaId)
+      : new Map<string, UsuarioCargoContext[]>();
+
+    return rows.map((row) =>
+      this.buildLocalContext(
+        row,
+        empresaByUser.get(row.id) ?? null,
+        cargosByUser.get(row.id) ?? [],
+      ),
+    );
   }
 
   async findByIdInUnidade(
@@ -569,6 +596,14 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     const cargos = empresa?.id
       ? await this.loadCargoContexts(r.id, empresa.id)
       : [];
+    return this.buildLocalContext(r, empresa, cargos);
+  }
+
+  private buildLocalContext(
+    r: UsuarioRow,
+    empresa: UsuarioEmpresaContext | null,
+    cargos: UsuarioCargoContext[],
+  ): UsuarioLocalContext {
     const permissoes = Array.from(
       new Set(cargos.flatMap((cargo) => cargo.permissoes)),
     ).sort();
@@ -589,6 +624,70 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
     };
   }
 
+  private async loadCargoContextsBatch(
+    usuarioIds: string[],
+    empresaId: string,
+  ): Promise<Map<string, UsuarioCargoContext[]>> {
+    if (usuarioIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.prisma.$queryRaw<
+      Array<UsuarioCargoRow & { usuarioId: string }>
+    >(Prisma.sql`
+      SELECT
+        ue.usuario_id AS "usuarioId",
+        c.id,
+        c.codigo,
+        c.nome,
+        c.nivel_hierarquico AS "nivelHierarquico",
+        uc.id_unidade AS "idUnidade",
+        p.codigo AS "permissaoCodigo"
+      FROM usuario_empresa ue
+      JOIN usuario_cargo uc ON uc.usuario_empresa_id = ue.id
+      JOIN cargo c ON c.id = uc.cargo_id
+      LEFT JOIN cargo_permissao cp ON cp.cargo_id = c.id
+      LEFT JOIN permissao p ON p.id = cp.permissao_id
+      WHERE ue.empresa_id = ${empresaId}::uuid
+        AND ue.usuario_id IN (${Prisma.join(usuarioIds.map((id) => Prisma.sql`${id}::uuid`))})
+      ORDER BY c.nivel_hierarquico DESC, c.nome ASC
+    `);
+
+    const byUser = new Map<string, Map<string, UsuarioCargoContext>>();
+    for (const row of rows) {
+      const userCargos = byUser.get(row.usuarioId) ?? new Map<string, UsuarioCargoContext>();
+      const current = userCargos.get(row.id);
+      if (!current) {
+        userCargos.set(row.id, {
+          id: row.id,
+          codigo: row.codigo,
+          nome: row.nome,
+          nivelHierarquico: row.nivelHierarquico,
+          idUnidade: row.idUnidade,
+          permissoes: row.permissaoCodigo ? [row.permissaoCodigo] : [],
+        });
+      } else if (
+        row.permissaoCodigo &&
+        !current.permissoes.includes(row.permissaoCodigo)
+      ) {
+        current.permissoes.push(row.permissaoCodigo);
+      }
+      byUser.set(row.usuarioId, userCargos);
+    }
+
+    const result = new Map<string, UsuarioCargoContext[]>();
+    for (const [usuarioId, cargoMap] of byUser.entries()) {
+      result.set(
+        usuarioId,
+        Array.from(cargoMap.values()).map((cargo) => ({
+          ...cargo,
+          permissoes: cargo.permissoes.sort(),
+        })),
+      );
+    }
+    return result;
+  }
+
   async updateFotoUrl(idUsuario: string, fotoUrl: string | null): Promise<void> {
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE usuario
@@ -606,48 +705,6 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
   ): Promise<UsuarioEmpresaContext | null> {
     const normalizedPreferredSlug =
       preferredEmpresaSlug?.trim().toLowerCase() ?? '';
-    if (normalizedPreferredSlug.length > 0) {
-      const bySlug = await this.prisma.$queryRaw<
-        UsuarioEmpresaRow[]
-      >(Prisma.sql`
-        SELECT
-          e.id,
-          e.nome_empresa AS "nomeEmpresa",
-          e.slug,
-          e.status::text AS status,
-          ue.status::text AS "statusMembros"
-        FROM empresa e
-        JOIN usuario_empresa ue ON ue.empresa_id = e.id
-        WHERE ue.usuario_id = ${usuarioId}::uuid
-          AND lower(e.slug) = ${normalizedPreferredSlug}
-        ORDER BY ue.is_responsavel_principal DESC, ue.created_at ASC
-        LIMIT 1
-      `);
-      if (bySlug[0]) {
-        return bySlug[0];
-      }
-    }
-
-    // Prefer the company from the user's current unit to avoid cross-tenant mix-ups.
-    const byUnit = await this.prisma.$queryRaw<UsuarioEmpresaRow[]>(Prisma.sql`
-      SELECT
-        e.id,
-        e.nome_empresa AS "nomeEmpresa",
-        e.slug,
-        e.status::text AS status,
-        ue.status::text AS "statusMembros"
-      FROM empresa e
-      JOIN unidade_fabril uf ON uf.empresa_id = e.id
-      JOIN usuario_empresa ue ON ue.empresa_id = e.id
-      WHERE ue.usuario_id = ${usuarioId}::uuid
-        AND uf.id = ${idUnidade}::uuid
-      ORDER BY ue.is_responsavel_principal DESC, ue.created_at ASC
-      LIMIT 1
-    `);
-
-    if (byUnit[0]) {
-      return byUnit[0];
-    }
 
     const rows = await this.prisma.$queryRaw<UsuarioEmpresaRow[]>(Prisma.sql`
       SELECT
@@ -656,10 +713,19 @@ export class PrismaUsuarioRepository implements IUsuarioReadPort {
         e.slug,
         e.status::text AS status,
         ue.status::text AS "statusMembros"
-      FROM empresa e
-      JOIN usuario_empresa ue ON ue.empresa_id = e.id
+      FROM usuario_empresa ue
+      JOIN empresa e ON e.id = ue.empresa_id
+      LEFT JOIN unidade_fabril uf ON uf.empresa_id = e.id AND uf.id = ${idUnidade}::uuid
       WHERE ue.usuario_id = ${usuarioId}::uuid
-      ORDER BY ue.is_responsavel_principal DESC, ue.created_at ASC
+      ORDER BY
+        CASE
+          WHEN ${normalizedPreferredSlug} <> ''
+            AND lower(e.slug) = ${normalizedPreferredSlug}
+          THEN 0 ELSE 1
+        END,
+        CASE WHEN uf.id IS NOT NULL THEN 0 ELSE 1 END,
+        ue.is_responsavel_principal DESC,
+        ue.created_at ASC
       LIMIT 1
     `);
 
