@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { PageDataLoading } from '@/components/shared'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiAtivoToAsset, type ApiAtivo } from '@/lib/backend-mappers'
 import { ASSET_STATUS_COLORS, ASSET_STATUS_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -38,8 +38,9 @@ export default function AtivosMapaPage() {
 
   useEffect(() => {
     if (!accessToken || !unit?.id) return
-    setIsLoading(true)
-    void apiRequest<ApiAtivo[]>(`/unidades/${unit.id}/ativos`, { accessToken })
+    const path = `/unidades/${unit.id}/ativos`
+    if (!isApiCacheWarm(path, accessToken)) setIsLoading(true)
+    void apiRequest<ApiAtivo[]>(path, { accessToken })
       .then((res) => {
         setAtivos(res.map((item) => mapApiAtivoToAsset(item, unit.id)))
         setError(null)

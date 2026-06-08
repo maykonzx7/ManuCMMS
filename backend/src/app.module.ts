@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { AuditModule } from './infrastructure/audit/audit.module';
+import { CacheModule } from './infrastructure/cache/cache.module';
 import { EmailModule } from './infrastructure/email/email.module';
 import { SupabaseAdminService } from './infrastructure/auth/supabase-admin.service';
 import { PrismaModule } from './infrastructure/persistence/prisma.module';
@@ -21,6 +22,7 @@ import { PresentationModule } from './presentation/presentation.module';
       envFilePath: ['.env'],
     }),
     AuditModule,
+    CacheModule,
     EmailModule,
     IntegracaoModule,
     MessagingModule,

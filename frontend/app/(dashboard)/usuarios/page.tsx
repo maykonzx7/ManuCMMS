@@ -57,7 +57,7 @@ import { USER_ROLE_LABELS, USER_ROLE_OPTIONS } from '@/lib/constants'
 import { usePermissions } from '@/hooks/use-permissions'
 import type { UserRole } from '@/types'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiUsuarioToUser, type ApiUsuario } from '@/lib/backend-mappers'
 import {
   ConvitesPanel,
@@ -120,9 +120,10 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     if (!accessToken || !unit?.id || !company?.id) return
-    setIsPageLoading(true)
+    const path = `/unidades/${unit.id}/usuarios`
+    if (!isApiCacheWarm(path, accessToken)) setIsPageLoading(true)
     try {
-      const res = await apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, { accessToken })
+      const res = await apiRequest<ApiUsuario[]>(path, { accessToken })
       setUsers(res.map((item) => mapApiUsuarioToUser(item, company.id, unit.id)))
       setUsersError(null)
     } catch (error) {

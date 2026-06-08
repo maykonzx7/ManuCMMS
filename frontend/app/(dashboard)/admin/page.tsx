@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
 import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { toast } from 'sonner'
@@ -137,10 +137,13 @@ export default function AdminPage() {
 
   const carregarTudo = async () => {
     if (!accessToken || !empresaId) return
-    setIsLoading(true)
+    const painelPath = `/empresas/${empresaId}/gestao/painel`
+    if (!isApiCacheWarm(painelPath, accessToken) && !isApiCacheWarm('/unidades', accessToken)) {
+      setIsLoading(true)
+    }
     try {
       const [dataPainel, dataUnidades] = await Promise.all([
-        apiRequest<PainelResponse>(`/empresas/${empresaId}/gestao/painel`, { accessToken }),
+        apiRequest<PainelResponse>(painelPath, { accessToken }),
         apiRequest<UnidadeItem[]>('/unidades', { accessToken }),
       ])
       setPainel(dataPainel)

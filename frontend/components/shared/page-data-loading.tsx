@@ -21,12 +21,7 @@ type PageDataLoadingProps = {
 function LoadingHeader({ message }: { message: string }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
-      <img
-        src="/manucmms-icon-oficial.png"
-        alt=""
-        aria-hidden="true"
-        className="h-8 w-8 object-contain opacity-90"
-      />
+      <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary opacity-90" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />

@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/chart'
 import { PageDataLoading } from '@/components/shared'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
 import { usePermissions } from '@/hooks/use-permissions'
 import { ORDER_STATUS_LABELS, MAINTENANCE_TYPE_LABELS } from '@/lib/constants'
@@ -104,7 +104,6 @@ export default function MetricasAdminPage() {
 
   useEffect(() => {
     if (!isAdmin || !accessToken || !unit?.id) return
-    setIsLoading(true)
     setLoadError(null)
 
     const to = new Date()
@@ -113,12 +112,14 @@ export default function MetricasAdminPage() {
       from: from.toISOString(),
       to: to.toISOString(),
     })
+    const dashPath = `/unidades/${unit.id}/dashboard/executivo?${query.toString()}`
+    if (!isApiCacheWarm(dashPath, accessToken)) {
+      setIsLoading(true)
+    }
+    setLoadError(null)
 
     void Promise.all([
-      apiRequest<DashboardExecutivoResponse>(
-        `/unidades/${unit.id}/dashboard/executivo?${query.toString()}`,
-        { accessToken },
-      ),
+      apiRequest<DashboardExecutivoResponse>(dashPath, { accessToken }),
       apiRequest<ApiOrdem[]>(
         `/unidades/${unit.id}/ordens-servico?${query.toString()}`,
         { accessToken },

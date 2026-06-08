@@ -66,7 +66,8 @@ import { getPodeConcluirOrdem, normalizeOrderStatus, ordemPrecisaEvidenciaProble
 import { apiRequest, downloadApiFile, peekApiCache } from '@/lib/api'
 import { buildApiCacheKey } from '@/lib/api-cache'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
-import { useRealtimeConnection } from '@/hooks/use-realtime'
+import { ROUTES } from '@/lib/routes'
+import { useRealtimeSubscription } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -144,7 +145,7 @@ export default function OrdersPage() {
     void loadOrders()
   }, [accessToken, currentUnit?.id])
 
-  useRealtimeConnection(accessToken, company?.slug, {
+  useRealtimeSubscription('ordens-lista', {
     onOrdemStatus: (payload) => {
       if (payload.idUnidade !== currentUnit?.id) return
       setOrders((prev) =>
@@ -556,7 +557,7 @@ export default function OrdersPage() {
             : "Comece criando sua primeira ordem de serviço"}
           action={canCreateOrder ? {
             label: "Criar ordem de serviço",
-            onClick: () => window.location.href = '/ordens/nova',
+            onClick: () => router.push(ROUTES.novaOrdem),
           } : undefined}
         />
       ) : (

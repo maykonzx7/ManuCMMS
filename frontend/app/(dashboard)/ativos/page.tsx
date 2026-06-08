@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
   Plus, 
   Search, 
@@ -50,11 +51,13 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 import type { AssetStatus } from '@/types'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiAtivoToAsset, type ApiAtivo } from '@/lib/backend-mappers'
+import { ROUTES } from '@/lib/routes'
 import { toast } from 'sonner'
 
 export default function AssetsPage() {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<AssetStatus | 'all'>('all')
   const [assets, setAssets] = useState<ReturnType<typeof mapApiAtivoToAsset>[]>([])
@@ -66,9 +69,10 @@ export default function AssetsPage() {
 
   const loadAssets = async () => {
     if (!accessToken || !currentUnit?.id) return
-    setIsPageLoading(true)
+    const path = `/unidades/${currentUnit.id}/ativos`
+    if (!isApiCacheWarm(path, accessToken)) setIsPageLoading(true)
     try {
-      const res = await apiRequest<ApiAtivo[]>(`/unidades/${currentUnit.id}/ativos`, { accessToken })
+      const res = await apiRequest<ApiAtivo[]>(path, { accessToken })
       setAssets(res.map((item) => mapApiAtivoToAsset(item, currentUnit.id)))
       setAssetsError(null)
     } catch (error) {
@@ -227,7 +231,7 @@ export default function AssetsPage() {
             : "Comece cadastrando seu primeiro ativo"}
           action={canManageAssets ? {
             label: "Cadastrar ativo",
-            onClick: () => window.location.href = '/ativos/novo',
+            onClick: () => router.push(ROUTES.novoAtivo),
           } : undefined}
         />
       ) : (

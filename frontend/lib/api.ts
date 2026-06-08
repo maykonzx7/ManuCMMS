@@ -1,13 +1,16 @@
 import {
   buildApiCacheKey,
+  hasApiCache,
   invalidateApiCache,
   invalidateApiCacheForMutation,
   peekApiCache,
+  resolveCacheTtlMs,
   setApiCache,
 } from './api-cache'
 
 let inMemoryCompanySlug: string | null = null
 let inMemoryAccessTokenScope: string | null = null
+const inflightRequests = new Map<string, Promise<unknown>>()
 
 function resolveAccessTokenScope(explicitToken?: string): string | null {
   const token = explicitToken?.trim()
@@ -90,7 +93,55 @@ type ApiRequestOptions = {
   useCache?: boolean
 }
 
-export { peekApiCache, invalidateApiCache, invalidateApiCacheForMutation } from './api-cache'
+function isCacheableGetPath(path: string): boolean {
+  if (path.startsWith('/platform/')) return false
+  if (path === '/me') return false
+  return true
+}
+
+export { peekApiCache, hasApiCache, invalidateApiCache, invalidateApiCacheForMutation } from './api-cache'
+
+export function buildApiRequestCacheKey(
+  path: string,
+  method = 'GET',
+  accessToken?: string,
+): string {
+  return buildApiCacheKey(
+    method,
+    path,
+    resolveApiCompanySlug(),
+    resolveAccessTokenScope(accessToken),
+  )
+}
+
+/** Indica se há dados em cache para exibir a página sem skeleton. */
+export function isApiCacheWarm(path: string, accessToken?: string): boolean {
+  return hasApiCache(buildApiRequestCacheKey(path, 'GET', accessToken))
+}
+
+/** Pré-carrega endpoints comuns da unidade em background. */
+export function prefetchUnitModuleData(
+  unitId: string,
+  accessToken: string,
+  extraPaths: string[] = [],
+): void {
+  const paths = [
+    `/unidades/${unitId}/ordens-servico`,
+    `/unidades/${unitId}/ativos`,
+    `/unidades/${unitId}/usuarios`,
+    `/unidades/${unitId}/pecas`,
+    ...extraPaths,
+  ]
+  for (const path of paths) {
+    void apiRequest(path, { accessToken }).catch(() => undefined)
+  }
+}
+
+/** Pré-carrega um endpoint ao passar o mouse no menu lateral. */
+export function prefetchApiPath(path: string, accessToken: string): void {
+  if (!path || !accessToken) return
+  void apiRequest(path, { accessToken }).catch(() => undefined)
+}
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const {
@@ -99,9 +150,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers,
     cache = 'no-store',
     accessToken,
-    useCache = method === 'GET'
-      && !path.startsWith('/platform/')
-      && !path.startsWith('/me'),
+    useCache = method === 'GET' && isCacheableGetPath(path),
   } = options
   const isFormDataBody = typeof FormData !== 'undefined' && body instanceof FormData
   const companySlug = resolveApiCompanySlug()
@@ -112,60 +161,78 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (useCache && method === 'GET') {
     const cached = peekApiCache<T>(cacheKey)
     if (cached !== undefined) return cached
+
+    const inflight = inflightRequests.get(cacheKey)
+    if (inflight) return inflight as Promise<T>
   }
 
-  const mergedHeaders: Record<string, string> = {
-    ...(headers ?? {}),
-  }
-
-  if (token && !mergedHeaders.Authorization) {
-    mergedHeaders.Authorization = `Bearer ${token}`
-  }
-  if (!mergedHeaders['x-company-slug']) {
-    if (companySlug) {
-      mergedHeaders['x-company-slug'] = companySlug
+  const executeRequest = async (): Promise<T> => {
+    const mergedHeaders: Record<string, string> = {
+      ...(headers ?? {}),
     }
-  }
-  if (body !== undefined && !isFormDataBody && !mergedHeaders['Content-Type']) {
-    mergedHeaders['Content-Type'] = 'application/json'
-  }
 
-  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
-    method,
-    headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
-    credentials: 'include',
-    body:
-      body === undefined
-        ? undefined
-        : isFormDataBody
-          ? body
-          : JSON.stringify(body),
-    cache,
-  })
+    if (token && !mergedHeaders.Authorization) {
+      mergedHeaders.Authorization = `Bearer ${token}`
+    }
+    if (!mergedHeaders['x-company-slug']) {
+      if (companySlug) {
+        mergedHeaders['x-company-slug'] = companySlug
+      }
+    }
+    if (body !== undefined && !isFormDataBody && !mergedHeaders['Content-Type']) {
+      mergedHeaders['Content-Type'] = 'application/json'
+    }
 
-  const payload = (await response.json().catch(() => null)) as
-    | { message?: string | string[]; error?: string }
-    | null
+    const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+      method,
+      headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
+      credentials: 'include',
+      body:
+        body === undefined
+          ? undefined
+          : isFormDataBody
+            ? body
+            : JSON.stringify(body),
+      cache,
+    })
 
-  if (!response.ok) {
-    const message =
-      typeof payload?.message === 'string'
-        ? payload.message
-        : Array.isArray(payload?.message)
-          ? payload.message.join(' ')
-          : typeof payload?.error === 'string'
-            ? payload.error
-            : `Falha na requisicao (${response.status})`
-    throw new Error(message)
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string | string[]; error?: string }
+      | null
+
+    if (!response.ok) {
+      const message =
+        typeof payload?.message === 'string'
+          ? payload.message
+          : Array.isArray(payload?.message)
+            ? payload.message.join(' ')
+            : typeof payload?.error === 'string'
+              ? payload.error
+              : `Falha na requisicao (${response.status})`
+      throw new Error(message)
+    }
+
+    if (useCache && method === 'GET') {
+      setApiCache(cacheKey, payload, resolveCacheTtlMs(path))
+    } else if (method !== 'GET') {
+      invalidateApiCacheForMutation(path)
+    }
+
+    return payload as T
   }
 
   if (useCache && method === 'GET') {
-    setApiCache(cacheKey, payload)
-  } else if (method !== 'GET') {
-    invalidateApiCacheForMutation(path)
+    const promise = executeRequest()
+    inflightRequests.set(cacheKey, promise)
+    promise.finally(() => {
+      if (inflightRequests.get(cacheKey) === promise) {
+        inflightRequests.delete(cacheKey)
+      }
+    })
+    return promise
   }
 
-  return payload as T
+  return executeRequest()
 }
 
 /** GET que retorna fallback quando a rota ainda não existe na API (deploy pendente). */

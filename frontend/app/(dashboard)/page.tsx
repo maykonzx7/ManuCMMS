@@ -17,7 +17,7 @@ import { KPICard, RecentOrders, AssetsSummary } from '@/components/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuth, useCurrentUnit, useCurrentUser } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiAtivoToAsset, mapApiOrdemToServiceOrder, type ApiAtivo, type ApiOrdem } from '@/lib/backend-mappers'
 import { usePermissions } from '@/hooks/use-permissions'
 import { PageDataLoading } from '@/components/shared'
@@ -80,12 +80,12 @@ function ExecutiveHome() {
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken || !unidadeAtual?.id) return
-    setIsLoading(true)
+    const path = `/unidades/${unidadeAtual.id}/dashboard/executivo`
+    if (!isApiCacheWarm(path, accessToken)) {
+      setIsLoading(true)
+    }
     setLoadError(null)
-    void apiRequest<DashboardExecutivoResponse>(
-      `/unidades/${unidadeAtual.id}/dashboard/executivo`,
-      { accessToken },
-    )
+    void apiRequest<DashboardExecutivoResponse>(path, { accessToken })
       .then((res) => {
         setDashboard(res)
         setAtivos(res.recentes.ativos.map((item) => mapApiAtivoToAsset(item, unidadeAtual.id)))
@@ -276,12 +276,15 @@ function TechnicianHome() {
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken || !unidadeAtual?.id) return
-    setIsLoading(true)
-    setLoadError(null)
     const query = isTecnico && user?.id
       ? `?${new URLSearchParams({ idTecnico: user.id }).toString()}`
       : ''
-    void apiRequest<ApiOrdem[]>(`/unidades/${unidadeAtual.id}/ordens-servico${query}`, { accessToken })
+    const path = `/unidades/${unidadeAtual.id}/ordens-servico${query}`
+    if (!isApiCacheWarm(path, accessToken)) {
+      setIsLoading(true)
+    }
+    setLoadError(null)
+    void apiRequest<ApiOrdem[]>(path, { accessToken })
       .then((res) => {
         setOrdens(
           res.map((item) => ({

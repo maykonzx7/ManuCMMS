@@ -51,7 +51,7 @@ import {
 import { EmptyState } from '@/components/shared'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiUnidadeToUnit, type ApiUnidade } from '@/lib/backend-mappers'
 import { TenantHierarchyHelp } from '@/components/gestao/tenant-hierarchy-guide'
 import { PageDataLoading } from '@/components/shared'
@@ -81,7 +81,7 @@ export default function UnitsPage() {
 
   const loadUnits = async () => {
     if (!accessToken || !company?.id) return
-    setIsLoading(true)
+    if (!isApiCacheWarm('/unidades', accessToken)) setIsLoading(true)
     try {
       const res = await apiRequest<ApiUnidade[]>('/unidades', { accessToken })
       setUnits(res.map((item) => mapApiUnidadeToUnit(item, company.id)).filter((item) => Boolean(item.id)))

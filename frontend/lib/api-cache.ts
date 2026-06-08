@@ -3,8 +3,37 @@ type CacheEntry = {
   expiresAt: number
 }
 
-const DEFAULT_TTL_MS = 60_000
+const TTL = {
+  DEFAULT: 60_000,
+  STABLE: 5 * 60_000,
+  VOLATILE: 30_000,
+  BOOTSTRAP: 2 * 60_000,
+  INTEGRATIONS: 30_000,
+  DASHBOARD: 2 * 60_000,
+} as const
+
 const cache = new Map<string, CacheEntry>()
+
+/** TTL por tipo de endpoint — dados estáveis ficam mais tempo em cache. */
+export function resolveCacheTtlMs(path: string): number {
+  if (path.startsWith('/me/bootstrap')) return TTL.BOOTSTRAP
+  if (path.includes('/ordens-servico') || path.startsWith('/notificacoes')) {
+    return TTL.VOLATILE
+  }
+  if (path.includes('/integracoes/')) return TTL.INTEGRATIONS
+  if (path.includes('/dashboard/')) return TTL.DASHBOARD
+  if (
+    path.includes('/ativos')
+    || path.includes('/usuarios')
+    || path.includes('/pecas')
+    || path.includes('/gestao/painel')
+    || path === '/unidades'
+    || /^\/unidades\/[^/]+$/.test(path)
+  ) {
+    return TTL.STABLE
+  }
+  return TTL.DEFAULT
+}
 
 export function buildApiCacheKey(
   method: string,
@@ -25,7 +54,11 @@ export function peekApiCache<T>(key: string): T | undefined {
   return entry.data as T
 }
 
-export function setApiCache(key: string, data: unknown, ttlMs = DEFAULT_TTL_MS): void {
+export function hasApiCache(key: string): boolean {
+  return peekApiCache(key) !== undefined
+}
+
+export function setApiCache(key: string, data: unknown, ttlMs = resolveCacheTtlMs('')): void {
   cache.set(key, { data, expiresAt: Date.now() + ttlMs })
 }
 
@@ -54,5 +87,11 @@ export function invalidateApiCacheForMutation(path: string): void {
   }
   if (segments[0] === 'me') {
     invalidateApiCache('/me')
+  }
+  if (segments[0] === 'notificacoes') {
+    invalidateApiCache('/notificacoes')
+  }
+  if (segments[0] === 'auditoria') {
+    invalidateApiCache('/auditoria')
   }
 }

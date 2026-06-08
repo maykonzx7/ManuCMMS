@@ -22,6 +22,15 @@ function buildUsuarioLocal() {
   };
 }
 
+function buildCacheMock() {
+  return {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+    del: jest.fn().mockResolvedValue(undefined),
+    delByPrefix: jest.fn().mockResolvedValue(undefined),
+  } as any;
+}
+
 describe('EnsureUsuarioLocalUseCase', () => {
   it('nao faz auto-vinculo por email quando ALLOW_AUTH_SUB_LINK_BY_EMAIL nao esta ativo', async () => {
     const config = {
@@ -46,6 +55,7 @@ describe('EnsureUsuarioLocalUseCase', () => {
       usuarios,
       resolvePlatformOperatorAccess,
       authorizePlatformOperator,
+      buildCacheMock(),
     );
 
     await expect(
@@ -90,6 +100,7 @@ describe('EnsureUsuarioLocalUseCase', () => {
       usuarios,
       resolvePlatformOperatorAccess,
       authorizePlatformOperator,
+      buildCacheMock(),
     );
     const result = await useCase.execute({
       userId: 'novo-sub',
@@ -135,6 +146,7 @@ describe('EnsureUsuarioLocalUseCase', () => {
       usuarios,
       resolvePlatformOperatorAccess,
       authorizePlatformOperator,
+      buildCacheMock(),
     );
 
     await expect(
@@ -173,6 +185,7 @@ describe('EnsureUsuarioLocalUseCase', () => {
       usuarios,
       resolvePlatformOperatorAccess,
       authorizePlatformOperator,
+      buildCacheMock(),
     );
 
     await expect(

@@ -38,7 +38,7 @@ import { Separator } from '@/components/ui/separator'
 import { useCurrentCompany } from '@/lib/auth'
 import { useAuth } from '@/lib/auth'
 import { useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { formatCep, lookupCep, normalizeCep } from '@/lib/cep'
 import { usePermissions } from '@/hooks/use-permissions'
 
@@ -80,7 +80,12 @@ export default function SettingsPage() {
       setIsPageLoading(false)
       return
     }
-    setIsPageLoading(true)
+    const painelPath = `/empresas/${company.id}/gestao/painel`
+    const unidadePath = currentUnit?.id ? `/unidades/${currentUnit.id}` : null
+    const cacheWarm =
+      isApiCacheWarm(painelPath, accessToken)
+      && (!unidadePath || isApiCacheWarm(unidadePath, accessToken))
+    if (!cacheWarm) setIsPageLoading(true)
     void Promise.allSettled([
       apiRequest<{ empresa: {
         nomeEmpresa: string; slug: string; status: 'ATIVA' | 'INATIVA' | 'SUSPENSA';

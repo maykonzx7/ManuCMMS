@@ -175,8 +175,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isPlatformOperator, setIsPlatformOperator] = useState(false)
   const [isWorkspaceImpersonation, setIsWorkspaceImpersonation] = useState(false)
   const syncedAuthContextRef = useRef<{ token: string; companySlug: string | null } | null>(null)
+  const sessionDataRef = useRef<SessionData | null>(null)
   const hydratingRef = useRef<Promise<void> | null>(null)
   const explicitAuthRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    sessionDataRef.current = sessionData
+  }, [sessionData])
 
   const resetAuthState = useCallback(() => {
     syncedAuthContextRef.current = null
@@ -234,7 +239,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const bootstrap = await apiRequest<BootstrapResponse>('/me/bootstrap', {
       accessToken: token,
       headers,
-      useCache: false,
+      useCache: intent === 'refresh' || options?.useCache === true,
     })
     const workspaceImpersonation =
       bootstrap.isWorkspaceImpersonation === true ||
@@ -327,7 +332,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         const initialCompanySlug = resolvePreferredCompanySlug()
         await runHydration(data.session ?? null, initialCompanySlug ?? undefined, {
-          useCache: false,
+          intent: 'refresh',
         })
       })
       .catch((error) => {
@@ -346,18 +351,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return
       }
 
+      if (event === 'TOKEN_REFRESHED' && nextToken && sessionDataRef.current) {
+        setAccessToken(nextToken)
+        setApiAccessTokenScope(nextToken)
+        syncedAuthContextRef.current = {
+          token: nextToken,
+          companySlug: syncedAuthContextRef.current?.companySlug
+            ?? sessionDataRef.current.empresa.slug
+            ?? null,
+        }
+        const companySlug = syncedAuthContextRef.current.companySlug
+        const headers = companySlug ? { 'x-company-slug': companySlug } : undefined
+        void apiRequest('/auth/session', {
+          method: 'POST',
+          body: { accessToken: nextToken, intent: 'refresh' },
+          headers,
+        }).catch(() => undefined)
+        return
+      }
+
       void runHydration(
         nextSession,
-        getApiCompanySlug() ?? sessionData?.empresa.slug ?? undefined,
-        { intent: event === 'SIGNED_IN' ? 'login' : 'refresh', useCache: false },
+        getApiCompanySlug() ?? sessionDataRef.current?.empresa.slug ?? undefined,
+        { intent: event === 'SIGNED_IN' ? 'login' : 'refresh' },
       ).catch((error) => {
         console.warn('[auth] falha ao hidratar sessao apos evento', error)
-        resetAuthState()
+        if (event === 'SIGNED_OUT') {
+          resetAuthState()
+        }
       })
     })
 
     return () => subscription.unsubscribe()
-  }, [resetAuthState, runHydration, sessionData?.empresa.slug])
+  }, [resetAuthState, runHydration])
 
   const signInWithPassword = useCallback(async (
     email: string,

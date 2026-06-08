@@ -24,9 +24,9 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { resolveMediaUrl } from '@/lib/media-url'
-import { useRealtimeConnection } from '@/hooks/use-realtime'
+import { useRealtimeSubscription } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
 
@@ -62,7 +62,9 @@ export default function NotificacoesPage() {
 
   useEffect(() => {
     if (!accessToken || !unit?.id) return
-    setIsPageLoading(true)
+    if (!isApiCacheWarm('/notificacoes', accessToken)) {
+      setIsPageLoading(true)
+    }
     void apiRequest<Array<{
       id: string
       tipo: 'info' | 'warning' | 'error' | 'success'
@@ -91,7 +93,7 @@ export default function NotificacoesPage() {
       .finally(() => setIsPageLoading(false))
   }, [accessToken, unit?.id])
 
-  useRealtimeConnection(accessToken, company?.slug, {
+  useRealtimeSubscription('notificacoes-page', {
     onNotificacaoNova: (payload) => {
       setNotifications((prev) => [
         {

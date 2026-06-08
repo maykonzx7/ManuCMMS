@@ -38,9 +38,11 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { usePermissions } from '@/hooks/use-permissions'
-import { useAuth } from '@/lib/auth'
+import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
 import { SIDEBAR_NAVIGATION } from '@/lib/constants'
 import { ROUTES } from '@/lib/routes'
+import { prefetchApiPath } from '@/lib/api'
+import { resolveSidebarPrefetchPath } from '@/lib/sidebar-prefetch'
 import { UnitSwitcher } from './unit-switcher'
 import { UserNav } from './user-nav'
 
@@ -68,7 +70,9 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 export function AppSidebar() {
   const pathname = usePathname()
   const { hasPermission } = usePermissions()
-  const { isPlatformOperator, isWorkspaceImpersonation } = useAuth()
+  const { accessToken, isPlatformOperator, isWorkspaceImpersonation } = useAuth()
+  const currentUnit = useCurrentUnit()
+  const company = useCurrentCompany()
   const isOnPlatformConsole =
     pathname === '/platform' ||
     pathname.startsWith('/platform/') ||
@@ -76,6 +80,15 @@ export function AppSidebar() {
     pathname.startsWith(`${ROUTES.platform}/`)
   const canShowPlatformNav =
     isPlatformOperator && isOnPlatformConsole && !isWorkspaceImpersonation
+
+  const prefetchNavItem = (screen: string) => {
+    if (!accessToken) return
+    const path = resolveSidebarPrefetchPath(
+      screen,
+      { unitId: currentUnit?.id, companyId: company?.id },
+    )
+    if (path) prefetchApiPath(path, accessToken)
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -134,7 +147,11 @@ export function AppSidebar() {
                           isActive={isActive}
                           tooltip={item.title}
                         >
-                          <Link href={item.url}>
+                          <Link
+                            href={item.url}
+                            onMouseEnter={() => prefetchNavItem(item.screen)}
+                            onFocus={() => prefetchNavItem(item.screen)}
+                          >
                             <Icon className="size-4" />
                             <span>{item.title}</span>
                           </Link>

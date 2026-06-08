@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
 
@@ -65,7 +65,9 @@ export default function IntegracoesPage() {
 
   const load = async () => {
     if (!accessToken) return
-    setIsLoading(true)
+    if (!isApiCacheWarm('/integracoes/status', accessToken)) {
+      setIsLoading(true)
+    }
     setError(null)
     try {
       const response = await apiRequest<IntegracoesStatusResponse>('/integracoes/status', { accessToken })

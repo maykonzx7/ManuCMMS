@@ -23,7 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
 
@@ -60,9 +60,10 @@ export default function PecasPage() {
 
   const loadPecas = async () => {
     if (!accessToken || !unit?.id) return
-    setLoading(true)
+    const path = `/unidades/${unit.id}/pecas`
+    if (!isApiCacheWarm(path, accessToken)) setLoading(true)
     try {
-      const res = await apiRequest<ApiPeca[]>(`/unidades/${unit.id}/pecas`, { accessToken })
+      const res = await apiRequest<ApiPeca[]>(path, { accessToken })
       setPecas(res)
     } catch (e) {
       setPecas([])

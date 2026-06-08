@@ -11,6 +11,7 @@ import {
   type IUsuarioReadPort,
   type PerfilUsuarioCodigo,
 } from '../../domain/ports/usuario-read.port';
+import { AppCacheService } from '../../infrastructure/cache/app-cache.service';
 import type { AuthUserContext } from '../../presentation/auth/auth-user.types';
 import { AuthorizePlatformOperatorUseCase } from './authorize-platform-operator.use-case';
 import { ResolvePlatformOperatorAccessUseCase } from './resolve-platform-operator-access.use-case';
@@ -21,12 +22,15 @@ import { ResolvePlatformOperatorAccessUseCase } from './resolve-platform-operato
  */
 @Injectable()
 export class EnsureUsuarioLocalUseCase {
+  private static readonly CACHE_TTL_SECONDS = 60;
+
   constructor(
     private readonly config: ConfigService,
     @Inject(USUARIO_READ_PORT)
     private readonly usuarios: IUsuarioReadPort,
     private readonly resolvePlatformOperatorAccess: ResolvePlatformOperatorAccessUseCase,
     private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
+    private readonly cache: AppCacheService,
   ) {}
 
   async execute(
@@ -34,6 +38,46 @@ export class EnsureUsuarioLocalUseCase {
     options?: { preferredEmpresaSlug?: string | null },
   ): Promise<UsuarioLocalContext> {
     const preferredEmpresaSlug = options?.preferredEmpresaSlug ?? null;
+    const cacheKey = this.buildCacheKey(authUser.userId, preferredEmpresaSlug);
+
+    const cached = await this.cache.get<UsuarioLocalContext>(cacheKey);
+    if (cached) {
+      this.assertPreferredEmpresaScope(cached, preferredEmpresaSlug);
+      this.assertAccessIsActive(cached, authUser);
+      return cached;
+    }
+
+    const resolved = await this.resolveUsuarioLocal(authUser, preferredEmpresaSlug);
+    await this.cache.set(
+      cacheKey,
+      resolved,
+      EnsureUsuarioLocalUseCase.CACHE_TTL_SECONDS,
+    );
+    return resolved;
+  }
+
+  async invalidateUsuarioContext(
+    authSub: string,
+    preferredEmpresaSlug?: string | null,
+  ): Promise<void> {
+    await this.cache.del(this.buildCacheKey(authSub, preferredEmpresaSlug ?? null));
+    if (preferredEmpresaSlug) {
+      await this.cache.del(this.buildCacheKey(authSub, null));
+    }
+  }
+
+  private buildCacheKey(
+    authSub: string,
+    preferredEmpresaSlug: string | null,
+  ): string {
+    const slug = preferredEmpresaSlug?.trim().toLowerCase() ?? '';
+    return `usuario-ctx:${authSub}:${slug}`;
+  }
+
+  private async resolveUsuarioLocal(
+    authUser: AuthUserContext,
+    preferredEmpresaSlug: string | null,
+  ): Promise<UsuarioLocalContext> {
     const existentePorSub = await this.usuarios.findByAuthSub(
       authUser.userId,
       preferredEmpresaSlug,

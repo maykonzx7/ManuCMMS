@@ -18,7 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { apiRequest } from '@/lib/api'
 import { useAuth, useCurrentCompany, useCurrentUnit } from '@/lib/auth'
-import { useRealtimeConnection } from '@/hooks/use-realtime'
+import { useRealtimeSubscription } from '@/hooks/use-realtime'
 
 const routeLabels: Record<string, string> = {
   '/': 'Início',
@@ -137,7 +137,7 @@ export function AppHeader() {
     }
   }, [accessToken, isNotificationsPage])
 
-  useRealtimeConnection(accessToken, company?.slug, {
+  useRealtimeSubscription('app-header-notifications', {
     onNotificacaoNova: () => {
       setUnreadCount((prev) => prev + 1)
     },

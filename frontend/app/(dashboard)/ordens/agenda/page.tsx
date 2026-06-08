@@ -10,7 +10,7 @@ import { PageDataLoading } from '@/components/shared'
 import { OsKanbanBoard } from '@/components/ordens/os-kanban-board'
 import { OsAgendaCalendar } from '@/components/ordens/os-agenda-calendar'
 import { useAuth, useCurrentUnit, useCurrentUser } from '@/lib/auth'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { mapApiOrdemToServiceOrder, type ApiOrdem } from '@/lib/backend-mappers'
 import { usePermissions } from '@/hooks/use-permissions'
 import { ROUTES } from '@/lib/routes'
@@ -37,13 +37,16 @@ export default function OrdensAgendaPage() {
 
   useEffect(() => {
     if (!accessToken || !unit?.id) return
-    setIsLoading(true)
-    setLoadError(null)
     const query =
       isTecnico && user?.id
         ? `?${new URLSearchParams({ idTecnico: user.id }).toString()}`
         : ''
-    void apiRequest<ApiOrdem[]>(`/unidades/${unit.id}/ordens-servico${query}`, { accessToken })
+    const path = `/unidades/${unit.id}/ordens-servico${query}`
+    if (!isApiCacheWarm(path, accessToken)) {
+      setIsLoading(true)
+    }
+    setLoadError(null)
+    void apiRequest<ApiOrdem[]>(path, { accessToken })
       .then((res) => {
         setOrders(
           res.map((item) => ({
