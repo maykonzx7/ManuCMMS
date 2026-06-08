@@ -2,20 +2,30 @@
 
 import { useAuth } from '@/lib/auth'
 import type { UserRole } from '@/types'
-import { hasPermission, filterNavigationByRole } from '@/lib/permissions'
+import { hasPermission as hasRolePermission } from '@/lib/permissions'
 
 /**
  * Hook para verificar permissões do usuário atual
  */
 export function usePermissions() {
-  const { session } = useAuth()
+  const { session, isPlatformOperator, isWorkspaceImpersonation } = useAuth()
   const role = session?.user?.perfil ?? 'TECNICO'
+
+  const hasPermission = (screen: string) => {
+    if (screen === 'platform') {
+      return isPlatformOperator && !isWorkspaceImpersonation
+    }
+    if (screen === 'integracoes' || screen === 'iot') {
+      return isPlatformOperator
+    }
+    return hasRolePermission(role, screen)
+  }
 
   return {
     role,
-    hasPermission: (screen: string) => hasPermission(role, screen),
+    hasPermission,
     filterNavigation: <T extends { screen: string }>(items: T[]) =>
-      filterNavigationByRole(items, role),
+      items.filter((item) => hasPermission(item.screen)),
     canCreateOrder: ['SUPERVISOR', 'GESTOR', 'ADMIN'].includes(role),
     canEditOrder: ['SUPERVISOR', 'GESTOR', 'ADMIN'].includes(role),
     canManageOrderStatus: ['TECNICO', 'SUPERVISOR', 'GESTOR', 'ADMIN'].includes(role),
@@ -24,6 +34,8 @@ export function usePermissions() {
     canViewAnalytics: ['GESTOR', 'AUDITOR', 'ADMIN'].includes(role),
     canViewExecutiveDashboard: ['GESTOR', 'ADMIN'].includes(role),
     isAdmin: role === 'ADMIN',
+    isPlatformOperator,
+    canAccessIntegrations: isPlatformOperator,
     canExportReports: ['GESTOR', 'AUDITOR', 'ADMIN'].includes(role),
   }
 }
@@ -32,7 +44,6 @@ export function usePermissions() {
  * Hook para verificar se o usuário pode acessar uma tela específica
  */
 export function useCanAccess(screen: string): boolean {
-  const { session } = useAuth()
-  if (!session?.user) return false
-  return hasPermission(session.user.perfil, screen)
+  const { hasPermission } = usePermissions()
+  return hasPermission(screen)
 }

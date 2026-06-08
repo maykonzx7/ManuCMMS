@@ -126,8 +126,6 @@ export const SCREEN_PERMISSIONS: ScreenPermissions = {
   auditoria: ['GESTOR', 'AUDITOR', 'ADMIN'],
   notificacoes: ['SUPERVISOR', 'GESTOR', 'ADMIN'],
   relatorios: ['GESTOR', 'AUDITOR', 'ADMIN'],
-  integracoes: ['GESTOR', 'ADMIN'],
-  iot: ['ADMIN'],
   admin: ['ADMIN'],
   metricas: ['ADMIN'],
   permissoes: ['GESTOR', 'ADMIN'],

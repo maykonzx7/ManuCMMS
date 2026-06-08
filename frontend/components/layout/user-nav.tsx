@@ -7,6 +7,7 @@ import {
   Settings,
   User,
   Shield,
+  Globe,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -31,7 +32,7 @@ import { ROUTES } from '@/lib/routes'
 export function UserNav() {
   const router = useRouter()
   const { isMobile } = useSidebar()
-  const { logout } = useAuth()
+  const { logout, isPlatformOperator, isWorkspaceImpersonation } = useAuth()
   const user = useCurrentUser()
 
   if (!user) return null
@@ -92,6 +93,12 @@ export function UserNav() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              {isPlatformOperator && !isWorkspaceImpersonation ? (
+                <DropdownMenuItem onClick={() => router.push(ROUTES.platform)}>
+                  <Globe className="mr-2 h-4 w-4" />
+                  Gerir clientes
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onClick={() => router.push(ROUTES.perfil)}>
                 <User className="mr-2 h-4 w-4" />
                 Meu Perfil

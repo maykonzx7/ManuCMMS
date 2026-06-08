@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Cpu, RefreshCw, CheckCircle2, AlertTriangle, WifiOff } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { ROUTES } from '@/lib/routes'
 import { PageDataLoading } from '@/components/shared'
 
 type ApiAtivo = {
@@ -26,7 +28,8 @@ type IntegracoesStatusResponse = {
 }
 
 export default function IotPage() {
-  const { accessToken } = useAuth()
+  const router = useRouter()
+  const { accessToken, isPlatformOperator } = useAuth()
   const unit = useCurrentUnit()
   const [ativos, setAtivos] = useState<ApiAtivo[]>([])
   const [iotOk, setIotOk] = useState<boolean | null>(null)
@@ -57,8 +60,17 @@ export default function IotPage() {
   }
 
   useEffect(() => {
+    if (!accessToken) return
+    if (!isPlatformOperator) {
+      router.replace(ROUTES.home)
+      return
+    }
     void load()
-  }, [accessToken, unit?.id])
+  }, [accessToken, isPlatformOperator, router, unit?.id])
+
+  if (!isPlatformOperator) {
+    return null
+  }
 
   const ativosEmManutencao = useMemo(
     () => ativos.filter((item) => (item.status ?? '').toUpperCase() === 'MANUTENCAO').length,

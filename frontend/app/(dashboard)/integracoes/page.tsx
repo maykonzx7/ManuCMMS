@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plug, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Link as LinkIcon, KeyRound, Webhook, Copy } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth, useCurrentCompany } from '@/lib/auth'
+import { ROUTES } from '@/lib/routes'
 import { apiRequest, isApiCacheWarm } from '@/lib/api'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
@@ -53,7 +55,8 @@ const labels: Record<keyof IntegracoesStatusResponse['integrations'], string> = 
 }
 
 export default function IntegracoesPage() {
-  const { accessToken } = useAuth()
+  const router = useRouter()
+  const { accessToken, isPlatformOperator } = useAuth()
   const company = useCurrentCompany()
   const [data, setData] = useState<IntegracoesStatusResponse | null>(null)
   const [integracao, setIntegracao] = useState<IntegracaoEmpresaResponse | null>(null)
@@ -97,9 +100,17 @@ export default function IntegracoesPage() {
   }
 
   useEffect(() => {
+    if (!accessToken) return
+    if (!isPlatformOperator) {
+      router.replace(ROUTES.home)
+    }
+  }, [accessToken, isPlatformOperator, router])
+
+  useEffect(() => {
+    if (!accessToken || !isPlatformOperator) return
     void load()
     void loadIntegracao()
-  }, [accessToken, company?.id])
+  }, [accessToken, company?.id, isPlatformOperator])
 
   const items = useMemo(() => {
     if (!data) return []
@@ -181,6 +192,10 @@ export default function IntegracoesPage() {
     revealedApiKey ??
     integracao?.apiKeyIntegracao ??
     'Gere uma chave para habilitar a API'
+
+  if (!isPlatformOperator) {
+    return null
+  }
 
   if (isLoading && !data) {
     return <PageDataLoading variant="cards" message="Carregando integrações..." />

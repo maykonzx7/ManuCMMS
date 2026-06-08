@@ -1,7 +1,8 @@
 import { Controller, Get, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
-import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
+import type { AuthUserContext } from '../auth/auth-user.types';
 import { EmailDeliveryService } from '../../infrastructure/email/email-delivery.service';
 import { MongoHealthIndicator } from '../../infrastructure/health/mongo-health.indicator';
 import { RabbitmqHealthIndicator } from '../../infrastructure/health/rabbitmq-health.indicator';
@@ -12,10 +13,12 @@ type IntegrationStatus = {
   message: string;
 };
 
+type RequestWithUser = Request & { user: AuthUserContext };
+
 @Controller('integracoes')
 export class IntegracoesController {
   constructor(
-    private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+    private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
     private readonly rabbitmqHealth: RabbitmqHealthIndicator,
     private readonly mongoHealth: MongoHealthIndicator,
     private readonly redisHealth: RedisHealthIndicator,
@@ -24,8 +27,8 @@ export class IntegracoesController {
   ) {}
 
   @Get('status')
-  async status(@Req() req: Request) {
-    this.authorizePermission.execute(req.usuarioLocal, 'unidade.visualizar');
+  async status(@Req() req: RequestWithUser) {
+    this.authorizePlatformOperator.execute(req.user);
 
     const [rabbitmq, mongodb, redis, smtp, iot] = await Promise.all([
       this.checkRabbitMq(),

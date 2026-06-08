@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, StatusEmpresa } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
+import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import { RemoveUsuarioAcessoUseCase } from '../../application/iam/remove-usuario-acesso.use-case';
 import { UpdateUsuarioEmpresaStatusUseCase } from '../../application/iam/update-usuario-empresa-status.use-case';
 import {
@@ -26,6 +27,7 @@ import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import { PrismaService } from '../../infrastructure/persistence/prisma.service';
 import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
 import { maskApiKeyIntegracao } from './response-mappers';
+import type { AuthUserContext } from '../auth/auth-user.types';
 
 const PERFIS = ['TECNICO', 'SUPERVISOR', 'GESTOR', 'AUDITOR', 'ADMIN'] as const;
 
@@ -38,6 +40,7 @@ export class GestaoEmpresaController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
+    private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
     private readonly removeUsuarioAcesso: RemoveUsuarioAcessoUseCase,
     private readonly updateUsuarioEmpresaStatus: UpdateUsuarioEmpresaStatusUseCase,
     private readonly integracaoWebhook: IntegracaoWebhookService,
@@ -1076,7 +1079,7 @@ export class GestaoEmpresaController {
     @Param('empresaId') empresaId: string,
     @Req() req: Request,
   ) {
-    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.authorizeIntegracaoMaster(req);
     this.ensureEmpresaScope(req, empresaId);
     const resumo = await this.integracaoWebhook.getResumo(empresaId);
     return {
@@ -1091,7 +1094,7 @@ export class GestaoEmpresaController {
     @Req() req: Request,
     @Body() body: { webhookUrl?: string | null },
   ) {
-    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.authorizeIntegracaoMaster(req);
     this.ensureEmpresaScope(req, empresaId);
 
     const webhookUrl =
@@ -1117,7 +1120,7 @@ export class GestaoEmpresaController {
     @Param('empresaId') empresaId: string,
     @Req() req: Request,
   ) {
-    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.authorizeIntegracaoMaster(req);
     this.ensureEmpresaScope(req, empresaId);
     const apiKeyIntegracao =
       await this.integracaoWebhook.regenerateApiKey(empresaId);
@@ -1130,9 +1133,17 @@ export class GestaoEmpresaController {
     @Param('empresaId') empresaId: string,
     @Req() req: Request,
   ) {
-    this.authorizePermission.execute(req.usuarioLocal, 'empresa.gerenciar');
+    this.authorizeIntegracaoMaster(req);
     this.ensureEmpresaScope(req, empresaId);
     return this.integracaoWebhook.testWebhook(empresaId);
+  }
+
+  private authorizeIntegracaoMaster(req: Request): void {
+    const user = (req as Request & { user?: AuthUserContext }).user;
+    if (!user) {
+      throw new BadRequestException('Usuario de autenticacao nao encontrado.');
+    }
+    this.authorizePlatformOperator.execute(user);
   }
 
   private async enviarEmailTransacional(

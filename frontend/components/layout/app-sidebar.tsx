@@ -78,8 +78,7 @@ export function AppSidebar() {
     pathname.startsWith('/platform/') ||
     pathname === ROUTES.platform ||
     pathname.startsWith(`${ROUTES.platform}/`)
-  const canShowPlatformNav =
-    isPlatformOperator && isOnPlatformConsole && !isWorkspaceImpersonation
+  const canShowPlatformNav = isPlatformOperator && !isWorkspaceImpersonation
 
   const prefetchNavItem = (screen: string) => {
     if (!accessToken) return
@@ -122,12 +121,25 @@ export function AppSidebar() {
       <SidebarContent>
         {SIDEBAR_NAVIGATION.map((group) => {
           if (group.title === 'Plataforma' && !canShowPlatformNav) return null
-          const visibleItems = group.items.filter((item) => {
+
+          let visibleItems = group.items.filter((item) => {
             if (item.screen === 'platform') return canShowPlatformNav
             if (item.screen === 'admin' && isWorkspaceImpersonation) return false
             return hasPermission(item.screen)
           })
-          
+
+          if (isOnPlatformConsole && isPlatformOperator) {
+            if (group.title === 'Plataforma') {
+              // mantém só o painel plataforma
+            } else if (group.title === 'Sistema') {
+              visibleItems = visibleItems.filter(
+                (item) => item.screen === 'integracoes' || item.screen === 'iot',
+              )
+            } else {
+              return null
+            }
+          }
+
           if (visibleItems.length === 0) return null
           
           return (
