@@ -18,7 +18,7 @@ import type { Request } from 'express';
 import { mkdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { diskStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { CreateAtivoUseCase } from '../../application/ativos/create-ativo.use-case';
 import {
   CreateAtivoDocumentoUseCase,
@@ -223,13 +223,7 @@ export class AtivosController {
   @Patch(':ativoId/foto')
   @UseInterceptors(
     FileInterceptor('foto', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => cb(null, ativoFotoUploadDir),
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname) || '.jpg';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
     }),
   )
@@ -271,7 +265,14 @@ export class AtivosController {
     return this.updateAtivoFoto.execute(
       unidadeId,
       ativoId,
-      { fotoUrl: '', filename: file.filename },
+      {
+        fotoUrl: '',
+        file: {
+          buffer: file.buffer,
+          mimetype: file.mimetype,
+          originalname: file.originalname,
+        },
+      },
       req.usuarioLocal!.id,
     );
   }

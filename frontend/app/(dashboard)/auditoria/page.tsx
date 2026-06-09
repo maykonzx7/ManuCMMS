@@ -39,6 +39,8 @@ import {
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest, downloadApiFile } from '@/lib/api'
 import { PageDataLoading } from '@/components/shared'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   Pagination,
   PaginationContent,
@@ -121,6 +123,14 @@ function buildDescription(item: ApiAuditLog, action: string) {
   if (item.entidadeAfetada === 'Auditoria' && action === 'EXPORT') {
     return 'Exportação de logs de auditoria em CSV.'
   }
+  if (item.entidadeAfetada === 'Ativo') {
+    const acaoFoto = String(item.valorNovo?.acao ?? '')
+    if (acaoFoto === 'UPDATE_FOTO') {
+      return item.valorNovo?.fotoUrl
+        ? 'Foto do ativo atualizada.'
+        : 'Foto do ativo removida.'
+    }
+  }
   if (item.entidadeAfetada === 'OrdemServico') {
     const statusAfter = String(item.valorNovo?.status ?? '')
     const numero = item.idRegistro.slice(0, 8).toUpperCase()
@@ -186,6 +196,23 @@ const entityLabels: Record<string, string> = {
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
+
+function defaultDateFrom(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 30)
+  return d.toISOString().slice(0, 10)
+}
+
+function defaultDateTo(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function parseDateRange(from: string, to: string): { from: Date; to: Date } {
+  return {
+    from: new Date(`${from}T00:00:00.000`),
+    to: new Date(`${to}T23:59:59.999`),
+  }
+}
 
 function buildAuditQueryParams(input: {
   from: Date
@@ -255,42 +282,53 @@ export default function AuditoriaPage() {
   const [selectedLog, setSelectedLog] = useState<ApiAuditLog | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [summary, setSummary] = useState<ApiAuditSummary | null>(null)
+  const [todayTotal, setTodayTotal] = useState(0)
+  const [dateFrom, setDateFrom] = useState(defaultDateFrom)
+  const [dateTo, setDateTo] = useState(defaultDateTo)
+  const [filterByUnit, setFilterByUnit] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(true)
   const { accessToken } = useAuth()
   const unit = useCurrentUnit()
 
+  const dateRange = useMemo(
+    () => parseDateRange(dateFrom, dateTo),
+    [dateFrom, dateTo],
+  )
+
   const exportCsv = async () => {
     if (!accessToken) return
-    const to = new Date()
-    const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const query = new URLSearchParams({
-      from: from.toISOString(),
-      to: to.toISOString(),
-      limit: '2000',
+    const query = buildAuditQueryParams({
+      from: dateRange.from,
+      to: dateRange.to,
+      actionFilter,
+      entityFilter,
+      userFilter,
+      unidadeId: filterByUnit ? unit?.id : undefined,
     })
+    query.set('limit', '2000')
     await downloadApiFile(
       `/auditoria/export?${query.toString()}`,
-      `auditoria-${new Date().toISOString().slice(0, 10)}.csv`,
+      `auditoria-${dateFrom}_${dateTo}.csv`,
       { accessToken },
     )
   }
 
   useEffect(() => {
     setPage(1)
-  }, [unit?.id])
+  }, [unit?.id, dateFrom, dateTo, filterByUnit])
 
   useEffect(() => {
     if (!accessToken) return
     setIsPageLoading(true)
-    const to = new Date()
-    const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const today = defaultDateTo()
+    const todayRange = parseDateRange(today, today)
     const filterBase = {
-      from,
-      to,
+      from: dateRange.from,
+      to: dateRange.to,
       actionFilter,
       entityFilter,
       userFilter,
-      unidadeId: unit?.id,
+      unidadeId: filterByUnit ? unit?.id : undefined,
     }
     const listQuery = buildAuditQueryParams({
       ...filterBase,
@@ -298,6 +336,14 @@ export default function AuditoriaPage() {
       limit: pageSize,
     })
     const summaryQuery = buildAuditQueryParams(filterBase)
+    const todaySummaryQuery = buildAuditQueryParams({
+      from: todayRange.from,
+      to: todayRange.to,
+      actionFilter: 'all',
+      entityFilter: 'all',
+      userFilter: 'all',
+      unidadeId: filterByUnit ? unit?.id : undefined,
+    })
 
     void Promise.allSettled([
       apiRequest<ApiAuditResponse>(
@@ -308,12 +354,16 @@ export default function AuditoriaPage() {
         `/auditoria/resumo?${summaryQuery.toString()}`,
         { accessToken },
       ),
+      apiRequest<ApiAuditSummary>(
+        `/auditoria/resumo?${todaySummaryQuery.toString()}`,
+        { accessToken },
+      ),
       unit?.id
         ? apiRequest<ApiUsuario[]>(`/unidades/${unit.id}/usuarios`, { accessToken })
         : Promise.resolve([] as ApiUsuario[]),
     ])
       .then((results) => {
-        const [auditResult, summaryResult, usersResult] = results
+        const [auditResult, summaryResult, todaySummaryResult, usersResult] = results
         if (auditResult.status !== 'fulfilled') {
           throw auditResult.reason
         }
@@ -323,6 +373,8 @@ export default function AuditoriaPage() {
 
         const auditRes = auditResult.value
         const summaryRes = summaryResult.value
+        const todaySummaryRes =
+          todaySummaryResult.status === 'fulfilled' ? todaySummaryResult.value : null
         const usersRes = usersResult.status === 'fulfilled' ? usersResult.value : []
         const userMap = new Map<string, string>()
         const mappedUsers: Array<{ id: string; nome: string }> = []
@@ -336,6 +388,7 @@ export default function AuditoriaPage() {
         setUsersFilter(mappedUsers)
         setUsersMap(Object.fromEntries(mappedUsers.map((u) => [u.id, u.nome])))
         setSummary(summaryRes)
+        setTodayTotal(todaySummaryRes?.total ?? 0)
 
         setLogs(
           auditRes.logs.map((item) => {
@@ -370,12 +423,23 @@ export default function AuditoriaPage() {
         setLogs([])
         setUsersMap({})
         setSummary(null)
+        setTodayTotal(0)
         setTotalPages(1)
         setTotalLogs(0)
         setLoadError(error instanceof Error ? error.message : 'Falha ao carregar auditoria')
       })
       .finally(() => setIsPageLoading(false))
-  }, [accessToken, unit?.id, page, pageSize, actionFilter, entityFilter, userFilter])
+  }, [
+    accessToken,
+    unit?.id,
+    page,
+    pageSize,
+    actionFilter,
+    entityFilter,
+    userFilter,
+    dateRange,
+    filterByUnit,
+  ])
 
   const visiblePages = useMemo(() => getVisiblePages(page, totalPages), [page, totalPages])
   const rangeStart = totalLogs === 0 ? 0 : (page - 1) * pageSize + 1
@@ -399,12 +463,7 @@ export default function AuditoriaPage() {
     }
   }
 
-  // Stats
-  const todayLogs = logs.filter(
-    log => new Date(log.createdAt).toDateString() === new Date().toDateString()
-  ).length
-  
-  const uniqueUsers = new Set(logs.map(log => log.userId)).size
+  const uniqueUsers = summary?.usuarios?.length ?? new Set(logs.map((log) => log.userId)).size
   
   const actionCounts = useMemo(() => logs.reduce((acc, log) => {
     acc[log.action] = (acc[log.action] || 0) + 1
@@ -440,7 +499,7 @@ export default function AuditoriaPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{todayLogs}</div>
+            <div className="text-2xl font-bold">{todayTotal}</div>
             <p className="text-xs text-muted-foreground">registros</p>
           </CardContent>
         </Card>
@@ -490,7 +549,42 @@ export default function AuditoriaPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end">
+              <div className="flex flex-col gap-1.5 md:w-[180px]">
+                <Label htmlFor="audit-date-from">Data inicial</Label>
+                <Input
+                  id="audit-date-from"
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5 md:w-[180px]">
+                <Label htmlFor="audit-date-to">Data final</Label>
+                <Input
+                  id="audit-date-to"
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+              {unit?.id ? (
+                <div className="flex items-center gap-2 pb-2">
+                  <Checkbox
+                    id="audit-filter-unit"
+                    checked={filterByUnit}
+                    onCheckedChange={(checked) => setFilterByUnit(checked === true)}
+                  />
+                  <Label htmlFor="audit-filter-unit" className="text-sm font-normal">
+                    Somente unidade atual
+                  </Label>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-4 md:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -579,6 +673,7 @@ export default function AuditoriaPage() {
                 ))}
               </SelectContent>
             </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

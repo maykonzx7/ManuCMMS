@@ -43,6 +43,21 @@ export class SupabaseStorageService {
     return this.buildPublicUrl(objectPath);
   }
 
+  async uploadAtivoPhoto(input: {
+    empresaId: string;
+    ativoId: string;
+    buffer: Buffer;
+    contentType: string;
+    extension: string;
+  }): Promise<string> {
+    const ext = input.extension.startsWith('.')
+      ? input.extension
+      : `.${input.extension}`;
+    const objectPath = `ativos/${input.empresaId}/${input.ativoId}/${randomUUID()}${ext}`;
+    await this.uploadObject(objectPath, input.buffer, input.contentType);
+    return this.buildPublicUrl(objectPath);
+  }
+
   async deleteProfilePhotoIfStored(fotoUrl: string | null | undefined): Promise<void> {
     const objectPath = fotoUrl
       ? this.extractObjectPathFromPublicUrl(fotoUrl)

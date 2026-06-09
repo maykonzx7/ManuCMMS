@@ -196,6 +196,8 @@ export class AuditLogService
         { 'valor_novo.idUnidade': unidadeId },
         { 'valor_novo.idUnidadeCargo': unidadeId },
         { 'valor_novo.id_unidade': unidadeId },
+        { 'valor_anterior.idUnidade': unidadeId },
+        { 'valor_anterior.id_unidade': unidadeId },
       ];
     }
 
