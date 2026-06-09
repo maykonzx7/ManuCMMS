@@ -11,6 +11,8 @@ describe('UpdateOrdemServicoUseCase (RN-15)', () => {
   const ordens = {
     findByIdInUnidade: jest.fn(),
     updateDados: jest.fn(),
+    tecnicoTemOsEmExecucao: jest.fn().mockResolvedValue(false),
+    promoverProximaFilaTecnico: jest.fn().mockResolvedValue(null),
   };
   const unidades = { findById: jest.fn() };
   const usuarios = { findByIdInUnidade: jest.fn() };

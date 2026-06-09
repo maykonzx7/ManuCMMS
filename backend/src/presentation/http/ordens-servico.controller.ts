@@ -54,6 +54,8 @@ type CreateOrdemServicoBody = {
   descricao: string;
   prioridade?: string;
   idTecnico?: string | null;
+  dataPrazoVencimento?: string | null;
+  dataLimiteAtraso?: string | null;
 };
 
 type FecharOrdemServicoBody = {
@@ -75,6 +77,8 @@ type UpdateOrdemServicoBody = {
   descricao?: string;
   idTecnico?: string | null;
   motivoTransferencia?: string;
+  dataPrazoVencimento?: string | null;
+  dataLimiteAtraso?: string | null;
 };
 
 type CancelarOrdemServicoBody = {

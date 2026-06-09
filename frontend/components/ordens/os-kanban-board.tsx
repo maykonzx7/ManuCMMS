@@ -40,6 +40,12 @@ const KANBAN_COLUMNS: Array<{
     headerBg: 'bg-blue-500/10',
   },
   {
+    status: 'AGUARDANDO',
+    label: ORDER_STATUS_LABELS.AGUARDANDO,
+    accent: 'border-t-violet-500',
+    headerBg: 'bg-violet-500/10',
+  },
+  {
     status: 'EM_ANDAMENTO',
     label: ORDER_STATUS_LABELS.EM_ANDAMENTO,
     accent: 'border-t-amber-500',

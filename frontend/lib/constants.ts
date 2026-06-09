@@ -22,6 +22,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   ABERTA: 'Aberta',
+  AGUARDANDO: 'Aguardando',
   EM_ANDAMENTO: 'Em Andamento',
   CONCLUIDA: 'Concluída',
   CANCELADA: 'Cancelada',
@@ -29,6 +30,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   ABERTA: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  AGUARDANDO: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
   EM_ANDAMENTO: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   CONCLUIDA: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   CANCELADA: 'bg-red-500/20 text-red-400 border-red-500/30',

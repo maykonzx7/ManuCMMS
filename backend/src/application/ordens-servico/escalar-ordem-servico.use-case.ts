@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
+import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,
   type IOrdemServicoRepositoryPort,
@@ -17,12 +19,22 @@ import {
   USUARIO_READ_PORT,
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
+import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
+import { buildOrdemServicoEscaladaEmail } from '../shared/email/email-template.shared';
+import {
+  canDeliverEmail,
+  deliverTransactionalEmail,
+} from '../shared/email/deliver-email.shared';
+import {
+  resolveOsEmailContext,
+  resolveOsLink,
+} from '../shared/email/os-email-dispatch.shared';
 
 const MOTIVO_MAX = 2000;
 
@@ -38,6 +50,10 @@ export class EscalarOrdemServicoUseCase {
     private readonly notificacoes: NotificacaoService,
     @Inject(AUDIT_LOG_PORT)
     private readonly auditLog: IAuditLogPort,
+    @Inject(EMAIL_PORT)
+    private readonly emailPort: IEmailPort,
+    private readonly eventPublisher: EventPublisherService,
+    private readonly config: ConfigService,
   ) {}
 
   async execute(
@@ -90,6 +106,9 @@ export class EscalarOrdemServicoUseCase {
       `Escalonamento da OS ${osCurta} (${ordem.ativoNome}). ${nomeSolicitante} informou que não conseguiu concluir a intervenção.` +
       ` Motivo: ${motivo}.${sugestao}`;
 
+    const { frontendBaseUrl } = resolveOsEmailContext(this.config);
+    const osLink = resolveOsLink(this.config, ordem.id);
+
     for (const user of superiores) {
       await this.notificacoes.create({
         usuarioId: user.id,
@@ -101,6 +120,27 @@ export class EscalarOrdemServicoUseCase {
         mensagem,
         linkPath: `/workspace/ordens/${ordem.id}`,
       });
+
+      if (
+        user.email?.trim() &&
+        canDeliverEmail(this.emailPort, this.eventPublisher)
+      ) {
+        const { subject, text, html } = buildOrdemServicoEscaladaEmail({
+          frontendBaseUrl,
+          destinatarioNome: user.nome,
+          solicitanteNome: nomeSolicitante,
+          ordemId: ordem.id,
+          ativoNome: ordem.ativoNome,
+          unidadeNome: unidade.nome,
+          motivo,
+          osLink,
+        });
+        await deliverTransactionalEmail({
+          emailPort: this.emailPort,
+          eventPublisher: this.eventPublisher,
+          payload: { to: user.email, subject, text, html },
+        });
+      }
     }
 
     await this.notificacoes.create({

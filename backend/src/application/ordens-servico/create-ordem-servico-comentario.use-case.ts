@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 import type {
   OrdemServicoComentarioItem,
   OrdemServicoListaItem,
@@ -29,8 +30,12 @@ import {
   canDeliverEmail,
   deliverTransactionalEmail,
 } from '../shared/email/deliver-email.shared';
-import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
-import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
+import {
+  resolveOsEmailContext,
+  resolveOsLink,
+} from '../shared/email/os-email-dispatch.shared';
+
+const PERFIS_SUPERVISAO = new Set(['SUPERVISOR', 'GESTOR', 'ADMIN']);
 
 @Injectable()
 export class CreateOrdemServicoComentarioUseCase {
@@ -86,13 +91,12 @@ export class CreateOrdemServicoComentarioUseCase {
       texto: normalized,
     });
 
-    await this.notifyTecnicoComentario({
+    await this.notifyComentario({
       os,
       comentario,
       idUnidade,
       empresaId: unidade.empresaId,
       unidadeNome: unidade.nome,
-      empresaSlug: unidade.empresaSlug ?? null,
       autorId: idUsuario,
       texto: normalized,
     });
@@ -100,13 +104,43 @@ export class CreateOrdemServicoComentarioUseCase {
     return comentario;
   }
 
-  private async notifyTecnicoComentario(input: {
+  private async resolveDestinatarios(input: {
+    os: OrdemServicoListaItem;
+    idUnidade: string;
+    autorId: string;
+  }): Promise<UsuarioLocalContext[]> {
+    const usuarios = await this.usuarios.listByUnidade(input.idUnidade);
+    const map = new Map<string, UsuarioLocalContext>();
+
+    if (input.os.idTecnico && input.os.idTecnico !== input.autorId) {
+      const tecnico = usuarios.find((u) => u.id === input.os.idTecnico);
+      if (tecnico) map.set(tecnico.id, tecnico);
+    }
+
+    if (
+      input.os.idCriadoPorUsuario &&
+      input.os.idCriadoPorUsuario !== input.autorId
+    ) {
+      const criador = usuarios.find((u) => u.id === input.os.idCriadoPorUsuario);
+      if (criador) map.set(criador.id, criador);
+    }
+
+    for (const user of usuarios) {
+      if (user.id === input.autorId) continue;
+      if (PERFIS_SUPERVISAO.has(user.perfil)) {
+        map.set(user.id, user);
+      }
+    }
+
+    return [...map.values()];
+  }
+
+  private async notifyComentario(input: {
     os: OrdemServicoListaItem;
     comentario: OrdemServicoComentarioItem;
     idUnidade: string;
     empresaId: string;
     unidadeNome: string;
-    empresaSlug: string | null;
     autorId: string;
     texto: string;
   }): Promise<void> {
@@ -116,78 +150,62 @@ export class CreateOrdemServicoComentarioUseCase {
       idUnidade,
       empresaId,
       unidadeNome,
-      empresaSlug,
       autorId,
       texto,
     } = input;
-    if (!os.idTecnico || os.idTecnico === autorId) {
-      return;
-    }
+
+    const destinatarios = await this.resolveDestinatarios({
+      os,
+      idUnidade,
+      autorId,
+    });
+    if (destinatarios.length === 0) return;
 
     const osCurta = os.id.slice(0, 8).toUpperCase();
     const preview = texto.length > 120 ? `${texto.slice(0, 117)}...` : texto;
 
-    await this.notificacoes.create({
-      usuarioId: os.idTecnico,
-      empresaId,
-      idUnidade,
-      ordemServicoId: os.id,
-      tipo: 'info',
-      titulo: 'Novo comentario na OS',
-      mensagem: `${comentario.usuarioNome} comentou na OS ${osCurta} (${os.ativoNome}): "${preview}"`,
-      linkPath: `/workspace/ordens/${os.id}`,
-    });
+    for (const destinatario of destinatarios) {
+      await this.notificacoes.create({
+        usuarioId: destinatario.id,
+        empresaId,
+        idUnidade,
+        ordemServicoId: os.id,
+        tipo: 'info',
+        titulo: 'Novo comentario na OS',
+        mensagem: `${comentario.usuarioNome} comentou na OS ${osCurta} (${os.ativoNome}): "${preview}"`,
+        linkPath: `/workspace/ordens/${os.id}`,
+      });
 
-    const tecnico = await this.usuarios.findByIdInUnidade(
-      os.idTecnico,
-      idUnidade,
-    );
-    await this.sendTecnicoComentarioEmail({
-      tecnico,
-      os,
-      comentario,
-      unidadeNome,
-      idUnidade,
-      empresaSlug,
-      texto: preview,
-    });
+      await this.sendComentarioEmail({
+        destinatario,
+        os,
+        comentario,
+        unidadeNome,
+        texto: preview,
+      });
+    }
   }
 
-  private async sendTecnicoComentarioEmail(input: {
-    tecnico: Awaited<ReturnType<IUsuarioReadPort['findByIdInUnidade']>> | null;
+  private async sendComentarioEmail(input: {
+    destinatario: UsuarioLocalContext;
     os: OrdemServicoListaItem;
     comentario: OrdemServicoComentarioItem;
     unidadeNome: string;
-    idUnidade: string;
-    empresaSlug: string | null;
     texto: string;
   }): Promise<void> {
-    const { tecnico, os, comentario, unidadeNome, texto } = input;
-    if (!tecnico?.email || !canDeliverEmail(this.emailPort, this.eventPublisher)) {
+    const { destinatario, os, comentario, unidadeNome, texto } = input;
+    if (
+      !destinatario.email?.trim() ||
+      !canDeliverEmail(this.emailPort, this.eventPublisher)
+    ) {
       return;
     }
 
-    const osLink = resolveOrdemServicoEmailLink({
-      frontendNgrokBaseUrl: this.config.get<string>(
-        'FRONTEND_NGROK_PUBLIC_BASE_URL',
-      ),
-      frontendPublicBaseUrl: this.config.get<string>(
-        'FRONTEND_PUBLIC_BASE_URL',
-      ),
-      ordemId: os.id,
-    });
-
-    const frontendBaseUrl = resolveFrontendBaseUrl({
-      frontendNgrokBaseUrl: this.config.get<string>(
-        'FRONTEND_NGROK_PUBLIC_BASE_URL',
-      ),
-      frontendPublicBaseUrl: this.config.get<string>(
-        'FRONTEND_PUBLIC_BASE_URL',
-      ),
-    });
+    const { frontendBaseUrl } = resolveOsEmailContext(this.config);
+    const osLink = resolveOsLink(this.config, os.id);
     const { subject, text, html } = buildOrdemServicoComentarioEmail({
       frontendBaseUrl,
-      tecnicoNome: tecnico.nome,
+      destinatarioNome: destinatario.nome,
       autorNome: comentario.usuarioNome,
       ordemId: os.id,
       ativoNome: os.ativoNome,
@@ -199,7 +217,7 @@ export class CreateOrdemServicoComentarioUseCase {
     await deliverTransactionalEmail({
       emailPort: this.emailPort,
       eventPublisher: this.eventPublisher,
-      payload: { to: tecnico.email, subject, text, html },
+      payload: { to: destinatario.email, subject, text, html },
     });
   }
 }

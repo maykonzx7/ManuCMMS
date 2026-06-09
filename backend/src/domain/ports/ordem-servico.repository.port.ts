@@ -16,6 +16,9 @@ export type CreateOrdemServicoInput = {
   prioridade?: OrdemServicoListaItem['prioridade'];
   descricao: string;
   dataLimiteSla: Date | null;
+  dataPrazoVencimento?: Date | null;
+  dataLimiteAtraso?: Date | null;
+  statusInicial?: 'ABERTA' | 'AGUARDANDO';
   idTecnico?: string | null;
   criadoPorUsuarioId: string;
 };
@@ -73,9 +76,23 @@ export interface IOrdemServicoRepositoryPort {
     idUnidade: string;
     descricao?: string;
     idTecnico?: string | null;
+    status?: OrdemServicoListaItem['status'];
+    dataPrazoVencimento?: Date | null;
+    dataLimiteAtraso?: Date | null;
     transferidoPorUsuarioId?: string;
     motivoTransferencia?: string;
   }): Promise<OrdemServicoListaItem | null>;
+  tecnicoTemOsEmExecucao(
+    empresaId: string,
+    idUnidade: string,
+    idTecnico: string,
+    excluirOrdemId?: string,
+  ): Promise<boolean>;
+  promoverProximaFilaTecnico(
+    empresaId: string,
+    idUnidade: string,
+    idTecnico: string,
+  ): Promise<OrdemServicoListaItem | null>;
   findParaFechamento(
     idOrdemServico: string,
     empresaId: string,

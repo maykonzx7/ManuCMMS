@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -46,6 +47,29 @@ export class IniciarExecucaoOrdemServicoUseCase {
     );
     if (!ordem) {
       throw new NotFoundException('Ordem de serviço não encontrada');
+    }
+    if (ordem.status === 'AGUARDANDO') {
+      throw new BadRequestException(
+        'OS aguardando na fila do técnico — conclua a OS em execução ou aguarde liberação automática.',
+      );
+    }
+    if (ordem.status !== 'ABERTA') {
+      throw new BadRequestException(
+        'Somente OS ABERTA pode ser iniciada para execução.',
+      );
+    }
+    if (ordem.idTecnico) {
+      const ocupado = await this.ordens.tecnicoTemOsEmExecucao(
+        unidadeOk.empresaId,
+        idUnidade,
+        ordem.idTecnico,
+        idOrdemServico,
+      );
+      if (ocupado) {
+        throw new ConflictException(
+          'Técnico já possui outra OS em execução — finalize-a antes de iniciar uma nova.',
+        );
+      }
     }
     const fotoProblema = body?.fotoProblema?.trim() || null;
     const descricaoProblema = body?.descricaoProblema?.trim() || null;

@@ -62,6 +62,8 @@ export type ApiOrdem = {
   fotoSolucao?: string | null
   descricaoSolucao?: string | null
   dataLimiteSla?: string | null
+  dataPrazoVencimento?: string | null
+  dataLimiteAtraso?: string | null
   statusSla?: 'NO_PRAZO' | 'ATRASADA' | 'CONCLUIDA'
   assinaturaDigital?: string | null
   dataAbertura: string

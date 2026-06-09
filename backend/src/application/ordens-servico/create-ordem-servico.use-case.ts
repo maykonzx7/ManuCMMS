@@ -36,6 +36,8 @@ import {
 } from '../shared/email/deliver-email.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
+import { parseOptionalOrdemServicoDate } from '../shared/parse-ordem-servico-date.shared';
+import { resolveStatusAtribuicaoTecnico } from '../shared/ordem-servico-tecnico-fila.shared';
 
 const TIPOS_VALIDOS: OrdemServicoListaItem['tipo'][] = [
   'CORRETIVA',
@@ -83,6 +85,8 @@ export class CreateOrdemServicoUseCase {
       descricao: string;
       prioridade?: string;
       idTecnico?: string | null;
+      dataPrazoVencimento?: string | null;
+      dataLimiteAtraso?: string | null;
     },
     criadoPorUsuarioId: string,
   ): Promise<OrdemServicoListaItem> {
@@ -165,6 +169,34 @@ export class CreateOrdemServicoUseCase {
       }
     }
 
+    const dataPrazoVencimento = parseOptionalOrdemServicoDate(
+      body.dataPrazoVencimento,
+      'dataPrazoVencimento',
+    );
+    const dataLimiteAtraso = parseOptionalOrdemServicoDate(
+      body.dataLimiteAtraso,
+      'dataLimiteAtraso',
+    );
+    if (
+      dataPrazoVencimento &&
+      dataLimiteAtraso &&
+      dataLimiteAtraso.getTime() < dataPrazoVencimento.getTime()
+    ) {
+      throw new BadRequestException(
+        'dataLimiteAtraso não pode ser anterior a dataPrazoVencimento',
+      );
+    }
+
+    let statusInicial: CreateOrdemServicoInput['statusInicial'] = 'ABERTA';
+    if (idTecnico) {
+      statusInicial = await resolveStatusAtribuicaoTecnico(
+        this.ordens,
+        unidadeOk.empresaId,
+        idUnidade,
+        idTecnico,
+      );
+    }
+
     const payload: CreateOrdemServicoInput = {
       empresaId: unidadeOk.empresaId,
       idUnidade,
@@ -173,6 +205,9 @@ export class CreateOrdemServicoUseCase {
       prioridade,
       descricao,
       dataLimiteSla: this.resolveSlaDeadline(tipo, unidadeOk),
+      dataPrazoVencimento: dataPrazoVencimento ?? null,
+      dataLimiteAtraso: dataLimiteAtraso ?? null,
+      statusInicial,
       idTecnico,
       criadoPorUsuarioId,
     };

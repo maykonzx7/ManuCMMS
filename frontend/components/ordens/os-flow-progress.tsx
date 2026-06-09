@@ -28,6 +28,7 @@ function resolveSteps(props: OsFlowProgressProps): FlowStep[] {
   const isConcluida = props.status === 'CONCLUIDA'
   const isEmAndamento = props.status === 'EM_ANDAMENTO'
   const isAberta = props.status === 'ABERTA'
+  const isAguardando = props.status === 'AGUARDANDO'
 
   const step = (id: string, label: string, icon: FlowStep['icon'], state: StepState): FlowStep => ({
     id,
@@ -38,7 +39,12 @@ function resolveSteps(props: OsFlowProgressProps): FlowStep[] {
 
   if (!isCorretiva) {
     return [
-      step('iniciar', 'Iniciar', Play, isAberta ? 'current' : 'done'),
+      step(
+        'iniciar',
+        'Iniciar',
+        Play,
+        isAguardando ? 'pending' : isAberta ? 'current' : 'done',
+      ),
       step('execucao', 'Em execução', Circle, isEmAndamento ? 'current' : isConcluida ? 'done' : 'pending'),
       step('concluir', 'Concluir', ShieldCheck, isConcluida ? 'done' : isEmAndamento ? 'current' : 'pending'),
     ]

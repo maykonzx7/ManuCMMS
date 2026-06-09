@@ -29,6 +29,11 @@ import {
 } from '../shared/email/deliver-email.shared';
 import { resolveFrontendBaseUrl } from '../shared/frontend-link.shared';
 import { resolveOrdemServicoEmailLink } from '../shared/ordem-servico-link.shared';
+import { parseOptionalOrdemServicoDate } from '../shared/parse-ordem-servico-date.shared';
+import {
+  promoverFilaTecnicoAposLiberarSlot,
+  resolveStatusAtribuicaoTecnico,
+} from '../shared/ordem-servico-tecnico-fila.shared';
 
 const DESCRICAO_MAX = 32_000;
 
@@ -55,6 +60,8 @@ export class UpdateOrdemServicoUseCase {
       descricao?: string;
       idTecnico?: string | null;
       motivoTransferencia?: string;
+      dataPrazoVencimento?: string | null;
+      dataLimiteAtraso?: string | null;
     },
     executorUsuarioId: string,
     executorPerfil: string,
@@ -100,7 +107,30 @@ export class UpdateOrdemServicoUseCase {
       }
     }
 
-    if (descricao === undefined && idTecnico === undefined) {
+    const dataPrazoVencimento = parseOptionalOrdemServicoDate(
+      body.dataPrazoVencimento,
+      'dataPrazoVencimento',
+    );
+    const dataLimiteAtraso = parseOptionalOrdemServicoDate(
+      body.dataLimiteAtraso,
+      'dataLimiteAtraso',
+    );
+    if (
+      dataPrazoVencimento &&
+      dataLimiteAtraso &&
+      dataLimiteAtraso.getTime() < dataPrazoVencimento.getTime()
+    ) {
+      throw new BadRequestException(
+        'dataLimiteAtraso não pode ser anterior a dataPrazoVencimento',
+      );
+    }
+
+    if (
+      descricao === undefined &&
+      idTecnico === undefined &&
+      dataPrazoVencimento === undefined &&
+      dataLimiteAtraso === undefined
+    ) {
       throw new BadRequestException(
         'Informe ao menos um campo para atualização',
       );
@@ -136,15 +166,20 @@ export class UpdateOrdemServicoUseCase {
     } else if (atual.status === 'CANCELADA') {
       throw new BadRequestException('OS cancelada não pode ser alterada.');
     } else if (mudouTecnico) {
-      if (!['ABERTA', 'EM_EXECUCAO'].includes(atual.status)) {
+      if (!['ABERTA', 'AGUARDANDO', 'EM_EXECUCAO'].includes(atual.status)) {
         throw new BadRequestException(
-          'Transferência de OS permitida apenas para OS aberta ou em andamento.',
+          'Transferência de OS permitida apenas para OS aberta, aguardando ou em andamento.',
         );
       }
-    } else if (descricao !== undefined || idTecnico !== undefined) {
-      if (atual.status !== 'ABERTA') {
+    } else if (
+      descricao !== undefined ||
+      idTecnico !== undefined ||
+      dataPrazoVencimento !== undefined ||
+      dataLimiteAtraso !== undefined
+    ) {
+      if (!['ABERTA', 'AGUARDANDO'].includes(atual.status)) {
         throw new BadRequestException(
-          'Somente OS ABERTA pode ser editada antes de iniciar execução.',
+          'Somente OS aberta ou aguardando pode ser editada antes de iniciar execução.',
         );
       }
     }
@@ -158,12 +193,33 @@ export class UpdateOrdemServicoUseCase {
       );
     }
 
+    const tecnicoAnteriorId = atual.idTecnico ?? null;
+    let status: OrdemServicoListaItem['status'] | undefined;
+
+    if (mudouTecnico) {
+      if (idTecnico == null) {
+        status = 'ABERTA';
+      } else if (atual.status === 'EM_EXECUCAO') {
+        status = 'EM_EXECUCAO';
+      } else {
+        status = await resolveStatusAtribuicaoTecnico(
+          this.ordens,
+          unidade.empresaId,
+          idUnidade,
+          idTecnico,
+        );
+      }
+    }
+
     const atualizado = await this.ordens.updateDados({
       idOrdemServico,
       empresaId: unidade.empresaId,
       idUnidade,
       descricao,
       idTecnico,
+      status,
+      dataPrazoVencimento,
+      dataLimiteAtraso,
       transferidoPorUsuarioId: mudouTecnico ? executorUsuarioId : undefined,
       motivoTransferencia: mudouTecnico ? motivoTransferencia : undefined,
     });
@@ -196,6 +252,17 @@ export class UpdateOrdemServicoUseCase {
     }
 
     publishOrdemServicoStatus(this.notificacoes, idUnidade, atualizado);
+
+    if (mudouTecnico && tecnicoAnteriorId && atual.status === 'EM_EXECUCAO') {
+      await promoverFilaTecnicoAposLiberarSlot({
+        ordens: this.ordens,
+        notificacoes: this.notificacoes,
+        empresaId: unidade.empresaId,
+        idUnidade,
+        idTecnico: tecnicoAnteriorId,
+      });
+    }
+
     return atualizado;
   }
 

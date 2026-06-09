@@ -34,6 +34,8 @@ type OrdemServicoRow = {
   fotoSolucao: string | null;
   descricaoSolucao: string | null;
   dataLimiteSla: Date | null;
+  dataPrazoVencimento: Date | null;
+  dataLimiteAtraso: Date | null;
   statusSla: OrdemServicoListaItem['statusSla'];
   assinaturaDigital: string | null;
   observacaoCancelamento: string | null;
@@ -74,6 +76,8 @@ function osParaAuditoria(o: OrdemServicoListaItem): Record<string, unknown> {
     assinaturaDigital: o.assinaturaDigital,
     descricaoProblema: o.descricaoProblema,
     dataLimiteSla: o.dataLimiteSla?.toISOString() ?? null,
+    dataPrazoVencimento: o.dataPrazoVencimento?.toISOString() ?? null,
+    dataLimiteAtraso: o.dataLimiteAtraso?.toISOString() ?? null,
     statusSla: o.statusSla,
     dataAbertura: o.dataAbertura.toISOString(),
     dataFechamento: o.dataFechamento?.toISOString() ?? null,
@@ -155,6 +159,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
 
   async create(input: CreateOrdemServicoInput): Promise<OrdemServicoListaItem> {
     const id = randomUUID();
+    const statusInicial = input.statusInicial ?? 'ABERTA';
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`
@@ -169,6 +174,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           status,
           descricao,
           data_limite_sla,
+          data_prazo_vencimento,
+          data_limite_atraso,
           status_sla,
           data_abertura
         )
@@ -180,9 +187,11 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
           ${input.criadoPorUsuarioId}::uuid,
           ${input.tipo}::"TipoOrdemServico",
           ${input.prioridade ?? 'MEDIA'}::"PrioridadeOrdemServico",
-          'ABERTA',
+          ${statusInicial}::"StatusOrdemServico",
           ${input.descricao},
           ${input.dataLimiteSla},
+          ${input.dataPrazoVencimento ?? null},
+          ${input.dataLimiteAtraso ?? null},
           'NO_PRAZO',
           NOW()
         )
@@ -250,6 +259,17 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     }
     if (input.idTecnico !== undefined) {
       fields.push(Prisma.sql`id_tecnico = ${input.idTecnico}::uuid`);
+    }
+    if (input.status !== undefined) {
+      fields.push(Prisma.sql`status = ${input.status}::"StatusOrdemServico"`);
+    }
+    if (input.dataPrazoVencimento !== undefined) {
+      fields.push(
+        Prisma.sql`data_prazo_vencimento = ${input.dataPrazoVencimento}`,
+      );
+    }
+    if (input.dataLimiteAtraso !== undefined) {
+      fields.push(Prisma.sql`data_limite_atraso = ${input.dataLimiteAtraso}`);
     }
     if (fields.length === 0) {
       return before;
@@ -536,7 +556,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       input.idOrdemServico,
       input.empresaId,
       input.idUnidade,
-      ['ABERTA', 'EM_EXECUCAO'],
+      ['ABERTA', 'AGUARDANDO', 'EM_EXECUCAO'],
     );
     if (!atual) {
       throw new NotFoundException(
@@ -565,7 +585,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         WHERE empresa_id = ${input.empresaId}::uuid
           AND id_ativo = ${atual.idAtivo}::uuid
           AND id <> ${input.idOrdemServico}::uuid
-          AND status IN ('ABERTA', 'EM_EXECUCAO')
+          AND status IN ('ABERTA', 'AGUARDANDO', 'EM_EXECUCAO')
       `);
 
       if (Number(abertas[0]?.total ?? 0) === 0) {
@@ -607,10 +627,22 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       WHERE os.id_ativo = a.id
         AND os.empresa_id = ${empresaId}::uuid
         AND a.id_unidade = ${idUnidade}::uuid
-        AND os.status IN ('ABERTA', 'EM_EXECUCAO')
-        AND os.data_limite_sla IS NOT NULL
-        AND os.data_limite_sla < NOW()
+        AND os.status IN ('ABERTA', 'AGUARDANDO', 'EM_EXECUCAO')
         AND os.status_sla <> 'ATRASADA'
+        AND (
+          (os.data_limite_atraso IS NOT NULL AND os.data_limite_atraso < NOW())
+          OR (
+            os.data_limite_atraso IS NULL
+            AND os.data_prazo_vencimento IS NOT NULL
+            AND os.data_prazo_vencimento < NOW()
+          )
+          OR (
+            os.data_limite_atraso IS NULL
+            AND os.data_prazo_vencimento IS NULL
+            AND os.data_limite_sla IS NOT NULL
+            AND os.data_limite_sla < NOW()
+          )
+        )
     `);
 
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -621,7 +653,7 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         AND a.id_unidade = ${idUnidade}::uuid
         AND os.status_sla = 'ATRASADA'
         AND os.sla_atraso_notificado_em IS NULL
-        AND os.status IN ('ABERTA', 'EM_EXECUCAO')
+        AND os.status IN ('ABERTA', 'AGUARDANDO', 'EM_EXECUCAO')
     `);
 
     const itens: OrdemServicoListaItem[] = [];
@@ -700,6 +732,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
         os.foto_solucao AS "fotoSolucao",
         os.descricao_solucao AS "descricaoSolucao",
         os.data_limite_sla AS "dataLimiteSla",
+        os.data_prazo_vencimento AS "dataPrazoVencimento",
+        os.data_limite_atraso AS "dataLimiteAtraso",
         os.status_sla AS "statusSla",
         os.assinatura_digital AS "assinaturaDigital",
         os.observacao_cancelamento AS "observacaoCancelamento",
@@ -742,6 +776,8 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       fotoSolucao: r.fotoSolucao,
       descricaoSolucao: r.descricaoSolucao,
       dataLimiteSla: r.dataLimiteSla,
+      dataPrazoVencimento: r.dataPrazoVencimento,
+      dataLimiteAtraso: r.dataLimiteAtraso,
       statusSla: r.statusSla,
       assinaturaDigital: r.assinaturaDigital,
       observacaoCancelamento: r.observacaoCancelamento,
@@ -904,6 +940,83 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
       texto: row.texto,
       createdAt: row.createdAt,
     }));
+  }
+
+  async tecnicoTemOsEmExecucao(
+    empresaId: string,
+    idUnidade: string,
+    idTecnico: string,
+    excluirOrdemId?: string,
+  ): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<Array<{ total: bigint }>>(
+      Prisma.sql`
+        SELECT COUNT(*)::bigint AS total
+        FROM ordem_servico os
+        JOIN ativo a ON a.id = os.id_ativo
+        WHERE os.empresa_id = ${empresaId}::uuid
+          AND a.id_unidade = ${idUnidade}::uuid
+          AND os.id_tecnico = ${idTecnico}::uuid
+          AND os.status = 'EM_EXECUCAO'
+          ${
+            excluirOrdemId
+              ? Prisma.sql`AND os.id <> ${excluirOrdemId}::uuid`
+              : Prisma.empty
+          }
+      `,
+    );
+    return Number(rows[0]?.total ?? 0) > 0;
+  }
+
+  async promoverProximaFilaTecnico(
+    empresaId: string,
+    idUnidade: string,
+    idTecnico: string,
+  ): Promise<OrdemServicoListaItem | null> {
+    const ocupado = await this.tecnicoTemOsEmExecucao(
+      empresaId,
+      idUnidade,
+      idTecnico,
+    );
+    if (ocupado) {
+      return null;
+    }
+
+    const candidatas = await this.prisma.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`
+        SELECT os.id
+        FROM ordem_servico os
+        JOIN ativo a ON a.id = os.id_ativo
+        WHERE os.empresa_id = ${empresaId}::uuid
+          AND a.id_unidade = ${idUnidade}::uuid
+          AND os.id_tecnico = ${idTecnico}::uuid
+          AND os.status = 'AGUARDANDO'
+        ORDER BY
+          CASE os.prioridade
+            WHEN 'CRITICA' THEN 1
+            WHEN 'ALTA' THEN 2
+            WHEN 'MEDIA' THEN 3
+            WHEN 'BAIXA' THEN 4
+            ELSE 5
+          END,
+          os.data_abertura ASC
+        LIMIT 1
+      `,
+    );
+
+    const proximaId = candidatas[0]?.id;
+    if (!proximaId) {
+      return null;
+    }
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE ordem_servico
+      SET status = 'ABERTA'
+      WHERE id = ${proximaId}::uuid
+        AND empresa_id = ${empresaId}::uuid
+        AND status = 'AGUARDANDO'
+    `);
+
+    return this.findByIdInUnidade(proximaId, empresaId, idUnidade);
   }
 
   async createComentario(input: {

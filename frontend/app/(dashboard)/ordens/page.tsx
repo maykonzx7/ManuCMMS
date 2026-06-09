@@ -375,6 +375,7 @@ export default function OrdersPage() {
     () => ({
       total: orders.length,
       abertas: orders.filter((o) => o.status === 'ABERTA').length,
+      aguardando: orders.filter((o) => o.status === 'AGUARDANDO').length,
       emAndamento: orders.filter((o) => o.status === 'EM_ANDAMENTO').length,
       concluidas: orders.filter((o) => o.status === 'CONCLUIDA').length,
       atrasadas: orders.filter((o) => o.statusSla === 'ATRASADA').length,
@@ -461,7 +462,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -478,6 +479,15 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.abertas}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Aguardando</CardTitle>
+            <div className="h-2 w-2 rounded-full bg-violet-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.aguardando}</div>
           </CardContent>
         </Card>
         <Card>
@@ -694,7 +704,7 @@ export default function OrdersPage() {
                             </DropdownMenuItem>
                           ) : null}
                           {canEditOrder &&
-                          ['ABERTA', 'EM_ANDAMENTO'].includes(order.status) ? (
+                          ['ABERTA', 'AGUARDANDO', 'EM_ANDAMENTO'].includes(order.status) ? (
                             <DropdownMenuItem
                               onClick={() => openTransfer(order.id, order.responsavelId)}
                             >

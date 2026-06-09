@@ -59,8 +59,10 @@ export class MessagingConsumerService implements OnModuleInit, OnModuleDestroy {
       async (payload) => {
         const event = payload as EmailSendEvent;
         if (!this.emailDelivery.isConfigured()) {
-          this.logger.warn('Email não configurado; descartando mensagem.');
-          return;
+          this.logger.error(
+            `Email não configurado no worker; mensagem para ${event.to} não enviada. Defina BREVO_API_KEY no worker-events.`,
+          );
+          throw new Error('EMAIL_NOT_CONFIGURED');
         }
         await this.emailDelivery.send({
           to: event.to,
@@ -68,6 +70,7 @@ export class MessagingConsumerService implements OnModuleInit, OnModuleDestroy {
           text: event.text,
           html: event.html,
         });
+        this.logger.log(`Email enviado para ${event.to}`);
       },
     );
 

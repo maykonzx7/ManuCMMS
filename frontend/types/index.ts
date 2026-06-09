@@ -6,7 +6,7 @@
 export type UserRole = 'TECNICO' | 'SUPERVISOR' | 'GESTOR' | 'AUDITOR' | 'ADMIN'
 
 // Status de Ordem de Serviço
-export type OrderStatus = 'ABERTA' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'CANCELADA'
+export type OrderStatus = 'ABERTA' | 'AGUARDANDO' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'CANCELADA'
 
 // Tipo de manutenção
 export type MaintenanceType = 'CORRETIVA' | 'PREVENTIVA' | 'PREDITIVA'

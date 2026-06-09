@@ -39,7 +39,10 @@ export function OsAtivasPainel({
   className,
 }: OsAtivasPainelProps) {
   const ativas = orders.filter(
-    (order) => order.status === 'ABERTA' || order.status === 'EM_ANDAMENTO',
+    (order) =>
+      order.status === 'ABERTA' ||
+      order.status === 'AGUARDANDO' ||
+      order.status === 'EM_ANDAMENTO',
   )
 
   if (ativas.length === 0) return null

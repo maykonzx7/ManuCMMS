@@ -2,6 +2,7 @@ export type TipoOrdemServicoCodigo = 'CORRETIVA' | 'PREVENTIVA' | 'PREDITIVA';
 
 export type StatusOrdemServicoCodigo =
   | 'ABERTA'
+  | 'AGUARDANDO'
   | 'EM_EXECUCAO'
   | 'CONCLUIDA'
   | 'CANCELADA';
@@ -65,6 +66,8 @@ export type OrdemServicoListaItem = {
   fotoSolucao: string | null;
   descricaoSolucao: string | null;
   dataLimiteSla: Date | null;
+  dataPrazoVencimento: Date | null;
+  dataLimiteAtraso: Date | null;
   statusSla: StatusSlaOrdemServicoCodigo;
   assinaturaDigital: string | null;
   observacaoCancelamento: string | null;

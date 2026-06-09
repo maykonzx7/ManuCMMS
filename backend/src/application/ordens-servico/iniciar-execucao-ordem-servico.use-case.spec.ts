@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { IniciarExecucaoOrdemServicoUseCase } from './iniciar-execucao-ordem-servico.use-case';
 import {
   buildOrdemLista,
@@ -10,6 +10,7 @@ describe('IniciarExecucaoOrdemServicoUseCase (RN-13)', () => {
   const ordens = {
     findByIdInUnidade: jest.fn(),
     iniciarExecucao: jest.fn(),
+    tecnicoTemOsEmExecucao: jest.fn().mockResolvedValue(false),
   };
   const unidades = { findById: jest.fn() };
   const notificacoes = {
@@ -80,5 +81,40 @@ describe('IniciarExecucaoOrdemServicoUseCase (RN-13)', () => {
       'https://cdn/p.jpg',
       'Motor superaquecendo',
     );
+  });
+
+  it('bloqueia início quando técnico já tem OS em execução', async () => {
+    ordens.findByIdInUnidade.mockResolvedValue(
+      buildOrdemLista({
+        tipo: 'PREVENTIVA',
+        status: 'ABERTA',
+        idTecnico: 'tec-1',
+      }),
+    );
+    ordens.tecnicoTemOsEmExecucao.mockResolvedValue(true);
+
+    await expect(
+      useCase.execute(
+        UNIDADE_ID,
+        '11111111-1111-4111-8111-111111111111',
+        'user-1',
+        {},
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('bloqueia início de OS aguardando na fila', async () => {
+    ordens.findByIdInUnidade.mockResolvedValue(
+      buildOrdemLista({ status: 'AGUARDANDO' }),
+    );
+
+    await expect(
+      useCase.execute(
+        UNIDADE_ID,
+        '11111111-1111-4111-8111-111111111111',
+        'user-1',
+        {},
+      ),
+    ).rejects.toThrow(/aguardando na fila/);
   });
 });

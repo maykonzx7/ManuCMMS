@@ -64,6 +64,7 @@ enum TipoOrdemServico {
 /// DEM — ciclo de vida da OS (fechamento com evidências fotográficas: RN-02, RN-13).
 enum StatusOrdemServico {
   ABERTA
+  AGUARDANDO
   EM_EXECUCAO
   CONCLUIDA
   CANCELADA
@@ -233,6 +234,10 @@ model OrdemServico {
   fotoSolucao       String?            @map("foto_solucao") @db.VarChar(2048)
   descricaoSolucao  String?            @map("descricao_solucao") @db.VarChar(4000)
   dataLimiteSla     DateTime?          @map("data_limite_sla")
+  /// Prazo de vencimento opcional definido na abertura/edição da OS.
+  dataPrazoVencimento DateTime?        @map("data_prazo_vencimento")
+  /// Data opcional a partir da qual a OS é considerada em atraso (se não informada, usa prazo ou SLA).
+  dataLimiteAtraso  DateTime?          @map("data_limite_atraso")
   statusSla         StatusSlaOrdemServico @default(NO_PRAZO) @map("status_sla")
   slaAtrasoNotificadoEm DateTime?      @map("sla_atraso_notificado_em")
   observacaoCancelamento String?       @map("observacao_cancelamento") @db.VarChar(1000)

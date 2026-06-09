@@ -316,7 +316,10 @@ function TechnicianHome() {
     )
     const atrasadas = ordens.filter(
       (o) =>
-        (o.status === 'ABERTA' || o.status === 'EM_ANDAMENTO') && o.statusSla === 'ATRASADA',
+        (o.status === 'ABERTA' ||
+          o.status === 'AGUARDANDO' ||
+          o.status === 'EM_ANDAMENTO') &&
+        o.statusSla === 'ATRASADA',
     )
 
     const duracoes = concluidas
@@ -360,7 +363,12 @@ function TechnicianHome() {
   const proximasAcoes = useMemo(
     () =>
       ordens
-        .filter((o) => o.status === 'ABERTA' || o.status === 'EM_ANDAMENTO')
+        .filter(
+          (o) =>
+            o.status === 'ABERTA' ||
+            o.status === 'AGUARDANDO' ||
+            o.status === 'EM_ANDAMENTO',
+        )
         .sort((a, b) => {
           const aAtrasada = a.statusSla === 'ATRASADA' ? 0 : 1
           const bAtrasada = b.statusSla === 'ATRASADA' ? 0 : 1

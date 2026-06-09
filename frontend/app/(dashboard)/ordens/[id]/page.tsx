@@ -606,7 +606,7 @@ export default function OrderDetailPage() {
               Escalar
             </Button>
           )}
-          {canEditOrder && ['ABERTA', 'EM_ANDAMENTO'].includes(order.status) && (
+          {canEditOrder && ['ABERTA', 'AGUARDANDO', 'EM_ANDAMENTO'].includes(order.status) && (
             <Button
               variant="outline"
               onClick={() => {
@@ -959,7 +959,23 @@ export default function OrderDetailPage() {
                 </div>
               )}
               <div>
-                <p className="text-sm text-muted-foreground">Prazo SLA</p>
+                <p className="text-sm text-muted-foreground">Prazo de vencimento</p>
+                <p className="font-medium">
+                  {rawOrder?.dataPrazoVencimento
+                    ? new Date(rawOrder.dataPrazoVencimento).toLocaleString('pt-BR')
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Data de atraso</p>
+                <p className="font-medium">
+                  {rawOrder?.dataLimiteAtraso
+                    ? new Date(rawOrder.dataLimiteAtraso).toLocaleString('pt-BR')
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Prazo SLA (automático)</p>
                 <p className="font-medium">
                   {rawOrder?.dataLimiteSla
                     ? new Date(rawOrder.dataLimiteSla).toLocaleString('pt-BR')

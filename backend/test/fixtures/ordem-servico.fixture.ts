@@ -37,6 +37,8 @@ export function buildOrdemLista(
     fotoSolucao: null,
     descricaoSolucao: null,
     dataLimiteSla: null,
+    dataPrazoVencimento: null,
+    dataLimiteAtraso: null,
     statusSla: 'NO_PRAZO',
     assinaturaDigital: null,
     observacaoCancelamento: null,

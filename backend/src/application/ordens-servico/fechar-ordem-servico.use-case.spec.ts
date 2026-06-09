@@ -12,6 +12,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     findParaFechamento: jest.fn(),
     findByIdInUnidade: jest.fn(),
     fecharComEvidencias: jest.fn(),
+    promoverProximaFilaTecnico: jest.fn().mockResolvedValue(null),
   };
   const unidades = { findById: jest.fn() };
   const usuarios = { listByUnidade: jest.fn().mockResolvedValue([]) };
@@ -20,6 +21,12 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     emitOrdemServicoStatus: jest.fn(),
   };
   const integracaoWebhook = { enqueueOrdemServicoConcluida: jest.fn() };
+  const emailPort = { isConfigured: () => false, send: jest.fn() };
+  const eventPublisher = {
+    isConfigured: () => false,
+    publishEmailSend: jest.fn(),
+  };
+  const config = { get: jest.fn().mockReturnValue(undefined) };
 
   const useCase = new FecharOrdemServicoUseCase(
     ordens as never,
@@ -27,6 +34,9 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     usuarios as never,
     notificacoes as never,
     integracaoWebhook as never,
+    emailPort as never,
+    eventPublisher as never,
+    config as never,
   );
 
   beforeEach(() => {

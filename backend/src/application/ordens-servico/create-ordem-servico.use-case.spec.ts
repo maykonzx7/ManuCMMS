@@ -12,7 +12,10 @@ import {
 
 describe('CreateOrdemServicoUseCase (RN-10)', () => {
   const config = { get: jest.fn().mockReturnValue(undefined) };
-  const ordens = { create: jest.fn() };
+  const ordens = {
+    create: jest.fn(),
+    tecnicoTemOsEmExecucao: jest.fn().mockResolvedValue(false),
+  };
   const unidades = { findById: jest.fn() };
   const ativos = {
     existsInUnidade: jest.fn(),

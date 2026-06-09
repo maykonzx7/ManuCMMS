@@ -34,6 +34,14 @@ export function getProximoPassoMensagem(input: OrdemFlowInput): {
   descricao: string
   acao: 'iniciar' | 'concluir' | null
 } {
+  if (input.status === 'AGUARDANDO') {
+    return {
+      titulo: 'OS na fila do técnico',
+      descricao:
+        'Esta OS foi atribuída, mas o técnico já executa outra ordem. Ela será liberada automaticamente quando a execução atual for concluída.',
+      acao: null,
+    }
+  }
   if (input.status === 'ABERTA') {
     return {
       titulo: 'Próximo passo: iniciar a OS',

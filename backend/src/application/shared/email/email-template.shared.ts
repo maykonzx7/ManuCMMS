@@ -199,7 +199,7 @@ export function buildOrdemServicoAtribuidaEmail(input: {
 
 export function buildOrdemServicoComentarioEmail(input: {
   frontendBaseUrl: string;
-  tecnicoNome: string;
+  destinatarioNome: string;
   autorNome: string;
   ordemId: string;
   ativoNome: string;
@@ -211,9 +211,9 @@ export function buildOrdemServicoComentarioEmail(input: {
   const subject = `Novo comentário na OS ${osCurta}: ${input.ativoNome}`;
 
   const text = [
-    `Olá, ${input.tecnicoNome}.`,
+    `Olá, ${input.destinatarioNome}.`,
     '',
-    `${input.autorNome} comentou na ordem de serviço atribuída a você.`,
+    `${input.autorNome} comentou na ordem de serviço que você acompanha.`,
     `OS: ${input.ordemId}`,
     `Ativo: ${input.ativoNome}`,
     `Unidade: ${input.unidadeNome}`,
@@ -229,9 +229,9 @@ export function buildOrdemServicoComentarioEmail(input: {
     eyebrow: 'Comentário na OS',
     title: 'Novo comentário na ordem',
     subtitle: input.ativoNome,
-    greeting: `Olá, <strong style="color:${BRAND.text};">${escapeHtml(input.tecnicoNome)}</strong>.`,
+    greeting: `Olá, <strong style="color:${BRAND.text};">${escapeHtml(input.destinatarioNome)}</strong>.`,
     paragraphs: [
-      `<strong style="color:${BRAND.text};">${escapeHtml(input.autorNome)}</strong> comentou na ordem de serviço atribuída a você.`,
+      `<strong style="color:${BRAND.text};">${escapeHtml(input.autorNome)}</strong> comentou na ordem de serviço que você acompanha.`,
     ],
     details: [
       { label: 'OS', value: input.ordemId },
@@ -243,7 +243,103 @@ export function buildOrdemServicoComentarioEmail(input: {
       ? { label: 'Ver comentário na OS', href: input.osLink }
       : undefined,
     footerNote:
-      'Você recebeu este e-mail por acompanhar a ordem de serviço atribuída.',
+      'Você recebeu este e-mail por acompanhar esta ordem de serviço.',
+  });
+
+  return { subject, text, html };
+}
+
+export function buildOrdemServicoConcluidaEmail(input: {
+  frontendBaseUrl: string;
+  destinatarioNome: string;
+  ordemId: string;
+  ativoNome: string;
+  unidadeNome: string;
+  finalizadoPorNome: string;
+  osLink?: string | null;
+}) {
+  const osCurta = input.ordemId.slice(0, 8).toUpperCase();
+  const subject = `OS ${osCurta} concluída: ${input.ativoNome}`;
+
+  const text = [
+    `Olá, ${input.destinatarioNome}.`,
+    '',
+    `A ordem de serviço ${input.ordemId} foi concluída com evidências.`,
+    `Ativo: ${input.ativoNome}`,
+    `Unidade: ${input.unidadeNome}`,
+    `Finalizada por: ${input.finalizadoPorNome}`,
+    input.osLink ? `Acesse: ${input.osLink}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = buildTransactionalEmailTemplate({
+    frontendBaseUrl: input.frontendBaseUrl,
+    preheader: subject,
+    eyebrow: 'Ordem concluída',
+    title: 'OS concluída com evidências',
+    subtitle: input.ativoNome,
+    greeting: `Olá, <strong style="color:${BRAND.text};">${escapeHtml(input.destinatarioNome)}</strong>.`,
+    paragraphs: [
+      `A ordem de serviço <strong style="color:${BRAND.text};">${escapeHtml(input.ordemId)}</strong> foi concluída na unidade ${escapeHtml(input.unidadeNome)}.`,
+    ],
+    details: [
+      { label: 'Ativo', value: input.ativoNome },
+      { label: 'Finalizada por', value: input.finalizadoPorNome },
+    ],
+    cta: input.osLink
+      ? { label: 'Ver ordem concluída', href: input.osLink }
+      : undefined,
+    footerNote: 'Notificação automática de manutenção.',
+  });
+
+  return { subject, text, html };
+}
+
+export function buildOrdemServicoEscaladaEmail(input: {
+  frontendBaseUrl: string;
+  destinatarioNome: string;
+  solicitanteNome: string;
+  ordemId: string;
+  ativoNome: string;
+  unidadeNome: string;
+  motivo: string;
+  osLink?: string | null;
+}) {
+  const osCurta = input.ordemId.slice(0, 8).toUpperCase();
+  const subject = `OS ${osCurta} escalada para análise`;
+
+  const text = [
+    `Olá, ${input.destinatarioNome}.`,
+    '',
+    `${input.solicitanteNome} escalou a OS ${input.ordemId} para supervisão.`,
+    `Ativo: ${input.ativoNome}`,
+    `Unidade: ${input.unidadeNome}`,
+    `Motivo: ${input.motivo}`,
+    input.osLink ? `Acesse: ${input.osLink}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = buildTransactionalEmailTemplate({
+    frontendBaseUrl: input.frontendBaseUrl,
+    preheader: subject,
+    eyebrow: 'Escalonamento',
+    title: 'OS escalada para análise',
+    subtitle: input.ativoNome,
+    greeting: `Olá, <strong style="color:${BRAND.text};">${escapeHtml(input.destinatarioNome)}</strong>.`,
+    paragraphs: [
+      `<strong style="color:${BRAND.text};">${escapeHtml(input.solicitanteNome)}</strong> solicitou apoio da supervisão na OS ${escapeHtml(osCurta)}.`,
+    ],
+    details: [
+      { label: 'OS', value: input.ordemId },
+      { label: 'Unidade', value: input.unidadeNome },
+    ],
+    quote: input.motivo,
+    cta: input.osLink
+      ? { label: 'Analisar ordem de serviço', href: input.osLink }
+      : undefined,
+    footerNote: 'Você recebeu este e-mail por fazer parte da supervisão.',
   });
 
   return { subject, text, html };

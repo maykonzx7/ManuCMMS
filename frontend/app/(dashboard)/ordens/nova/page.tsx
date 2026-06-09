@@ -38,6 +38,8 @@ const orderSchema = z.object({
   prioridade: z.enum(['BAIXA', 'MEDIA', 'ALTA', 'CRITICA']),
   ativoId: z.string().min(1, 'Selecione um ativo'),
   responsavelId: z.string().optional(),
+  dataPrazoVencimento: z.string().optional(),
+  dataLimiteAtraso: z.string().optional(),
 })
 
 type OrderFormData = z.infer<typeof orderSchema>
@@ -114,6 +116,12 @@ export default function NewOrderPage() {
           tipo: data.tipo,
           prioridade: data.prioridade,
           descricao: data.descricao || data.titulo,
+          dataPrazoVencimento: data.dataPrazoVencimento
+            ? new Date(data.dataPrazoVencimento).toISOString()
+            : undefined,
+          dataLimiteAtraso: data.dataLimiteAtraso
+            ? new Date(data.dataLimiteAtraso).toISOString()
+            : undefined,
         },
       })
       
@@ -221,6 +229,30 @@ export default function NewOrderPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="dataPrazoVencimento">Prazo de vencimento (opcional)</Label>
+                  <Input
+                    id="dataPrazoVencimento"
+                    type="datetime-local"
+                    {...register('dataPrazoVencimento')}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dataLimiteAtraso">Data de atraso (opcional)</Label>
+                  <Input
+                    id="dataLimiteAtraso"
+                    type="datetime-local"
+                    {...register('dataLimiteAtraso')}
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Se vazio, o atraso usa o prazo de vencimento ou o SLA automático.
+                  </p>
                 </div>
               </div>
             </CardContent>

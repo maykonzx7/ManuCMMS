@@ -31,7 +31,7 @@ describe('CancelarOrdemServicoUseCase', () => {
     );
   });
 
-  it('só cancela OS ABERTA', async () => {
+  it('não cancela OS em execução', async () => {
     ordens.findByIdInUnidade.mockResolvedValue(
       buildOrdemLista({ status: 'EM_EXECUCAO' }),
     );
@@ -43,7 +43,25 @@ describe('CancelarOrdemServicoUseCase', () => {
         { observacaoCancelamento: 'Motivo válido com mais de vinte caracteres.' },
         'user-1',
       ),
-    ).rejects.toThrow(/ABERTA/);
+    ).rejects.toThrow(/aguardando/);
+  });
+
+  it('cancela OS aguardando na fila', async () => {
+    ordens.findByIdInUnidade.mockResolvedValue(
+      buildOrdemLista({ status: 'AGUARDANDO' }),
+    );
+
+    const result = await useCase.execute(
+      UNIDADE_ID,
+      '11111111-1111-4111-8111-111111111111',
+      {
+        observacaoCancelamento:
+          'Equipamento substituído — OS não será mais necessária.',
+      },
+      'user-1',
+    );
+
+    expect(result.status).toBe('CANCELADA');
   });
 
   it('exige observação com no mínimo 20 caracteres', async () => {

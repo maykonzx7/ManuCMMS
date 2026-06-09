@@ -48,9 +48,9 @@ export class CancelarOrdemServicoUseCase {
     if (!atual) {
       throw new NotFoundException('Ordem de serviço não encontrada');
     }
-    if (atual.status !== 'ABERTA') {
+    if (!['ABERTA', 'AGUARDANDO'].includes(atual.status)) {
       throw new BadRequestException(
-        'Cancelamento permitido somente para OS ABERTA.',
+        'Cancelamento permitido somente para OS aberta ou aguardando na fila.',
       );
     }
 

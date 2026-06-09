@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
 import type { OrdemServicoListaItem } from '../../domain/entities/ordem-servico';
+import { EMAIL_PORT, type IEmailPort } from '../../domain/ports/email.port';
 import {
   ORDEM_SERVICO_REPOSITORY_PORT,
   type IOrdemServicoRepositoryPort,
@@ -17,9 +20,20 @@ import {
   USUARIO_READ_PORT,
   type IUsuarioReadPort,
 } from '../../domain/ports/usuario-read.port';
+import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
+import { promoverFilaTecnicoAposLiberarSlot } from '../shared/ordem-servico-tecnico-fila.shared';
+import { buildOrdemServicoConcluidaEmail } from '../shared/email/email-template.shared';
+import {
+  canDeliverEmail,
+  deliverTransactionalEmail,
+} from '../shared/email/deliver-email.shared';
+import {
+  resolveOsEmailContext,
+  resolveOsLink,
+} from '../shared/email/os-email-dispatch.shared';
 
 const URL_MAX = 2048;
 const DESCRICAO_PROBLEMA_MAX = 4000;
@@ -45,6 +59,10 @@ export class FecharOrdemServicoUseCase {
     private readonly usuarios: IUsuarioReadPort,
     private readonly notificacoes: NotificacaoService,
     private readonly integracaoWebhook: IntegracaoWebhookService,
+    @Inject(EMAIL_PORT)
+    private readonly emailPort: IEmailPort,
+    private readonly eventPublisher: EventPublisherService,
+    private readonly config: ConfigService,
   ) {}
 
   async execute(
@@ -202,6 +220,7 @@ export class FecharOrdemServicoUseCase {
       empresaId: unidadeOk.empresaId,
       idUnidade,
       unidadeNome: unidadeOk.nome,
+      finalizadoPorUsuarioId,
     });
     await this.integracaoWebhook.enqueueOrdemServicoConcluida({
       empresaId: unidadeOk.empresaId,
@@ -209,6 +228,13 @@ export class FecharOrdemServicoUseCase {
       ordem: concluida,
     });
     publishOrdemServicoStatus(this.notificacoes, idUnidade, concluida);
+    await promoverFilaTecnicoAposLiberarSlot({
+      ordens: this.ordens,
+      notificacoes: this.notificacoes,
+      empresaId: unidadeOk.empresaId,
+      idUnidade,
+      idTecnico: osDetalhe?.idTecnico ?? null,
+    });
     return concluida;
   }
 
@@ -217,17 +243,36 @@ export class FecharOrdemServicoUseCase {
     empresaId: string;
     idUnidade: string;
     unidadeNome: string;
+    finalizadoPorUsuarioId: string;
   }): Promise<void> {
-    const { ordem, empresaId, idUnidade, unidadeNome } = input;
+    const { ordem, empresaId, idUnidade, unidadeNome, finalizadoPorUsuarioId } =
+      input;
     const usuarios = await this.usuarios.listByUnidade(idUnidade);
-    const recipients = usuarios.filter(
-      (u) => u.perfil === 'ADMIN' || u.id === ordem.idTecnico,
-    );
+    const finalizador =
+      usuarios.find((u) => u.id === finalizadoPorUsuarioId) ?? null;
+    const finalizadoPorNome = finalizador?.nome ?? 'Equipe de manutenção';
+
+    const recipientMap = new Map<string, UsuarioLocalContext>();
+    for (const user of usuarios) {
+      if (user.id === finalizadoPorUsuarioId) continue;
+      if (
+        user.perfil === 'ADMIN' ||
+        user.perfil === 'GESTOR' ||
+        user.perfil === 'SUPERVISOR' ||
+        user.id === ordem.idTecnico
+      ) {
+        recipientMap.set(user.id, user);
+      }
+    }
+
     const fotoNotificacao =
       ordem.fotoSolucao ?? ordem.fotoAnexo ?? ordem.fotoProblema;
     const msg = `OS ${ordem.id.slice(0, 8).toUpperCase()} concluida na unidade ${unidadeNome}. Ativo: ${ordem.ativoNome}. Evidencias foram anexadas.`;
 
-    for (const user of recipients) {
+    const { frontendBaseUrl } = resolveOsEmailContext(this.config);
+    const osLink = resolveOsLink(this.config, ordem.id);
+
+    for (const user of recipientMap.values()) {
       await this.notificacoes.create({
         usuarioId: user.id,
         empresaId,
@@ -239,6 +284,26 @@ export class FecharOrdemServicoUseCase {
         fotoUrl: fotoNotificacao,
         linkPath: `/workspace/ordens/${ordem.id}`,
       });
+
+      if (
+        user.email?.trim() &&
+        canDeliverEmail(this.emailPort, this.eventPublisher)
+      ) {
+        const { subject, text, html } = buildOrdemServicoConcluidaEmail({
+          frontendBaseUrl,
+          destinatarioNome: user.nome,
+          ordemId: ordem.id,
+          ativoNome: ordem.ativoNome,
+          unidadeNome,
+          finalizadoPorNome,
+          osLink,
+        });
+        await deliverTransactionalEmail({
+          emailPort: this.emailPort,
+          eventPublisher: this.eventPublisher,
+          payload: { to: user.email, subject, text, html },
+        });
+      }
     }
   }
 }
