@@ -244,6 +244,9 @@ export class PrismaOrdemServicoRepository implements IOrdemServicoRepositoryPort
     idUnidade: string;
     descricao?: string;
     idTecnico?: string | null;
+    status?: OrdemServicoListaItem['status'];
+    dataPrazoVencimento?: Date | null;
+    dataLimiteAtraso?: Date | null;
     transferidoPorUsuarioId?: string;
     motivoTransferencia?: string;
   }): Promise<OrdemServicoListaItem | null> {
