@@ -68,6 +68,7 @@ export class AuditoriaController {
     @Query('unidadeId') unidadeId?: string,
     @Query('entidade') entidade?: string,
     @Query('idUsuario') idUsuario?: string,
+    @Query('acao') acao?: string,
   ) {
     this.authorizePermission.execute(req.usuarioLocal, 'os.visualizar_unidade');
 
@@ -77,8 +78,17 @@ export class AuditoriaController {
       unidadeId,
       entidade,
       idUsuario,
+      acao: acao as
+        | 'CREATE'
+        | 'UPDATE'
+        | 'DELETE'
+        | 'SETTINGS_CHANGE'
+        | 'LOGIN'
+        | 'LOGOUT'
+        | 'EXPORT'
+        | undefined,
       page: 1,
-      limit: 2000,
+      limit: 5000,
     });
 
     const byAction: Record<string, number> = {};

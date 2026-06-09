@@ -5,6 +5,11 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import {
+  buildUnidadeIdsAutorizadas,
+  usuarioTemEscopoCorporativo,
+  usuarioTemVisaoEmpresa,
+} from '../iam/usuario-unidade-scope.shared';
 
 @Injectable()
 export class ListUnidadesUseCase {
@@ -20,29 +25,16 @@ export class ListUnidadesUseCase {
       return [];
     }
 
-    const temEscopoCorporativo = usuarioLocal.cargos.some(
-      (cargo) => cargo.idUnidade == null,
-    );
-    const perfilComVisaoEmpresa = ['ADMIN', 'GESTOR', 'SUPERVISOR'].includes(
-      usuarioLocal.perfil?.toUpperCase?.() ?? '',
-    );
-
     if (
-      (temEscopoCorporativo || perfilComVisaoEmpresa) &&
+      (usuarioTemEscopoCorporativo(usuarioLocal) ||
+        usuarioTemVisaoEmpresa(usuarioLocal)) &&
       usuarioLocal.empresa?.id
     ) {
       return this.unidades.listByEmpresa(usuarioLocal.empresa.id);
     }
 
-    const unidadeIds = Array.from(
-      new Set([
-        usuarioLocal.idUnidade,
-        ...usuarioLocal.cargos
-          .map((cargo) => cargo.idUnidade)
-          .filter((value): value is string => Boolean(value)),
-      ]),
+    return this.unidades.listByIds(
+      Array.from(buildUnidadeIdsAutorizadas(usuarioLocal)),
     );
-
-    return this.unidades.listByIds(unidadeIds);
   }
 }

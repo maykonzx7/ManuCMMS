@@ -39,6 +39,13 @@ import {
 import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest, downloadApiFile } from '@/lib/api'
 import { PageDataLoading } from '@/components/shared'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+} from '@/components/ui/pagination'
 
 type ApiAuditLog = {
   idLog: string
@@ -178,6 +185,51 @@ const entityLabels: Record<string, string> = {
   REPORT: 'Relatório',
 }
 
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
+
+function buildAuditQueryParams(input: {
+  from: Date
+  to: Date
+  page?: number
+  limit?: number
+  actionFilter: string
+  entityFilter: string
+  userFilter: string
+  unidadeId?: string
+}) {
+  const query = new URLSearchParams({
+    from: input.from.toISOString(),
+    to: input.to.toISOString(),
+  })
+  if (input.page != null) query.set('page', String(input.page))
+  if (input.limit != null) query.set('limit', String(input.limit))
+  if (input.unidadeId) query.set('unidadeId', input.unidadeId)
+  if (input.actionFilter !== 'all') query.set('acao', input.actionFilter)
+  if (input.entityFilter !== 'all') {
+    const apiEntity = mapEntityFilterToApi(input.entityFilter)
+    if (apiEntity) query.set('entidade', apiEntity)
+  }
+  if (input.userFilter !== 'all') query.set('idUsuario', input.userFilter)
+  return query
+}
+
+function getVisiblePages(current: number, total: number): Array<number | 'ellipsis'> {
+  if (total <= 1) return [1]
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1)
+  }
+  const pages: Array<number | 'ellipsis'> = [1]
+  const start = Math.max(2, current - 1)
+  const end = Math.min(total - 1, current + 1)
+  if (start > 2) pages.push('ellipsis')
+  for (let page = start; page <= end; page += 1) {
+    pages.push(page)
+  }
+  if (end < total - 1) pages.push('ellipsis')
+  pages.push(total)
+  return pages
+}
+
 function mapEntityFilterToApi(value: string): string | null {
   if (value === 'ORDER') return 'OrdemServico'
   if (value === 'ASSET') return 'Ativo'
@@ -196,6 +248,7 @@ export default function AuditoriaPage() {
   const [usersMap, setUsersMap] = useState<Record<string, string>>({})
   const [userFilter, setUserFilter] = useState('all')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(50)
   const [totalPages, setTotalPages] = useState(1)
   const [totalLogs, setTotalLogs] = useState(0)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -223,30 +276,36 @@ export default function AuditoriaPage() {
   }
 
   useEffect(() => {
+    setPage(1)
+  }, [unit?.id])
+
+  useEffect(() => {
     if (!accessToken) return
     setIsPageLoading(true)
     const to = new Date()
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const query = new URLSearchParams({
-      from: from.toISOString(),
-      to: to.toISOString(),
-      page: String(page),
-      limit: '100',
-    })
-    if (actionFilter !== 'all') query.set('acao', actionFilter)
-    if (entityFilter !== 'all') {
-      const apiEntity = mapEntityFilterToApi(entityFilter)
-      if (apiEntity) query.set('entidade', apiEntity)
+    const filterBase = {
+      from,
+      to,
+      actionFilter,
+      entityFilter,
+      userFilter,
+      unidadeId: unit?.id,
     }
-    if (userFilter !== 'all') query.set('idUsuario', userFilter)
+    const listQuery = buildAuditQueryParams({
+      ...filterBase,
+      page,
+      limit: pageSize,
+    })
+    const summaryQuery = buildAuditQueryParams(filterBase)
 
     void Promise.allSettled([
       apiRequest<ApiAuditResponse>(
-        `/auditoria?${query.toString()}`,
+        `/auditoria?${listQuery.toString()}`,
         { accessToken },
       ),
       apiRequest<ApiAuditSummary>(
-        `/auditoria/resumo?${query.toString()}`,
+        `/auditoria/resumo?${summaryQuery.toString()}`,
         { accessToken },
       ),
       unit?.id
@@ -316,7 +375,11 @@ export default function AuditoriaPage() {
         setLoadError(error instanceof Error ? error.message : 'Falha ao carregar auditoria')
       })
       .finally(() => setIsPageLoading(false))
-  }, [accessToken, unit?.id, page, actionFilter, entityFilter, userFilter])
+  }, [accessToken, unit?.id, page, pageSize, actionFilter, entityFilter, userFilter])
+
+  const visiblePages = useMemo(() => getVisiblePages(page, totalPages), [page, totalPages])
+  const rangeStart = totalLogs === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeEnd = Math.min(page * pageSize, totalLogs)
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch = 
@@ -437,7 +500,13 @@ export default function AuditoriaPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={actionFilter} onValueChange={setActionFilter}>
+            <Select
+              value={actionFilter}
+              onValueChange={(value) => {
+                setActionFilter(value)
+                setPage(1)
+              }}
+            >
               <SelectTrigger className="w-full md:w-[180px]">
                 <Filter className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Ação" />
@@ -453,7 +522,13 @@ export default function AuditoriaPage() {
                 <SelectItem value="SETTINGS_CHANGE">Configuração</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={entityFilter} onValueChange={setEntityFilter}>
+            <Select
+              value={entityFilter}
+              onValueChange={(value) => {
+                setEntityFilter(value)
+                setPage(1)
+              }}
+            >
               <SelectTrigger className="w-full md:w-[180px]">
                 <Filter className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Entidade" />
@@ -466,7 +541,13 @@ export default function AuditoriaPage() {
                 <SelectItem value="UNIT">Unidade</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={userFilter} onValueChange={setUserFilter}>
+            <Select
+              value={userFilter}
+              onValueChange={(value) => {
+                setUserFilter(value)
+                setPage(1)
+              }}
+            >
               <SelectTrigger className="w-full md:w-[220px]">
                 <User className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Usuário" />
@@ -476,6 +557,24 @@ export default function AuditoriaPage() {
                 {usersFilter.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => {
+                setPageSize(Number(value) as (typeof PAGE_SIZE_OPTIONS)[number])
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="w-full md:w-[160px]">
+                <SelectValue placeholder="Por página" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size} por página
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -509,7 +608,8 @@ export default function AuditoriaPage() {
         <CardHeader>
           <CardTitle>Logs de Auditoria</CardTitle>
           <CardDescription>
-            {filteredLogs.length} registro(s) nesta página • {totalLogs} no total
+            Exibindo {rangeStart}–{rangeEnd} de {totalLogs} registro(s)
+            {searchTerm ? ` • ${filteredLogs.length} após busca local` : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -584,29 +684,57 @@ export default function AuditoriaPage() {
               })}
             </TableBody>
           </Table>
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Próxima
-              </Button>
+          {totalPages > 1 ? (
+            <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Página {page} de {totalPages}
+              </p>
+              <Pagination className="mx-0 w-auto justify-end">
+                <PaginationContent>
+                  <PaginationItem>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1 || isPageLoading}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    >
+                      Anterior
+                    </Button>
+                  </PaginationItem>
+                  {visiblePages.map((pageNumber, index) =>
+                    pageNumber === 'ellipsis' ? (
+                      <PaginationItem key={`ellipsis-${index}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          href="#"
+                          isActive={pageNumber === page}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            setPage(pageNumber)
+                          }}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ),
+                  )}
+                  <PaginationItem>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages || isPageLoading}
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                    >
+                      Próxima
+                    </Button>
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
-          </div>
+          ) : null}
         </CardContent>
       </Card>
 

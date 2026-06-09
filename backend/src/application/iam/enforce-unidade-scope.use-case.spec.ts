@@ -55,6 +55,20 @@ describe('EnforceUnidadeScopeUseCase (RN-08)', () => {
     ).rejects.toThrow(/outra empresa/);
   });
 
+  it('permite gestor acessar outra unidade da mesma empresa', async () => {
+    unidades.findById.mockResolvedValue({
+      id: 'unidade-b',
+      empresaId: 'empresa-1',
+    });
+
+    await expect(
+      useCase.execute(
+        { ...usuario, perfil: 'GESTOR' } as never,
+        'unidade-b',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it('permite escopo corporativo (cargo sem unidade)', async () => {
     unidades.findById.mockResolvedValue({
       id: 'unidade-b',

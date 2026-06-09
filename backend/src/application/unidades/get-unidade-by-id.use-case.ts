@@ -5,6 +5,7 @@ import {
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
 import type { UsuarioLocalContext } from '../../domain/entities/usuario-local';
+import { usuarioPodeAcessarUnidade } from '../iam/usuario-unidade-scope.shared';
 
 @Injectable()
 export class GetUnidadeByIdUseCase {
@@ -22,9 +23,10 @@ export class GetUnidadeByIdUseCase {
       throw new NotFoundException('Unidade fabril não encontrada');
     }
     if (
-      usuarioLocal.idUnidade !== unidadeId &&
-      !usuarioLocal.cargos.some(
-        (c) => c.idUnidade === unidadeId || c.idUnidade == null,
+      !usuarioPodeAcessarUnidade(
+        usuarioLocal,
+        unidadeId,
+        unidade.empresaId ?? null,
       )
     ) {
       throw new NotFoundException('Unidade fabril não encontrada');

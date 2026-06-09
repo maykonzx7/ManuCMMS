@@ -4,10 +4,11 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { usuarioPodeAcessarUnidade } from './usuario-unidade-scope.shared';
 
 /**
- * RN-08 v1: o usuário autenticado só opera dentro da própria unidade.
- * Exceções de "matriz" podem entrar depois com política explícita.
+ * RN-08: usuário opera nas unidades do seu escopo.
+ * Admin, Gestor e Supervisor acessam qualquer unidade da mesma empresa.
  */
 @Injectable()
 export class EnforceUnidadeScopeUseCase {
@@ -31,29 +32,24 @@ export class EnforceUnidadeScopeUseCase {
       throw new ForbiddenException('Unidade solicitada nao foi encontrada.');
     }
 
-    const unidadeIdsAutorizadas = new Set([
-      usuarioLocal.idUnidade,
-      ...usuarioLocal.cargos
-        .map((cargo) => cargo.idUnidade)
-        .filter((value): value is string => Boolean(value)),
-    ]);
-    const temEscopoCorporativo = usuarioLocal.cargos.some(
-      (cargo) => cargo.idUnidade == null,
-    );
-
-    if (!temEscopoCorporativo && !unidadeIdsAutorizadas.has(unidadeId)) {
+    if (
+      !usuarioPodeAcessarUnidade(
+        usuarioLocal,
+        unidadeId,
+        unidade.empresaId ?? null,
+      )
+    ) {
+      if (
+        usuarioLocal.empresa?.id &&
+        unidade.empresaId &&
+        unidade.empresaId !== usuarioLocal.empresa.id
+      ) {
+        throw new ForbiddenException(
+          'Acesso negado: a unidade solicitada pertence a outra empresa.',
+        );
+      }
       throw new ForbiddenException(
         'Acesso negado: a unidade solicitada nao pertence ao contexto autenticado.',
-      );
-    }
-
-    if (
-      usuarioLocal.empresa?.id &&
-      unidade.empresaId &&
-      unidade.empresaId !== usuarioLocal.empresa.id
-    ) {
-      throw new ForbiddenException(
-        'Acesso negado: a unidade solicitada pertence a outra empresa.',
       );
     }
   }

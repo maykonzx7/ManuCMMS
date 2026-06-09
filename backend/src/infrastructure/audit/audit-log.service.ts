@@ -137,6 +137,10 @@ export class AuditLogService
       return;
     }
     try {
+      const acao = this.deriveAction({
+        valor_anterior: entrada.valorAnterior,
+        valor_novo: entrada.valorNovo,
+      });
       await this.collection().insertOne({
         id_log: randomUUID(),
         id_usuario: entrada.idUsuario,
@@ -144,6 +148,7 @@ export class AuditLogService
         id_registro: entrada.idRegistro,
         valor_anterior: entrada.valorAnterior,
         valor_novo: entrada.valorNovo,
+        acao,
         data_hora: new Date(),
       });
     } catch (err) {
@@ -198,13 +203,28 @@ export class AuditLogService
     const limit = Math.min(Math.max(filtro.limit ?? 100, 1), 500);
     const skip = (page - 1) * limit;
 
-    const collection = this.collection();
-    const docs = await collection.find(query).sort({ data_hora: -1 }).toArray();
+    const actionFilter = filtro.acao?.trim().toUpperCase();
+    const validActions = [
+      'CREATE',
+      'UPDATE',
+      'DELETE',
+      'SETTINGS_CHANGE',
+      'LOGIN',
+      'LOGOUT',
+      'EXPORT',
+    ] as const;
+    const hasActionFilter =
+      Boolean(actionFilter) &&
+      validActions.includes(actionFilter as (typeof validActions)[number]);
 
-    const mapped = docs.map((doc) => ({
+    const collection = this.collection();
+    const mapDoc = (doc: Record<string, unknown>): AuditLogItem => ({
       idLog: String(doc.id_log ?? ''),
       idUsuario: (doc.id_usuario as string | null | undefined) ?? null,
-      acao: this.deriveAction(doc as never),
+      acao:
+        (typeof doc.acao === 'string'
+          ? doc.acao
+          : this.deriveAction(doc as never)) as AuditLogItem['acao'],
       entidadeAfetada: String(doc.entidade_afetada ?? ''),
       idRegistro: String(doc.id_registro ?? ''),
       valorAnterior:
@@ -214,26 +234,40 @@ export class AuditLogService
         doc.data_hora instanceof Date
           ? doc.data_hora.toISOString()
           : new Date().toISOString(),
-    }));
+    });
 
-    const actionFilter = filtro.acao?.trim().toUpperCase();
-    const filtered =
-      actionFilter &&
-      [
-        'CREATE',
-        'UPDATE',
-        'DELETE',
-        'SETTINGS_CHANGE',
-        'LOGIN',
-        'LOGOUT',
-        'EXPORT',
-      ].includes(actionFilter)
-        ? mapped.filter((item) => item.acao === actionFilter)
-        : mapped;
-    const total = filtered.length;
-    const items = filtered.slice(skip, skip + limit);
+    if (hasActionFilter) {
+      const docs = await collection
+        .find(query)
+        .sort({ data_hora: -1 })
+        .toArray();
+      const filtered = docs
+        .map((doc) => mapDoc(doc as Record<string, unknown>))
+        .filter((item) => item.acao === actionFilter);
+      return {
+        items: filtered.slice(skip, skip + limit),
+        total: filtered.length,
+        page,
+        limit,
+      };
+    }
 
-    return { items, total, page, limit };
+    const [total, docs] = await Promise.all([
+      collection.countDocuments(query),
+      collection
+        .find(query)
+        .sort({ data_hora: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+    ]);
+
+    return {
+      items: docs.map((doc) => mapDoc(doc as Record<string, unknown>)),
+      total,
+      page,
+      limit,
+    };
   }
 
   async getById(idLog: string): Promise<AuditLogItem | null> {
