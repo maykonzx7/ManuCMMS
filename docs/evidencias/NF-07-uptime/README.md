@@ -11,13 +11,11 @@
 | Uptime | **100%** |
 | Artefato | [resumo-2026-06-08.json](resumo-2026-06-08.json) |
 
-## Monitor contínuo (recomendado para defesa)
+## Monitor contínuo
 
-Cadastrar em [UptimeRobot](https://uptimerobot.com) ou similar:
+Guia passo a passo: [MONITOR-EXTERNO.md](MONITOR-EXTERNO.md) (UptimeRobot).
 
-- URL: `https://manucmms.onrender.com/health`
-- Intervalo: 5 min
-- Alerta: e-mail se HTTP ≠ 200
+A sonda automatizada já atende o critério NF-07 (>99%). O monitor externo é complemento visual para a defesa.
 
 ## Regenerar
 
