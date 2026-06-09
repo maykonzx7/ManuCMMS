@@ -15,10 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
-import { mkdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { diskStorage, memoryStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { CreateAtivoUseCase } from '../../application/ativos/create-ativo.use-case';
 import {
   CreateAtivoDocumentoUseCase,
@@ -33,7 +30,6 @@ import { ListAtivosByUnidadeUseCase } from '../../application/ativos/list-ativos
 import { UpdateAtivoUseCase } from '../../application/ativos/update-ativo.use-case';
 import { UpdateAtivoFotoUseCase } from '../../application/ativos/update-ativo-foto.use-case';
 import { ListOrdensServicoByAtivoUseCase } from '../../application/ordens-servico/list-ordens-servico-by-ativo.use-case';
-import { buildUploadPublicPath } from '../../application/shared/upload-url.shared';
 import {
   assertAllowedDocumentFile,
   MAX_DOCUMENT_SIZE_BYTES,
@@ -42,6 +38,7 @@ import {
   assertAllowedImageFile,
   MAX_IMAGE_SIZE_BYTES,
 } from '../../application/shared/image-upload.shared';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 
 type CreateAtivoBody = {
   nome: string;
@@ -79,12 +76,6 @@ type UploadAtivoDocumentoBody = {
   nome?: string;
 };
 
-const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
-const ativoDocumentoUploadDir = join(process.cwd(), UPLOADS_DIR, 'documentos');
-const ativoFotoUploadDir = join(process.cwd(), UPLOADS_DIR, 'ativos');
-mkdirSync(ativoDocumentoUploadDir, { recursive: true });
-mkdirSync(ativoFotoUploadDir, { recursive: true });
-
 /**
  * CRUD mínimo de ativos por unidade (RF-04).
  * Escopo por JWT / RN-08: validar `idUnidade` contra o usuário autenticado nas próximas entregas.
@@ -104,6 +95,7 @@ export class AtivosController {
     private readonly deleteAtivoDocumento: DeleteAtivoDocumentoUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly enforceUnidadeScope: EnforceUnidadeScopeUseCase,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   @Get()
@@ -139,13 +131,7 @@ export class AtivosController {
   @Post(':ativoId/documentos')
   @UseInterceptors(
     FileInterceptor('arquivo', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => cb(null, ativoDocumentoUploadDir),
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname) || '';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES },
     }),
   )
@@ -170,13 +156,21 @@ export class AtivosController {
       );
     }
     const nome = body.nome?.trim() || file.originalname;
+    const empresaId = this.resolveEmpresaId(req);
+    const url = await this.managedUpload.storeFile({
+      subdir: 'documentos',
+      scopeSegments: [empresaId, unidadeId, ativoId],
+      buffer: file.buffer,
+      contentType: file.mimetype,
+      originalname: file.originalname,
+    });
     return this.createAtivoDocumento.execute(
       unidadeId,
       ativoId,
       {
         tipo: body.tipo,
         nome,
-        url: buildUploadPublicPath('documentos', file.filename),
+        url,
         mimeType: file.mimetype,
         tamanhoBytes: file.size,
       },
@@ -306,6 +300,14 @@ export class AtivosController {
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.criar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     await this.deleteAtivo.execute(unidadeId, ativoId, req.usuarioLocal!.id);
+  }
+
+  private resolveEmpresaId(req: Request): string {
+    const empresaId = req.usuarioLocal?.empresa?.id;
+    if (!empresaId) {
+      throw new BadRequestException('Empresa do usuário não encontrada');
+    }
+    return empresaId;
   }
 
   private assertTecnicoCannotMutateAssets(req: Request): void {

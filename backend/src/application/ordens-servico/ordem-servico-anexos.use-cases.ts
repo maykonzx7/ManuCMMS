@@ -20,6 +20,7 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 
 const CATEGORIAS_VALIDAS: CategoriaOrdemServicoAnexoCodigo[] = [
   'PROBLEMA',
@@ -138,6 +139,7 @@ export class DeleteOrdemServicoAnexoUseCase {
     private readonly anexos: IOrdemServicoAnexoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   async execute(
@@ -150,6 +152,16 @@ export class DeleteOrdemServicoAnexoUseCase {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
 
+    const anexos = await this.anexos.listByOrdemServico(
+      unidade.empresaId,
+      idUnidade,
+      idOrdemServico,
+    );
+    const anexo = anexos.find((item) => item.id === idAnexo);
+    if (!anexo) {
+      throw new NotFoundException('Anexo não encontrado');
+    }
+
     const deleted = await this.anexos.deleteById(
       unidade.empresaId,
       idUnidade,
@@ -159,5 +171,7 @@ export class DeleteOrdemServicoAnexoUseCase {
     if (!deleted) {
       throw new NotFoundException('Anexo não encontrado');
     }
+
+    await this.managedUpload.deleteIfStored(anexo.url);
   }
 }

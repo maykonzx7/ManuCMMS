@@ -84,6 +84,7 @@ import { RedisHealthIndicator } from '../infrastructure/health/redis-health.indi
 import { RequestRateLimitService } from './http/request-rate-limit.service';
 import { SupabaseAdminService } from '../infrastructure/auth/supabase-admin.service';
 import { SupabaseStorageService } from '../infrastructure/storage/supabase-storage.service';
+import { ManagedUploadService } from '../infrastructure/storage/managed-upload.service';
 
 @Module({
   imports: [TerminusModule, AuthModule],
@@ -129,6 +130,7 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     AcceptConviteAcessoUseCase,
     SupabaseAdminService,
     SupabaseStorageService,
+    ManagedUploadService,
     NotificacaoService,
     ListAtivosByUnidadeUseCase,
     CreateAtivoUseCase,

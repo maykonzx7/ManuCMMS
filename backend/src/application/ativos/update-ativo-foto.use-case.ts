@@ -4,9 +4,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import type { AtivoListaItem } from '../../domain/entities/ativo';
 import {
   ATIVO_REPOSITORY_PORT,
@@ -20,11 +17,7 @@ import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
-import { SupabaseStorageService } from '../../infrastructure/storage/supabase-storage.service';
-import { deleteLocalUploadIfStored } from '../shared/delete-local-upload.shared';
-import { buildUploadPublicPath } from '../shared/upload-url.shared';
-
-const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 
 type UploadedFotoFile = {
   buffer: Buffer;
@@ -41,7 +34,7 @@ export class UpdateAtivoFotoUseCase {
     private readonly unidades: IUnidadeReadPort,
     @Inject(AUDIT_LOG_PORT)
     private readonly auditLog: IAuditLogPort,
-    private readonly supabaseStorage: SupabaseStorageService,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   async execute(
@@ -49,7 +42,6 @@ export class UpdateAtivoFotoUseCase {
     idAtivo: string,
     input: {
       fotoUrl: string | null;
-      filename?: string;
       file?: UploadedFotoFile;
     },
     atualizadoPorUsuarioId: string,
@@ -71,29 +63,24 @@ export class UpdateAtivoFotoUseCase {
     let nextFotoUrl: string | null = null;
     if (input.fotoUrl !== null) {
       if (input.file) {
-        nextFotoUrl = await this.storeFotoFile(
-          unidade.empresaId,
-          idAtivo,
-          input.file,
-        );
-      } else if (input.filename) {
-        nextFotoUrl = buildUploadPublicPath('ativos', input.filename);
+        nextFotoUrl = await this.managedUpload.storeFile({
+          subdir: 'ativos',
+          scopeSegments: [unidade.empresaId, idAtivo],
+          buffer: input.file.buffer,
+          contentType: input.file.mimetype,
+          originalname: input.file.originalname,
+        });
       } else if (input.fotoUrl) {
         nextFotoUrl = input.fotoUrl;
       }
     }
 
-    if (
-      nextFotoUrl !== null &&
-      !nextFotoUrl.startsWith('/uploads/ativos/') &&
-      !this.supabaseStorage.isManagedPublicUrl(nextFotoUrl)
-    ) {
+    if (nextFotoUrl !== null && !this.managedUpload.isManagedUrl(nextFotoUrl)) {
       throw new BadRequestException('URL de foto inválida');
     }
 
     if (antes.fotoUrl && antes.fotoUrl !== nextFotoUrl) {
-      await this.supabaseStorage.deleteProfilePhotoIfStored(antes.fotoUrl);
-      await deleteLocalUploadIfStored(antes.fotoUrl);
+      await this.managedUpload.deleteIfStored(antes.fotoUrl);
     }
 
     const atualizado = await this.ativos.updateFotoUrl(
@@ -120,29 +107,5 @@ export class UpdateAtivoFotoUseCase {
     });
 
     return atualizado;
-  }
-
-  private async storeFotoFile(
-    empresaId: string,
-    ativoId: string,
-    file: UploadedFotoFile,
-  ): Promise<string> {
-    const extension = extname(file.originalname || '') || '.jpg';
-
-    if (this.supabaseStorage.isConfigured()) {
-      return this.supabaseStorage.uploadAtivoPhoto({
-        empresaId,
-        ativoId,
-        buffer: file.buffer,
-        contentType: file.mimetype,
-        extension,
-      });
-    }
-
-    const uploadDir = join(process.cwd(), UPLOADS_DIR, 'ativos');
-    await mkdir(uploadDir, { recursive: true });
-    const filename = `${randomUUID()}${extension}`;
-    await writeFile(join(uploadDir, filename), file.buffer);
-    return buildUploadPublicPath('ativos', filename);
   }
 }

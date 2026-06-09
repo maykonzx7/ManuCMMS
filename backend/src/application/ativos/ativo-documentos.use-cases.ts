@@ -20,6 +20,7 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 
 const TIPOS_VALIDOS: TipoAtivoDocumentoCodigo[] = [
   'MANUAL',
@@ -132,6 +133,7 @@ export class DeleteAtivoDocumentoUseCase {
     private readonly documentos: IAtivoDocumentoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   async execute(
@@ -144,6 +146,16 @@ export class DeleteAtivoDocumentoUseCase {
       throw new NotFoundException('Empresa da unidade fabril não encontrada');
     }
 
+    const documentos = await this.documentos.listByAtivo(
+      unidade.empresaId,
+      idUnidade,
+      idAtivo,
+    );
+    const documento = documentos.find((item) => item.id === idDocumento);
+    if (!documento) {
+      throw new NotFoundException('Documento não encontrado');
+    }
+
     const deleted = await this.documentos.deleteById(
       unidade.empresaId,
       idUnidade,
@@ -153,5 +165,7 @@ export class DeleteAtivoDocumentoUseCase {
     if (!deleted) {
       throw new NotFoundException('Documento não encontrado');
     }
+
+    await this.managedUpload.deleteIfStored(documento.url);
   }
 }

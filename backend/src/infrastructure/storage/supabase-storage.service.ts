@@ -54,16 +54,29 @@ export class SupabaseStorageService {
       ? input.extension
       : `.${input.extension}`;
     const objectPath = `ativos/${input.empresaId}/${input.ativoId}/${randomUUID()}${ext}`;
-    await this.uploadObject(objectPath, input.buffer, input.contentType);
+    return this.uploadToPublicPath(objectPath, input.buffer, input.contentType);
+  }
+
+  async uploadToPublicPath(
+    objectPath: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    await this.uploadObject(objectPath, buffer, contentType);
     return this.buildPublicUrl(objectPath);
   }
 
-  async deleteProfilePhotoIfStored(fotoUrl: string | null | undefined): Promise<void> {
-    const objectPath = fotoUrl
-      ? this.extractObjectPathFromPublicUrl(fotoUrl)
+  async deleteManagedFileIfStored(fileUrl: string | null | undefined): Promise<void> {
+    const objectPath = fileUrl
+      ? this.extractObjectPathFromPublicUrl(fileUrl)
       : null;
     if (!objectPath) return;
     await this.deleteObject(objectPath);
+  }
+
+  /** @deprecated use deleteManagedFileIfStored */
+  async deleteProfilePhotoIfStored(fotoUrl: string | null | undefined): Promise<void> {
+    return this.deleteManagedFileIfStored(fotoUrl);
   }
 
   private bucket(): string {

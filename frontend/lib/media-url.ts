@@ -1,6 +1,7 @@
 /**
- * Normaliza URLs de upload para o mesmo origin do frontend (via rewrite `/uploads/*`).
- * Suporta URLs absolutas legadas salvas no banco.
+ * Normaliza URLs de mídia/anexos.
+ * - Caminhos locais `/uploads/*` passam pelo rewrite do Next.
+ * - URLs absolutas do Supabase Storage são usadas como estão.
  */
 export function resolveMediaUrl(url: string | null | undefined): string | undefined {
   const trimmed = url?.trim()
@@ -12,6 +13,9 @@ export function resolveMediaUrl(url: string | null | undefined): string | undefi
     const parsed = new URL(trimmed)
     if (parsed.pathname.startsWith('/uploads/')) {
       return parsed.pathname
+    }
+    if (parsed.pathname.includes('/storage/v1/object/public/')) {
+      return trimmed
     }
   } catch {
     // valor não é URL absoluta

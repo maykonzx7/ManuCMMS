@@ -18,12 +18,9 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
-import { mkdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
-import { buildUploadPublicPath } from '../../application/shared/upload-url.shared';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 import {
   assertAllowedDocumentFile,
   MAX_DOCUMENT_SIZE_BYTES,
@@ -109,11 +106,6 @@ type IniciarOrdemServicoFiles = {
   fotoProblema?: Express.Multer.File[];
 };
 
-const UPLOADS_DIR = process.env.UPLOAD_DIR ?? 'uploads';
-const fotoUploadDir = join(process.cwd(), UPLOADS_DIR, 'ordens-servico');
-const osAnexoUploadDir = join(process.cwd(), UPLOADS_DIR, 'documentos');
-mkdirSync(fotoUploadDir, { recursive: true });
-mkdirSync(osAnexoUploadDir, { recursive: true });
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
 function isImagemMimeType(mimeType: string): boolean {
@@ -154,6 +146,7 @@ export class OrdensServicoController {
     private readonly listAnexos: ListOrdemServicoAnexosUseCase,
     private readonly createAnexo: CreateOrdemServicoAnexoUseCase,
     private readonly deleteAnexo: DeleteOrdemServicoAnexoUseCase,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   @Get()
@@ -313,13 +306,7 @@ export class OrdensServicoController {
   @Post(':ordemServicoId/anexos')
   @UseInterceptors(
     FileInterceptor('arquivo', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => cb(null, osAnexoUploadDir),
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname) || '';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES },
     }),
   )
@@ -345,13 +332,21 @@ export class OrdensServicoController {
       );
     }
     const nome = body.nome?.trim() || file.originalname;
+    const empresaId = this.resolveEmpresaId(req);
+    const url = await this.managedUpload.storeFile({
+      subdir: 'documentos',
+      scopeSegments: [empresaId, unidadeId, ordemServicoId],
+      buffer: file.buffer,
+      contentType: file.mimetype,
+      originalname: file.originalname,
+    });
     return this.createAnexo.execute(
       unidadeId,
       ordemServicoId,
       {
         categoria: body.categoria,
         nome,
-        url: buildUploadPublicPath('documentos', file.filename),
+        url,
         mimeType: file.mimetype,
         tamanhoBytes: file.size,
       },
@@ -440,11 +435,7 @@ export class OrdensServicoController {
   @Patch(':ordemServicoId/iniciar')
   @UseInterceptors(
     FileFieldsInterceptor([{ name: 'fotoProblema', maxCount: 1 }], {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => cb(null, fotoUploadDir),
-        filename: (_req, file, cb) =>
-          cb(null, `${randomUUID()}${extname(file.originalname || '')}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!isImagemMimeType(file.mimetype)) {
@@ -469,14 +460,22 @@ export class OrdensServicoController {
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     const ordem = await this.getOrdemById.execute(unidadeId, ordemServicoId);
     this.assertTecnicoCanAccessOrdem(req, ordem);
+    const fotoProblemaFile = files.fotoProblema?.[0];
+    const fotoProblema = fotoProblemaFile
+      ? await this.storeOrdemServicoPhoto(
+          req,
+          unidadeId,
+          ordemServicoId,
+          fotoProblemaFile,
+        )
+      : body.fotoProblema;
+
     return this.iniciarExecucao.execute(
       unidadeId,
       ordemServicoId,
       req.usuarioLocal!.id,
       {
-        fotoProblema: files.fotoProblema?.[0]
-          ? buildUploadPublicPath('ordens-servico', files.fotoProblema[0].filename)
-          : body.fotoProblema,
+        fotoProblema,
         descricaoProblema: body.descricaoProblema,
       },
     );
@@ -528,11 +527,7 @@ export class OrdensServicoController {
         { name: 'fotoSolucao', maxCount: 1 },
       ],
       {
-        storage: diskStorage({
-          destination: (_req, _file, cb) => cb(null, fotoUploadDir),
-          filename: (_req, file, cb) =>
-            cb(null, `${randomUUID()}${extname(file.originalname || '')}`),
-        }),
+        storage: memoryStorage(),
         limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
         fileFilter: (_req, file, cb) => {
           if (!isImagemMimeType(file.mimetype)) {
@@ -578,26 +573,71 @@ export class OrdensServicoController {
         })
       : null;
 
+    const [fotoAnexo, fotoProblema, fotoSolucao] = await Promise.all([
+      files.fotoAnexo?.[0]
+        ? this.storeOrdemServicoPhoto(
+            req,
+            unidadeId,
+            ordemServicoId,
+            files.fotoAnexo[0],
+          )
+        : Promise.resolve(body.fotoAnexo),
+      files.fotoProblema?.[0]
+        ? this.storeOrdemServicoPhoto(
+            req,
+            unidadeId,
+            ordemServicoId,
+            files.fotoProblema[0],
+          )
+        : Promise.resolve(body.fotoProblema),
+      files.fotoSolucao?.[0]
+        ? this.storeOrdemServicoPhoto(
+            req,
+            unidadeId,
+            ordemServicoId,
+            files.fotoSolucao[0],
+          )
+        : Promise.resolve(body.fotoSolucao),
+    ]);
+
     return this.fecharOrdem.execute(
       unidadeId,
       ordemServicoId,
       {
-        fotoAnexo: files.fotoAnexo?.[0]
-          ? buildUploadPublicPath('ordens-servico', files.fotoAnexo[0].filename)
-          : body.fotoAnexo,
-        fotoProblema: files.fotoProblema?.[0]
-          ? buildUploadPublicPath('ordens-servico', files.fotoProblema[0].filename)
-          : body.fotoProblema,
+        fotoAnexo,
+        fotoProblema,
         descricaoProblema: body.descricaoProblema,
-        fotoSolucao: files.fotoSolucao?.[0]
-          ? buildUploadPublicPath('ordens-servico', files.fotoSolucao[0].filename)
-          : body.fotoSolucao,
+        fotoSolucao,
         descricaoSolucao: body.descricaoSolucao,
         assinaturaDigital: assinaturaPayload,
         pecasConsumidas: parsePecasConsumidas(body.pecasConsumidas),
       },
       req.usuarioLocal!.id,
     );
+  }
+
+  private resolveEmpresaId(req: Request): string {
+    const empresaId = req.usuarioLocal?.empresa?.id;
+    if (!empresaId) {
+      throw new BadRequestException('Empresa do usuário não encontrada');
+    }
+    return empresaId;
+  }
+
+  private async storeOrdemServicoPhoto(
+    req: Request,
+    unidadeId: string,
+    ordemServicoId: string,
+    file: Express.Multer.File,
+  ): Promise<string> {
+    const empresaId = this.resolveEmpresaId(req);
+    return this.managedUpload.storeFile({
+      subdir: 'ordens-servico',
+      scopeSegments: [empresaId, unidadeId, ordemServicoId],
+      buffer: file.buffer,
+      contentType: file.mimetype,
+      originalname: file.originalname,
+    });
   }
 
   private isTecnico(req: Request): boolean {
