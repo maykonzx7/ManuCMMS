@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { apiRequest } from '@/lib/api'
 import { resolveMediaUrl } from '@/lib/media-url'
+import { validateImageFile } from '@/lib/upload-limits'
 import type { ApiAtivo } from '@/lib/backend-mappers'
 import { cn } from '@/lib/utils'
 
@@ -48,12 +49,9 @@ export function AssetPhotoSection({
   }, [fotoFile, fotoUrl])
 
   const handleSelect = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error('Selecione um arquivo de imagem.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Imagem excede o limite de 5 MB.')
+    const error = validateImageFile(file)
+    if (error) {
+      toast.error(error)
       return
     }
     setFotoFile(file)

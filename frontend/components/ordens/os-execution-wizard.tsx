@@ -25,7 +25,9 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/components/ui/use-mobile'
+import { toast } from 'sonner'
 import { USER_ROLE_LABELS } from '@/lib/constants'
+import { validateOsEvidenceImageFile } from '@/lib/upload-limits'
 import { cn } from '@/lib/utils'
 import type { MaintenanceType, UserRole } from '@/types'
 
@@ -168,7 +170,20 @@ function pickImage(onChange: (file: File | null) => void, useCamera: boolean) {
   input.type = 'file'
   input.accept = 'image/*'
   if (useCamera) input.capture = 'environment'
-  input.onchange = () => onChange(input.files?.[0] ?? null)
+  input.onchange = () => {
+    const file = input.files?.[0] ?? null
+    if (!file) {
+      onChange(null)
+      return
+    }
+    const error = validateOsEvidenceImageFile(file)
+    if (error) {
+      toast.error(error)
+      onChange(null)
+      return
+    }
+    onChange(file)
+  }
   input.click()
 }
 

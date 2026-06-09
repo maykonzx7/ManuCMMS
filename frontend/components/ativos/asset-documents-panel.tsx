@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { apiRequest } from '@/lib/api'
 import { resolveMediaUrl, downloadMediaFile } from '@/lib/media-url'
+import { validateDocumentFile } from '@/lib/upload-limits'
 import { getDocumentFormatMeta } from '@/lib/document-format'
 import type { ApiAtivoDocumento } from '@/lib/backend-mappers'
 import { cn } from '@/lib/utils'
@@ -58,6 +59,10 @@ export function AssetDocumentsPanel({
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const uploadSingle = async (file: File) => {
+    const error = validateDocumentFile(file)
+    if (error) {
+      throw new Error(error)
+    }
     const formData = new FormData()
     formData.append('arquivo', file)
     formData.append('tipo', tipo)
@@ -82,8 +87,11 @@ export function AssetDocumentsPanel({
       try {
         await uploadSingle(file)
         success += 1
-      } catch {
+      } catch (e) {
         failed += 1
+        if (failed === 1) {
+          toast.error(e instanceof Error ? e.message : 'Falha ao enviar documento')
+        }
       }
       setUploadProgress({ done: success + failed, total: list.length })
     }

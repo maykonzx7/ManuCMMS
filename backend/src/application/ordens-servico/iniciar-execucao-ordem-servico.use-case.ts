@@ -14,6 +14,8 @@ import {
   UNIDADE_READ_PORT,
   type IUnidadeReadPort,
 } from '../../domain/ports/unidade-read.port';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
+import { assertManagedUploadUrl } from '../shared/managed-upload-url.shared';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
 
@@ -25,6 +27,7 @@ export class IniciarExecucaoOrdemServicoUseCase {
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
     private readonly notificacoes: NotificacaoService,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   async execute(
@@ -84,6 +87,14 @@ export class IniciarExecucaoOrdemServicoUseCase {
       );
     }
 
+    assertManagedUploadUrl(
+      fotoProblema,
+      (url) => this.managedUpload.isManagedUrl(url),
+      'fotoProblema',
+    );
+
+    const previousFotoProblema = ordem.fotoProblema ?? null;
+
     const iniciada = await this.ordens.iniciarExecucao(
       idOrdemServico,
       unidadeOk.empresaId,
@@ -92,6 +103,15 @@ export class IniciarExecucaoOrdemServicoUseCase {
       fotoProblema,
       descricaoProblema,
     );
+
+    if (
+      fotoProblema &&
+      previousFotoProblema &&
+      fotoProblema !== previousFotoProblema
+    ) {
+      await this.managedUpload.deleteIfStored(previousFotoProblema);
+    }
+
     await this.notificacoes.markOrdemServicoAsReadForUsuario(
       iniciadoPorUsuarioId,
       idOrdemServico,

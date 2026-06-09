@@ -26,6 +26,11 @@ import {
   MAX_DOCUMENT_SIZE_BYTES,
 } from '../../application/shared/document-upload.shared';
 import {
+  assertAllowedOsEvidenceImageFile,
+  isImagemMimeType,
+  MAX_OS_EVIDENCE_IMAGE_SIZE_BYTES,
+} from '../../application/shared/image-upload.shared';
+import {
   CreateOrdemServicoAnexoUseCase,
   DeleteOrdemServicoAnexoUseCase,
   ListOrdemServicoAnexosUseCase,
@@ -105,12 +110,6 @@ type FecharOrdemServicoFiles = {
 type IniciarOrdemServicoFiles = {
   fotoProblema?: Express.Multer.File[];
 };
-
-const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-
-function isImagemMimeType(mimeType: string): boolean {
-  return mimeType.startsWith('image/');
-}
 
 function resolveRequestIp(req: Request): string | null {
   const xff = req.headers['x-forwarded-for'];
@@ -334,7 +333,7 @@ export class OrdensServicoController {
     const nome = body.nome?.trim() || file.originalname;
     const empresaId = this.resolveEmpresaId(req);
     const url = await this.managedUpload.storeFile({
-      subdir: 'documentos',
+      subdir: 'ordens-servico',
       scopeSegments: [empresaId, unidadeId, ordemServicoId],
       buffer: file.buffer,
       contentType: file.mimetype,
@@ -436,7 +435,7 @@ export class OrdensServicoController {
   @UseInterceptors(
     FileFieldsInterceptor([{ name: 'fotoProblema', maxCount: 1 }], {
       storage: memoryStorage(),
-      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+      limits: { fileSize: MAX_OS_EVIDENCE_IMAGE_SIZE_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!isImagemMimeType(file.mimetype)) {
           cb(
@@ -528,7 +527,7 @@ export class OrdensServicoController {
       ],
       {
         storage: memoryStorage(),
-        limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+        limits: { fileSize: MAX_OS_EVIDENCE_IMAGE_SIZE_BYTES },
         fileFilter: (_req, file, cb) => {
           if (!isImagemMimeType(file.mimetype)) {
             cb(
@@ -630,6 +629,13 @@ export class OrdensServicoController {
     ordemServicoId: string,
     file: Express.Multer.File,
   ): Promise<string> {
+    try {
+      assertAllowedOsEvidenceImageFile(file);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Imagem inválida',
+      );
+    }
     const empresaId = this.resolveEmpresaId(req);
     return this.managedUpload.storeFile({
       subdir: 'ordens-servico',

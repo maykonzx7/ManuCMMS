@@ -1,6 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class SupabaseStorageService {
@@ -27,34 +26,6 @@ export class SupabaseStorageService {
     if (!this.isManagedPublicUrl(url)) return null;
     const prefix = `${this.baseUrl()}/storage/v1/object/public/${this.bucket()}/`;
     return url.slice(prefix.length);
-  }
-
-  async uploadProfilePhoto(input: {
-    usuarioId: string;
-    buffer: Buffer;
-    contentType: string;
-    extension: string;
-  }): Promise<string> {
-    const ext = input.extension.startsWith('.')
-      ? input.extension
-      : `.${input.extension}`;
-    const objectPath = `usuarios/${input.usuarioId}/${randomUUID()}${ext}`;
-    await this.uploadObject(objectPath, input.buffer, input.contentType);
-    return this.buildPublicUrl(objectPath);
-  }
-
-  async uploadAtivoPhoto(input: {
-    empresaId: string;
-    ativoId: string;
-    buffer: Buffer;
-    contentType: string;
-    extension: string;
-  }): Promise<string> {
-    const ext = input.extension.startsWith('.')
-      ? input.extension
-      : `.${input.extension}`;
-    const objectPath = `ativos/${input.empresaId}/${input.ativoId}/${randomUUID()}${ext}`;
-    return this.uploadToPublicPath(objectPath, input.buffer, input.contentType);
   }
 
   async uploadToPublicPath(

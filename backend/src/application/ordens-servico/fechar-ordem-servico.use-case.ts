@@ -23,7 +23,12 @@ import {
 import { EventPublisherService } from '../../infrastructure/messaging/event-publisher.service';
 import { NotificacaoService } from '../notificacoes/notificacao.service';
 import { IntegracaoWebhookService } from '../../infrastructure/integracao/integracao-webhook.service';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 import { publishOrdemServicoStatus } from '../shared/ordem-servico-realtime.shared';
+import {
+  assertManagedUploadUrl,
+  collectReplacedManagedUrls,
+} from '../shared/managed-upload-url.shared';
 import { promoverFilaTecnicoAposLiberarSlot } from '../shared/ordem-servico-tecnico-fila.shared';
 import { buildOrdemServicoConcluidaEmail } from '../shared/email/email-template.shared';
 import {
@@ -63,6 +68,7 @@ export class FecharOrdemServicoUseCase {
     private readonly emailPort: IEmailPort,
     private readonly eventPublisher: EventPublisherService,
     private readonly config: ConfigService,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   async execute(
@@ -125,6 +131,11 @@ export class FecharOrdemServicoUseCase {
           `${nome}: URL com até ${URL_MAX} caracteres`,
         );
       }
+      assertManagedUploadUrl(
+        url,
+        (value) => this.managedUpload.isManagedUrl(value),
+        nome,
+      );
     }
 
     if (
@@ -215,6 +226,22 @@ export class FecharOrdemServicoUseCase {
       finalizadoPorUsuarioId,
       pecasConsumidas: body.pecasConsumidas,
     });
+
+    const replacedUrls = collectReplacedManagedUrls([
+      { previous: osDetalhe?.fotoAnexo, next: fotoAnexo ?? null },
+      {
+        previous: osDetalhe?.fotoProblema,
+        next: os.tipo === 'CORRETIVA' ? fotoProblema : null,
+      },
+      {
+        previous: osDetalhe?.fotoSolucao,
+        next: os.tipo === 'CORRETIVA' ? fotoSolucao : null,
+      },
+    ]);
+    for (const url of replacedUrls) {
+      await this.managedUpload.deleteIfStored(url);
+    }
+
     await this.notifyOrderClosed({
       ordem: concluida,
       empresaId: unidadeOk.empresaId,

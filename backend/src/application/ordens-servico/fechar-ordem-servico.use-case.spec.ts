@@ -7,6 +7,10 @@ import {
   UNIDADE_ID,
 } from '../../../test/fixtures/ordem-servico.fixture';
 
+const MANAGED_FOTO = '/uploads/ordens-servico/foto.jpg';
+const MANAGED_PROBLEMA = '/uploads/ordens-servico/problema.jpg';
+const MANAGED_SOLUCAO = '/uploads/ordens-servico/solucao.jpg';
+
 describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
   const ordens = {
     findParaFechamento: jest.fn(),
@@ -27,6 +31,12 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     publishEmailSend: jest.fn(),
   };
   const config = { get: jest.fn().mockReturnValue(undefined) };
+  const managedUpload = {
+    isManagedUrl: jest.fn((url: string | null | undefined) =>
+      Boolean(url?.startsWith('/uploads/')),
+    ),
+    deleteIfStored: jest.fn(),
+  };
 
   const useCase = new FecharOrdemServicoUseCase(
     ordens as never,
@@ -37,6 +47,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     emailPort as never,
     eventPublisher as never,
     config as never,
+    managedUpload as never,
   );
 
   beforeEach(() => {
@@ -58,7 +69,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
         '11111111-1111-4111-8111-111111111111',
         {
           descricaoSolucao: 'Serviço concluído',
-          fotoAnexo: 'https://cdn/foto.jpg',
+          fotoAnexo: MANAGED_FOTO,
         },
         'user-1',
       ),
@@ -90,6 +101,21 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     ).rejects.toThrow(/fotoAnexo/);
   });
 
+  it('rejeita URL externa em fotoAnexo', async () => {
+    await expect(
+      useCase.execute(
+        UNIDADE_ID,
+        '11111111-1111-4111-8111-111111111111',
+        {
+          descricaoSolucao: 'OK',
+          assinaturaDigital: 'data:image/png;base64,abc',
+          fotoAnexo: 'https://cdn/foto.jpg',
+        },
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('corretiva exige evidências de problema e solução (RN-13)', async () => {
     ordens.findParaFechamento.mockResolvedValue(
       buildOrdemParaFechamento({ tipo: 'CORRETIVA' }),
@@ -116,7 +142,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
         {
           descricaoSolucao: 'OK',
           assinaturaDigital: 'data:image/png;base64,abc',
-          fotoAnexo: 'https://cdn/foto.jpg',
+          fotoAnexo: MANAGED_FOTO,
           pecasConsumidas: [{ pecaId: '', quantidade: 1 }],
         },
         'user-1',
@@ -130,7 +156,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
         {
           descricaoSolucao: 'OK',
           assinaturaDigital: 'data:image/png;base64,abc',
-          fotoAnexo: 'https://cdn/foto.jpg',
+          fotoAnexo: MANAGED_FOTO,
           pecasConsumidas: [{ pecaId: 'peca-1', quantidade: 0 }],
         },
         'user-1',
@@ -145,7 +171,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
       {
         descricaoSolucao: 'Preventiva concluída',
         assinaturaDigital: 'data:image/png;base64,abc',
-        fotoAnexo: 'https://cdn/foto.jpg',
+        fotoAnexo: MANAGED_FOTO,
         pecasConsumidas: [{ pecaId: 'peca-1', quantidade: 2 }],
       },
       'user-1',
@@ -168,7 +194,7 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
     ordens.findByIdInUnidade.mockResolvedValue(
       buildOrdemLista({
         tipo: 'CORRETIVA',
-        fotoProblema: 'https://cdn/problema.jpg',
+        fotoProblema: MANAGED_PROBLEMA,
         descricaoProblema: 'Vazamento',
       }),
     );
@@ -179,15 +205,15 @@ describe('FecharOrdemServicoUseCase (RN-02, RN-07, RN-13)', () => {
       {
         descricaoSolucao: 'Vedação trocada',
         assinaturaDigital: 'data:image/png;base64,abc',
-        fotoSolucao: 'https://cdn/solucao.jpg',
+        fotoSolucao: MANAGED_SOLUCAO,
       },
       'user-1',
     );
 
     expect(ordens.fecharComEvidencias).toHaveBeenCalledWith(
       expect.objectContaining({
-        fotoProblema: 'https://cdn/problema.jpg',
-        fotoSolucao: 'https://cdn/solucao.jpg',
+        fotoProblema: MANAGED_PROBLEMA,
+        fotoSolucao: MANAGED_SOLUCAO,
       }),
     );
   });

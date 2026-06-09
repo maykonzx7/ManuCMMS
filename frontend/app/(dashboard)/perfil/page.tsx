@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth, useCurrentUser } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { resolveMediaUrl } from '@/lib/media-url'
+import { validateImageFile } from '@/lib/upload-limits'
 import { USER_ROLE_LABELS } from '@/lib/constants'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
@@ -168,7 +169,19 @@ export default function PerfilPage() {
                   const input = document.createElement('input')
                   input.type = 'file'
                   input.accept = 'image/*'
-                  input.onchange = () => setFotoFile(input.files?.[0] ?? null)
+                  input.onchange = () => {
+                    const file = input.files?.[0] ?? null
+                    if (!file) {
+                      setFotoFile(null)
+                      return
+                    }
+                    const error = validateImageFile(file)
+                    if (error) {
+                      toast.error(error)
+                      return
+                    }
+                    setFotoFile(file)
+                  }
                   input.click()
                 }}
               >

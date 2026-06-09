@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
+  ATIVO_DOCUMENTO_REPOSITORY_PORT,
+  type IAtivoDocumentoRepositoryPort,
+} from '../../domain/ports/ativo-documento.repository.port';
+import {
   ATIVO_REPOSITORY_PORT,
   type IAtivoRepositoryPort,
 } from '../../domain/ports/ativo.repository.port';
@@ -17,16 +21,20 @@ import {
   AUDIT_LOG_PORT,
   type IAuditLogPort,
 } from '../../domain/ports/audit-log.port';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 
 @Injectable()
 export class DeleteAtivoUseCase {
   constructor(
     @Inject(ATIVO_REPOSITORY_PORT)
     private readonly ativos: IAtivoRepositoryPort,
+    @Inject(ATIVO_DOCUMENTO_REPOSITORY_PORT)
+    private readonly documentos: IAtivoDocumentoRepositoryPort,
     @Inject(UNIDADE_READ_PORT)
     private readonly unidades: IUnidadeReadPort,
     @Inject(AUDIT_LOG_PORT)
     private readonly auditLog: IAuditLogPort,
+    private readonly managedUpload: ManagedUploadService,
   ) {}
 
   async execute(
@@ -47,6 +55,16 @@ export class DeleteAtivoUseCase {
     if (!antes) {
       throw new NotFoundException('Ativo não encontrado nesta unidade fabril');
     }
+
+    const documentos = await this.documentos.listByAtivo(
+      unidade.empresaId,
+      idUnidade,
+      idAtivo,
+    );
+    const storedUrls = [
+      antes.fotoUrl,
+      ...documentos.map((doc) => doc.url),
+    ].filter((url): url is string => Boolean(url?.trim()));
 
     try {
       const removed = await this.ativos.deleteByIdInUnidade(
@@ -82,6 +100,10 @@ export class DeleteAtivoUseCase {
           acao: 'DELETE',
         },
       });
+
+      for (const url of storedUrls) {
+        await this.managedUpload.deleteIfStored(url);
+      }
     } catch (e) {
       const isForeignKeyViolationViaExecuteRaw =
         e instanceof Prisma.PrismaClientKnownRequestError &&

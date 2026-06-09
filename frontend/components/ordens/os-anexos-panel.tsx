@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { apiRequest } from '@/lib/api'
 import { resolveMediaUrl } from '@/lib/media-url'
+import { validateDocumentFile } from '@/lib/upload-limits'
 import type { ApiOrdemAnexo } from '@/lib/backend-mappers'
 
 const CATEGORIA_LABELS: Record<ApiOrdemAnexo['categoria'], string> = {
@@ -58,6 +59,11 @@ export function OsAnexosPanel({
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleUpload = async (file: File) => {
+    const validationError = validateDocumentFile(file)
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
     setIsUploading(true)
     try {
       const formData = new FormData()

@@ -3,31 +3,26 @@ import {
   Body,
   Controller,
   Get,
-  InternalServerErrorException,
   Patch,
   Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
 import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import type { AuthUserContext } from '../auth/auth-user.types';
 import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import { UpdateMeuPerfilUseCase } from '../../application/iam/update-meu-perfil.use-case';
 import { ListUnidadesUseCase } from '../../application/unidades/list-unidades.use-case';
-import { SupabaseStorageService } from '../../infrastructure/storage/supabase-storage.service';
+import {
+  assertAllowedImageFile,
+  MAX_IMAGE_SIZE_BYTES,
+} from '../../application/shared/image-upload.shared';
+import { ManagedUploadService } from '../../infrastructure/storage/managed-upload.service';
 import { resolveEffectiveUsuarioStatus } from './response-mappers';
 
 type RequestWithUser = Request & { user: AuthUserContext };
-
-const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
-
-function isImagemMimeType(mimeType: string): boolean {
-  return mimeType.startsWith('image/');
-}
 
 /**
  * JWT Supabase + usuário corporativo local (`usuario` / `auth_sub`).
@@ -37,7 +32,7 @@ export class MeController {
   constructor(
     private readonly updateMeuPerfil: UpdateMeuPerfilUseCase,
     private readonly listUnidades: ListUnidadesUseCase,
-    private readonly supabaseStorage: SupabaseStorageService,
+    private readonly managedUpload: ManagedUploadService,
     private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
   ) {}
 
@@ -83,17 +78,7 @@ export class MeController {
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: memoryStorage(),
-      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
-      fileFilter: (_req, file, cb) => {
-        if (!isImagemMimeType(file.mimetype)) {
-          cb(
-            new BadRequestException('Apenas arquivos de imagem são permitidos'),
-            false,
-          );
-          return;
-        }
-        cb(null, true);
-      },
+      limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
     }),
   )
   async updatePerfil(
@@ -113,11 +98,24 @@ export class MeController {
     let nextFotoUrl: string | null = local.fotoUrl ?? null;
 
     if (removerFoto) {
-      await this.deleteStoredPhoto(local.fotoUrl);
+      await this.managedUpload.deleteIfStored(local.fotoUrl);
       nextFotoUrl = null;
     } else if (file) {
-      await this.deleteStoredPhoto(local.fotoUrl);
-      nextFotoUrl = await this.storeProfilePhoto(local.id, file);
+      try {
+        assertAllowedImageFile(file);
+      } catch (e) {
+        throw new BadRequestException(
+          e instanceof Error ? e.message : 'Imagem inválida',
+        );
+      }
+      await this.managedUpload.deleteIfStored(local.fotoUrl);
+      nextFotoUrl = await this.managedUpload.storeFile({
+        subdir: 'usuarios',
+        scopeSegments: [local.id],
+        buffer: file.buffer,
+        contentType: file.mimetype,
+        originalname: file.originalname,
+      });
     }
 
     const atualizado = await this.updateMeuPerfil.execute(local, nextFotoUrl);
@@ -132,28 +130,5 @@ export class MeController {
         cargos: atualizado.cargos,
       },
     };
-  }
-
-  private async storeProfilePhoto(
-    usuarioId: string,
-    file: Express.Multer.File,
-  ): Promise<string> {
-    if (this.supabaseStorage.isConfigured()) {
-      return this.supabaseStorage.uploadProfilePhoto({
-        usuarioId,
-        buffer: file.buffer,
-        contentType: file.mimetype,
-        extension: extname(file.originalname || '') || '.jpg',
-      });
-    }
-
-    throw new InternalServerErrorException(
-      'Supabase Storage não configurado. Defina SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e crie o bucket avatars.',
-    );
-  }
-
-  private async deleteStoredPhoto(fotoUrl: string | null | undefined): Promise<void> {
-    if (!fotoUrl) return;
-    await this.supabaseStorage.deleteProfilePhotoIfStored(fotoUrl);
   }
 }
