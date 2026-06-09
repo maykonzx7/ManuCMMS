@@ -240,7 +240,7 @@ export default function AssetsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-14"></TableHead>
+                <TableHead className="w-[72px]"></TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead className="hidden md:table-cell">Localização</TableHead>
@@ -254,7 +254,7 @@ export default function AssetsPage() {
               {filteredAssets.map((asset) => (
                 <TableRow key={asset.id}>
                   <TableCell>
-                    <div className="h-10 w-10 overflow-hidden rounded-md border bg-muted">
+                    <div className="h-14 w-14 overflow-hidden rounded-lg border bg-muted shadow-sm">
                       {asset.fotoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -264,7 +264,7 @@ export default function AssetsPage() {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
-                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <Package className="h-5 w-5 text-muted-foreground" />
                         </div>
                       )}
                     </div>

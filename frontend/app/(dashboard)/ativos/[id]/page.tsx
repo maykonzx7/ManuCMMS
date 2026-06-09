@@ -167,8 +167,9 @@ export default function AssetDetailPage() {
         <CardHeader>
           <CardTitle>Dados do Ativo</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-6 sm:flex-row">
+        <CardContent className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <AssetPhotoSection
+            className="w-full shrink-0 lg:w-[min(100%,440px)]"
             unidadeId={unit!.id}
             ativoId={asset.id}
             accessToken={accessToken!}
@@ -178,7 +179,7 @@ export default function AssetDetailPage() {
               setAsset((prev) => (prev ? { ...prev, fotoUrl: fotoUrl ?? undefined } : prev))
             }
           />
-          <div className="grid flex-1 gap-4 sm:grid-cols-2">
+          <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-2">
           <div className="flex items-center gap-2 text-sm"><Package className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">Nome:</span><span>{asset.nome}</span></div>
           <div className="flex items-center gap-2 text-sm"><Tag className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">Tag/Código:</span><span>{asset.codigo}</span></div>
           <div className="flex items-center gap-2 text-sm"><Factory className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">Fabricante:</span><span>{asset.fabricante || '-'}</span></div>
