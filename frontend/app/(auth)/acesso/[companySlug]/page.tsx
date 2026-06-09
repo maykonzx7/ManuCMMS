@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth'
 import { AuthLoadingScreen, LoginForm, ActiveSessionPrompt } from '@/components/auth'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
+type LoginPhase = 'idle' | 'submitting' | 'redirecting'
+
 export default function CompanyLoginPage() {
   const params = useParams()
   const router = useRouter()
@@ -23,6 +25,7 @@ export default function CompanyLoginPage() {
   const companySlug = params.companySlug as string
   const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
   const [isSwitching, setIsSwitching] = useState(false)
+  const [loginPhase, setLoginPhase] = useState<LoginPhase>('idle')
 
   const handleContinueSession = () => {
     const normalizedSlug = companySlug.trim().toLowerCase()
@@ -44,11 +47,14 @@ export default function CompanyLoginPage() {
   }
 
   const handleLogin = async (data: { email: string; senha: string }) => {
+    setLoginPhase('submitting')
     try {
       await login(data.email, data.senha, companySlug)
+      setLoginPhase('redirecting')
       toast.success('Login realizado com sucesso!')
       router.replace(redirectPath)
     } catch (error) {
+      setLoginPhase('idle')
       const message = error instanceof Error ? error.message : 'Falha no login'
       toast.error(message)
     }
@@ -62,16 +68,21 @@ export default function CompanyLoginPage() {
     }
   }
 
-  if (isLoading || isSwitching) {
-    return (
-      <AuthLoadingScreen
-        layout="embedded"
-        message={isSwitching ? 'Entrando no cliente...' : 'Verificando sua sessão...'}
-      />
-    )
+  const isLoginBusy =
+    loginPhase !== 'idle' || isSwitching || (isLoading && !isAuthenticated)
+
+  if (isLoginBusy) {
+    const message = isSwitching
+      ? 'Entrando no cliente...'
+      : loginPhase === 'redirecting'
+        ? 'Entrando no sistema...'
+        : loginPhase === 'submitting'
+          ? 'Entrando...'
+          : 'Verificando sua sessão...'
+    return <AuthLoadingScreen layout="embedded" message={message} />
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && loginPhase === 'idle') {
     return (
       <ActiveSessionPrompt
         redirectPath={redirectPath}
@@ -101,13 +112,13 @@ export default function CompanyLoginPage() {
         onSubmit={handleLogin}
         onForgotPassword={(email) => requestPasswordReset(email, '/workspace/acesso/redefinir-senha')}
         empresaSlug={companySlug}
-        isLoading={isLoading}
+        isLoading={loginPhase !== 'idle'}
       />
 
       <button
         type="button"
         onClick={handleGoogleLogin}
-        disabled={isLoading}
+        disabled={loginPhase !== 'idle'}
         className="flex w-full items-center justify-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
       >
         <svg viewBox="0 0 24 24" className="h-5 w-5">

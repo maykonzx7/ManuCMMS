@@ -1,28 +1,34 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
 import { AuthLoadingScreen, LoginForm, ActiveSessionPrompt } from '@/components/auth'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
+type LoginPhase = 'idle' | 'submitting' | 'redirecting'
+
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, loginWithGoogle, requestPasswordReset, isLoading, isAuthenticated } = useAuth()
   const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'))
+  const [loginPhase, setLoginPhase] = useState<LoginPhase>('idle')
 
   const handleContinueSession = () => {
     router.replace(redirectPath)
   }
 
   const handleLogin = async (data: { email: string; senha: string }) => {
+    setLoginPhase('submitting')
     try {
       await login(data.email, data.senha)
+      setLoginPhase('redirecting')
       toast.success('Login realizado com sucesso!')
-      router.push(redirectPath)
+      router.replace(redirectPath)
     } catch (error) {
+      setLoginPhase('idle')
       const message = error instanceof Error ? error.message : 'Falha no login'
       toast.error(message)
     }
@@ -36,11 +42,19 @@ function LoginPageContent() {
     }
   }
 
-  if (isLoading && !isAuthenticated) {
-    return <AuthLoadingScreen layout="embedded" message="Verificando sua sessão..." />
+  const isLoginBusy = loginPhase !== 'idle' || (isLoading && !isAuthenticated)
+
+  if (isLoginBusy) {
+    const message =
+      loginPhase === 'redirecting'
+        ? 'Entrando no sistema...'
+        : loginPhase === 'submitting'
+          ? 'Entrando...'
+          : 'Verificando sua sessão...'
+    return <AuthLoadingScreen layout="embedded" message={message} />
   }
 
-  if (!isLoading && isAuthenticated) {
+  if (!isLoading && isAuthenticated && loginPhase === 'idle') {
     return (
       <ActiveSessionPrompt
         redirectPath={redirectPath}
@@ -69,7 +83,7 @@ function LoginPageContent() {
       <LoginForm
         onSubmit={handleLogin}
         onForgotPassword={requestPasswordReset}
-        isLoading={isLoading}
+        isLoading={loginPhase !== 'idle'}
       />
       
       <div className="relative">
@@ -86,7 +100,7 @@ function LoginPageContent() {
       <button
         type="button"
         onClick={handleGoogleLogin}
-        disabled={isLoading}
+        disabled={loginPhase !== 'idle'}
         className="flex w-full items-center justify-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
       >
         <svg viewBox="0 0 24 24" className="h-5 w-5">
