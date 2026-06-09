@@ -1,1 +1,112 @@
-[]
+[
+  {
+    "_id": "69f4f8fc1238031658c11659",
+    "id_usuario": null,
+    "entidade_afetada": "Empresa",
+    "valor_anterior": {},
+    "valor_novo": {
+      "nomeEmpresa": "testeinvite",
+      "slug": "testeslug",
+      "unidadeInicial": {
+        "id": "e5e9c795-9a74-48dc-b564-e3d7382d597e",
+        "nome": "Matriz",
+        "localizacao": "sertania"
+      },
+      "responsavelInicial": {
+        "nome": "makito",
+        "email": "maykon011games@gmail.com"
+      },
+      "convite": {
+        "id": "a7e593c9-8c11-46b5-aa8f-78ab7ce323f4",
+        "expiraEm": "2026-05-03T19:03:24.456Z",
+        "cargoCodigo": "ADMIN"
+      }
+    }
+  },
+  {
+    "_id": "69f4f9741238031658c1165a",
+    "id_usuario": "d2582668-3428-4174-aa0f-ab48ff0c4d05",
+    "entidade_afetada": "ConviteAcesso",
+    "valor_anterior": {
+      "status": "PENDENTE"
+    },
+    "valor_novo": {
+      "status": "ACEITO",
+      "empresaId": "63f978ec-472f-4ae1-9601-c1cce280b2c9",
+      "usuarioId": "d2582668-3428-4174-aa0f-ab48ff0c4d05",
+      "perfil": "ADMIN",
+      "idUnidadeCargo": null
+    }
+  },
+  {
+    "_id": "69f4eadd5ec3e33caaa99a45",
+    "id_usuario": null,
+    "entidade_afetada": "Empresa",
+    "valor_anterior": {},
+    "valor_novo": {
+      "nomeEmpresa": "Empresa Convite Cargo",
+      "slug": "empresa-convite-cargo",
+      "unidadeInicial": {
+        "id": "83acab76-683d-4952-b07c-8bc5bf261e6f",
+        "nome": "Base Convite",
+        "localizacao": "Caruaru - PE"
+      },
+      "responsavelInicial": {
+        "nome": "Owner Cargo",
+        "email": "owner.cargo@manucmms.local"
+      },
+      "convite": {
+        "id": "a450900e-3fd4-43c6-9481-e0785944983a",
+        "expiraEm": "2026-05-03T18:03:09.259Z",
+        "cargoCodigo": "ADMIN"
+      }
+    }
+  },
+  {
+    "_id": "69f4e8d3c3e32642054d0bf6",
+    "id_usuario": null,
+    "entidade_afetada": "Empresa",
+    "valor_anterior": {},
+    "valor_novo": {
+      "nomeEmpresa": "Empresa Teste Onboarding",
+      "slug": "empresa-teste-onboarding",
+      "unidadeInicial": {
+        "id": "73ed895b-948f-4047-9f7f-7ea5f4887822",
+        "nome": "Planta Inicial",
+        "localizacao": "Recife - PE"
+      },
+      "responsavelInicial": {
+        "nome": "Responsavel Onboarding",
+        "email": "responsavel.onboarding@manucmms.local"
+      },
+      "convite": {
+        "id": "675fd81a-be0c-40ea-b6d9-fbd9255f5d77",
+        "expiraEm": "2026-05-03T17:54:27.345Z"
+      }
+    }
+  },
+  {
+    "_id": "69f4f1561b5c0c5eb31cf250",
+    "id_usuario": null,
+    "entidade_afetada": "Empresa",
+    "valor_anterior": {},
+    "valor_novo": {
+      "nomeEmpresa": "Makito Farma",
+      "slug": "makitofarma",
+      "unidadeInicial": {
+        "id": "1b9dff7f-12a0-4c5f-bfdd-fec2f8fa2fda",
+        "nome": "Matriz",
+        "localizacao": "Sertânia - PE"
+      },
+      "responsavelInicial": {
+        "nome": "Maykon Farma",
+        "email": "maykon011games@gmail.com"
+      },
+      "convite": {
+        "id": "4c29af75-dee6-4101-8287-c94d1d413d10",
+        "expiraEm": "2026-05-03T18:30:46.887Z",
+        "cargoCodigo": "ADMIN"
+      }
+    }
+  }
+]

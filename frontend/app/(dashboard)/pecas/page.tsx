@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Package, AlertTriangle, Pencil, Trash2, History } from 'lucide-react'
+import { Plus, Package, AlertTriangle, Pencil, Trash2, History, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth, useCurrentUnit } from '@/lib/auth'
-import { apiRequest, isApiCacheWarm } from '@/lib/api'
+import { apiRequest, downloadApiFile, isApiCacheWarm } from '@/lib/api'
 import { toast } from 'sonner'
 import { PageDataLoading } from '@/components/shared'
 
@@ -57,6 +57,7 @@ export default function PecasPage() {
   const [nome, setNome] = useState('')
   const [quantidadeEstoque, setQuantidadeEstoque] = useState('0')
   const [quantidadeMinima, setQuantidadeMinima] = useState('0')
+  const [exportando, setExportando] = useState(false)
 
   const loadPecas = async () => {
     if (!accessToken || !unit?.id) return
@@ -140,6 +141,24 @@ export default function PecasPage() {
     }
   }
 
+  const exportarEstoque = async (formato: 'csv' | 'pdf') => {
+    if (!accessToken || !unit?.id) return
+    setExportando(true)
+    try {
+      const slug = unit.nome.replace(/\s+/g, '_').toLowerCase()
+      await downloadApiFile(
+        `/unidades/${unit.id}/pecas/export?formato=${formato}`,
+        `estoque_${slug}.${formato}`,
+        { accessToken },
+      )
+      toast.success(`Relatório de estoque exportado (${formato.toUpperCase()}).`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao exportar estoque')
+    } finally {
+      setExportando(false)
+    }
+  }
+
   const removePeca = async (peca: ApiPeca) => {
     if (!accessToken || !unit?.id) return
     if (!window.confirm(`Excluir peça ${peca.codigo}?`)) return
@@ -166,10 +185,20 @@ export default function PecasPage() {
           <h1 className="text-3xl font-bold tracking-tight">Peças e Estoque</h1>
           <p className="text-muted-foreground">Cadastro, saldo e saídas por fechamento de OS</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova peça
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={exportando} onClick={() => void exportarEstoque('pdf')}>
+            <Download className="mr-2 h-4 w-4" />
+            PDF estoque
+          </Button>
+          <Button variant="outline" disabled={exportando} onClick={() => void exportarEstoque('csv')}>
+            <Download className="mr-2 h-4 w-4" />
+            CSV estoque
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova peça
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="inventario">

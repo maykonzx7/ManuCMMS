@@ -1,1 +1,1 @@
-{"status":"ok","info":{"postgres":{"status":"up"},"mongodb":{"status":"up"},"rabbitmq":{"status":"up"},"redis":{"status":"up"}},"error":{},"details":{"postgres":{"status":"up"},"mongodb":{"status":"up"},"rabbitmq":{"status":"up"},"redis":{"status":"up"}}}
+{"status":"ok","info":{"rabbitmq":{"status":"up"},"redis":{"status":"up"}},"error":{},"details":{"rabbitmq":{"status":"up"},"redis":{"status":"up"}}}

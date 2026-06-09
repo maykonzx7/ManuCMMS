@@ -1,27 +1,26 @@
-# NF-03 — Screenshots de responsividade
+# NF-03 — Screenshots responsivos
 
-Salve capturas nesta pasta conforme a matriz em [NF-03-responsividade.md](../NF-03-responsividade.md).
+**Data:** 08/06/2026  
+**Frontend:** `https://manucmms.vercel.app`
 
-## Nomenclatura sugerida
+## Viewports capturados
 
-| Arquivo | Viewport | Página |
-|---------|----------|--------|
-| `acesso-360.png` | 360×800 | Login |
-| `ordens-360.png` | 360×800 | Lista OS |
-| `dashboard-768.png` | 768×1024 | Home gestor |
-| `integracoes-1280.png` | 1280×800 | Integrações |
+| Viewport | Arquivos |
+|----------|----------|
+| 360×800 (mobile) | `acesso-360`, `convite-360`, `workspace-360`, `ordens-360` |
+| 768×1024 (tablet) | `acesso-768`, `workspace-768`, `ordens-768` |
+| 1280×800 (desktop) | `acesso-1280`, `workspace-1280`, `ordens-1280`, `integracoes-1280` |
 
-## Firefox (modo responsivo)
+Manifesto: `manifest-2026-06-08.json`
 
-1. F12 → Modo de design responsivo.
-2. Defina largura/altura da matriz.
-3. Clique direito → **Capturar screenshot**.
-
-## Script opcional (Chromium)
-
-Com frontend em `http://localhost:3001`:
+## Regenerar
 
 ```bash
-chmod +x scripts/capture-nf03-screenshots.sh
-FRONTEND_BASE_URL=http://localhost:3001 ./scripts/capture-nf03-screenshots.sh
+# Playwright (recomendado)
+NF_TOOLS_DIR=/tmp/manucmms-nf-tools npm install --prefix $NF_TOOLS_DIR --no-save playwright
+$NF_TOOLS_DIR/node_modules/.bin/playwright install chromium
+NODE_PATH=$NF_TOOLS_DIR/node_modules FRONTEND_BASE_URL=https://manucmms.vercel.app \
+  node scripts/nf-playwright-screenshots.mjs
 ```
+
+Rotas protegidas redirecionam para login — evidência de shell responsivo e páginas públicas.

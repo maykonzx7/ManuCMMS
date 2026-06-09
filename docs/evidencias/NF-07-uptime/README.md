@@ -1,12 +1,26 @@
-# NF-07 — Monitoramento de uptime
+# NF-07 — Disponibilidade (uptime)
 
-## Procedimento (homologação)
+**Última sonda:** 08/06/2026  
+**Alvo:** `https://manucmms.onrender.com/health`
 
-1. Criar monitor HTTP em [UptimeRobot](https://uptimerobot.com) ou Better Stack.
-2. URL: `https://SUA-API/health` (ver [HOMOLOG-URL.md](../../HOMOLOG-URL.md)).
-3. Intervalo: 5 minutos; alerta e-mail se down.
-4. Salvar screenshot do dashboard nesta pasta: `monitor-config.png`.
+## Resultado da sonda (10 probes, intervalo 3s)
 
-## Evidência local (desenvolvimento)
+| Métrica | Valor |
+|---------|-------|
+| Sucesso | 10/10 |
+| Uptime | **100%** |
+| Artefato | [resumo-2026-06-08.json](resumo-2026-06-08.json) |
 
-Health checks coletados em [NF-04-health](../NF-04-health/).
+## Monitor contínuo (recomendado para defesa)
+
+Cadastrar em [UptimeRobot](https://uptimerobot.com) ou similar:
+
+- URL: `https://manucmms.onrender.com/health`
+- Intervalo: 5 min
+- Alerta: e-mail se HTTP ≠ 200
+
+## Regenerar
+
+```bash
+API_BASE_URL=https://manucmms.onrender.com PROBES=20 ./scripts/nf-uptime-probe.sh
+```

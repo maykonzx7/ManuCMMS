@@ -6,9 +6,11 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import {
   CreatePecaUseCase,
   DeletePecaUseCase,
@@ -16,6 +18,7 @@ import {
   ListPecasByUnidadeUseCase,
   UpdatePecaUseCase,
 } from '../../application/pecas/pecas.use-cases';
+import { ExportPecasEstoqueUseCase } from '../../application/pecas/export-pecas-estoque.use-case';
 import { AuthorizeUsuarioPermissionUseCase } from '../../application/iam/authorize-usuario-permission.use-case';
 import { EnforceUnidadeScopeUseCase } from '../../application/iam/enforce-unidade-scope.use-case';
 
@@ -41,6 +44,7 @@ export class PecasController {
     private readonly createPeca: CreatePecaUseCase,
     private readonly updatePeca: UpdatePecaUseCase,
     private readonly deletePeca: DeletePecaUseCase,
+    private readonly exportEstoque: ExportPecasEstoqueUseCase,
     private readonly authorizePermission: AuthorizeUsuarioPermissionUseCase,
     private readonly enforceUnidadeScope: EnforceUnidadeScopeUseCase,
   ) {}
@@ -60,6 +64,40 @@ export class PecasController {
     this.authorizePermission.execute(req.usuarioLocal, 'ativo.visualizar');
     await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
     return this.listMovimentacoes.execute(unidadeId);
+  }
+
+  @Get('export')
+  async export(
+    @Param('unidadeId') unidadeId: string,
+    @Query('formato') formato: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    this.authorizePermission.execute(req.usuarioLocal, 'ativo.visualizar');
+    await this.enforceUnidadeScope.execute(req.usuarioLocal, unidadeId);
+
+    const payload = await this.exportEstoque.execute(unidadeId);
+    const fmt = this.exportEstoque.normalizeFormato(formato);
+    const slug = payload.unidadeNome.replace(/\s+/g, '_').toLowerCase();
+    const stamp = Date.now();
+
+    if (fmt === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="estoque_${slug}_${stamp}.csv"`,
+      );
+      res.send(this.exportEstoque.buildCsv(payload));
+      return;
+    }
+
+    const pdf = this.exportEstoque.buildPdf(payload);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="estoque_${slug}_${stamp}.pdf"`,
+    );
+    res.send(pdf);
   }
 
   @Post()

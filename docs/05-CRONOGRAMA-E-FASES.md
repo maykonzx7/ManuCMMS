@@ -113,10 +113,14 @@ Usar como gate antes da entrega final:
 - [ ] IoT/simulação → OS preditiva — **adiado**; ver [IoT-ESCOPO-DDE.md](IoT-ESCOPO-DDE.md)
 - [x] Dashboard KPIs tempo real — API executivo + WebSocket RF-11/18
 - [x] Integração externa (substitui Airtable) — API parceiro + webhook + circuit breaker
-- [ ] UI responsiva — matriz NF-03; anexar screenshots
+- [x] UI responsiva — NF-03 screenshots Playwright (08/06)
 - [x] Health + circuit breaker — NF-04/08 evidenciados
-- [ ] Deploy HTTPS homologação — preencher [HOMOLOG-URL.md](HOMOLOG-URL.md)
-- [ ] Testes ≥ 80% regras críticas — medir com `npm test` / cobertura
+- [x] Deploy HTTPS homologação — [HOMOLOG-URL.md](HOMOLOG-URL.md)
+- [x] Testes ≥ 80% regras críticas — `npm run test:critical` (80,7% linhas)
+- [x] NF-01 a NF-11 — evidências em [evidencias/](evidencias/README.md) (09/06)
+- [x] NF-06 carga 50 VUs — local OK
+- [x] NF-07 uptime — sonda 100% (10/10 probes)
+- [x] NF-11 a11y — axe 0 critical/serious (correcao aria-label senha)
 
 ---
 

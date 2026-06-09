@@ -46,6 +46,7 @@ import {
   ListPecasByUnidadeUseCase,
   UpdatePecaUseCase,
 } from '../application/pecas/pecas.use-cases';
+import { ExportPecasEstoqueUseCase } from '../application/pecas/export-pecas-estoque.use-case';
 import { EscalarOrdemServicoUseCase } from '../application/ordens-servico/escalar-ordem-servico.use-case';
 import { OrdemServicoSlaMonitorService } from '../application/ordens-servico/sla-monitor.service';
 import { UpdateOrdemServicoUseCase } from '../application/ordens-servico/update-ordem-servico.use-case';
@@ -146,6 +147,7 @@ import { SupabaseStorageService } from '../infrastructure/storage/supabase-stora
     CreatePecaUseCase,
     UpdatePecaUseCase,
     DeletePecaUseCase,
+    ExportPecasEstoqueUseCase,
     CreateOrdemServicoUseCase,
     GetOrdemServicoByIdUseCase,
     UpdateOrdemServicoUseCase,

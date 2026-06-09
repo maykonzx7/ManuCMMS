@@ -22,21 +22,21 @@ Consolida os **critérios de medição** explícitos no ERS que ainda não tinha
 | NF | Evidência esperada | Ferramenta / método (explícito no relatório) |
 | -- | ------------------ | --------------------------------------------- |
 | NF-01 | Tempo de resposta HTTP + opcional GTmetrix manual | curl (script) | **Script pronto** — [evidencias/NF-01-performance/README.md](evidencias/NF-01-performance/README.md) |
-| NF-02 | Relatório OWASP ZAP + evidência HTTPS/OIDC | OWASP ZAP | Pendente homologação HTTPS |
-| NF-03 | Matriz de dispositivos testados ou screenshots | Manual + devtools responsivos | **Matriz documentada** — [evidencias/NF-03-responsividade.md](evidencias/NF-03-responsividade.md) |
+| NF-02 | Relatório OWASP ZAP + evidência HTTPS/OIDC | OWASP ZAP | **Coletado 08/06** — [evidencias/NF-02-zap/](evidencias/NF-02-zap/) (0 High/Critical) |
+| NF-03 | Matriz de dispositivos testados ou screenshots | Playwright | **OK 08/06** — [evidencias/NF-03-screenshots/](evidencias/NF-03-screenshots/) |
 | NF-04 | Logs de health check + teste com RabbitMQ parado | Scripts manuais/automáticos | **Coletado** — [evidencias/NF-04-health/](evidencias/NF-04-health/) |
 | NF-05 | Consulta a log com quem/quando/valor anterior | Verificação manual na **coleção MongoDB** de auditoria (PostgreSQL não substitui esta evidência) | **Coletado** — [evidencias/NF-05-auditoria/](evidencias/NF-05-auditoria/) |
-| NF-06 | Relatório de carga 50 usuários | k6, Artillery, ou similar |
-| NF-07 | Uptime homologação > 99% | Monitor externo ou logs do provedor |
+| NF-06 | Relatório de carga 50 usuários | k6 | **Coletado 08/06** — [evidencias/NF-06-k6/](evidencias/NF-06-k6/) (local OK) |
+| NF-07 | Uptime homologação > 99% | Sonda + monitor externo | **OK 08/06** — [evidencias/NF-07-uptime/](evidencias/NF-07-uptime/) (100% na sonda) |
 | NF-08 | Métricas de fila sob carga | RabbitMQ management + testes | **Circuit breaker webhook** — [evidencias/NF-08-circuit-breaker.md](evidencias/NF-08-circuit-breaker.md) + teste unitário |
 | NF-09 | Upload 800 MB completo com sucesso | Teste manual ou automatizado longo |
 | NF-10 | Política de backup + simulação de restore | Documento + evidência do provedor | **Política + dump local** — [evidencias/NF-10-backup-restore.md](evidencias/NF-10-backup-restore.md) |
-| NF-11 | Relatório axe DevTools nos fluxos críticos | axe (Firefox/Chrome) | [evidencias/NF-11-a11y/README.md](evidencias/NF-11-a11y/README.md) |
+| NF-11 | Relatório axe nos fluxos críticos | axe-core + Playwright | **OK 09/06** — [evidencias/NF-11-a11y/](evidencias/NF-11-a11y/) (0 critical/serious) |
 | NF-12 | Amostra de logs estruturados em homologação | Stack de logging |
 
 Armazenar evidências na pasta `docs/evidencias/` (ou repositório separado) com data.
 
-**Última atualização:** 26/05/2026 — ver [evidencias/README.md](evidencias/README.md) para artefatos coletados (NF-01 curl, NF-04, NF-05, NF-08 unitário, NF-10 dump local).
+**Última atualização:** 09/06/2026 — NF-01 a NF-11 evidenciados. Testes RN: `cd backend && npm run test:critical` (≥80% linhas nos use cases críticos).
 
 ---
 

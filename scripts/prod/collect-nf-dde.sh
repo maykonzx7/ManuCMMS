@@ -34,10 +34,24 @@ echo "[1/4] Evidências locais (NF-01 performance, 04, 05, 10)..."
 chmod +x scripts/collect-nf-evidence.sh
 API_BASE_URL="$API" FRONTEND_BASE_URL="$FRONT" ./scripts/collect-nf-evidence.sh
 
-echo "[2/4] Screenshots públicos NF-03..."
-if [[ -x scripts/capture-nf03-screenshots.sh ]]; then
+echo "[2/4] Screenshots responsivos NF-03..."
+if command -v node >/dev/null 2>&1; then
+  NF_TOOLS_DIR="${NF_TOOLS_DIR:-/tmp/manucmms-nf-tools}"
+  if [[ ! -d "$NF_TOOLS_DIR/node_modules/playwright" ]]; then
+    npm install --prefix "$NF_TOOLS_DIR" --no-save playwright@1.52.0 >/dev/null 2>&1 || true
+    "$NF_TOOLS_DIR/node_modules/.bin/playwright" install chromium >/dev/null 2>&1 || true
+  fi
+  NODE_PATH="$NF_TOOLS_DIR/node_modules" FRONTEND_BASE_URL="$FRONT" \
+    node scripts/nf-playwright-screenshots.mjs || true
+elif [[ -x scripts/capture-nf03-screenshots.sh ]]; then
   FRONTEND_BASE_URL="$FRONT" ./scripts/capture-nf03-screenshots.sh || true
 fi
+
+echo "[2b] A11y NF-11..."
+FRONTEND_BASE_URL="$FRONT" ./scripts/nf-axe-scan.sh || true
+
+echo "[2c] Uptime NF-07..."
+API_BASE_URL="$API" PROBES="${NF07_PROBES:-10}" ./scripts/nf-uptime-probe.sh || true
 
 if [[ "$API" == https://* && "$FRONT" == https://* ]]; then
   echo "[3/4] ZAP baseline NF-02 (HTTPS)..."
@@ -48,8 +62,15 @@ if [[ "$API" == https://* && "$FRONT" == https://* ]]; then
     k6 run -e "API_BASE_URL=$API" \
       --out "json=$EVID/NF-06-k6/resultado-$(date +%F).json" \
       scripts/nf-k6-load.js || true
+  elif docker info >/dev/null 2>&1; then
+    echo "[4/4] k6 via Docker (NF-06)..."
+    docker run --rm --network host \
+      -v "$ROOT/scripts/nf-k6-load.js:/scripts/nf-k6-load.js" \
+      -e "API_BASE_URL=$API" \
+      grafana/k6 run /scripts/nf-k6-load.js \
+      2>&1 | tee "$EVID/NF-06-k6/execucao-$(date +%F).log" || true
   else
-    echo "[4/4] k6 não instalado — pule ou: k6 run -e API_BASE_URL=$API scripts/nf-k6-load.js"
+    echo "[4/4] k6 não instalado — instale k6 ou use Docker"
   fi
 else
   echo "[3/4] NF-02 ZAP — requer FRONTEND_BASE_URL HTTPS (após deploy Vercel)"

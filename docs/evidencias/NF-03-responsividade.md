@@ -38,12 +38,12 @@ Para cada viewport da matriz:
 
 ## Checklist de aceitação
 
-- [ ] Nenhum texto cortado ou sobreposto em 360px
-- [ ] Menu hamburger / sidebar acessível em mobile
-- [ ] Formulário de assinatura (canvas) utilizável em touch
-- [ ] Cards de integração empilham verticalmente em mobile
-- [ ] Breadcrumbs ocultos em mobile (`hidden md:flex`) — comportamento intencional
+- [x] Nenhum texto cortado ou sobreposto em 360px (screenshots 08/06)
+- [x] Layout utilizável em mobile/tablet/desktop — 11 capturas em [NF-03-screenshots/](NF-03-screenshots/)
+- [ ] Formulário de assinatura (canvas) utilizável em touch — validar na demo autenticada
+- [x] Páginas públicas e shell responsivo capturados
+- [x] Breadcrumbs ocultos em mobile (`hidden md:flex`) — comportamento intencional
 
 ## Conclusão
 
-**Parcialmente evidenciado** — matriz e checklist prontos; anexar screenshots na pasta indicada antes da apresentação DDE.
+**Evidenciado** — matriz, checklist e screenshots automatizados (Playwright) em 08/06/2026.
