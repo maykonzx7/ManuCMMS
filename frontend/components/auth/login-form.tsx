@@ -46,11 +46,13 @@ export function LoginForm({ onSubmit, onForgotPassword, empresaSlug, isLoading, 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     getValues,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   })
+
+  const isBusy = isLoading || isSubmitting
 
   const forgotForm = useForm<ForgotFormData>({
     resolver: zodResolver(forgotSchema),
@@ -98,7 +100,7 @@ export function LoginForm({ onSubmit, onForgotPassword, empresaSlug, isLoading, 
               placeholder="seu@email.com ou credencial"
               className={cn('pl-10', errors.email && 'border-destructive')}
               {...register('email')}
-              disabled={isLoading}
+              disabled={isBusy}
             />
           </div>
           {errors.email && (
@@ -116,7 +118,7 @@ export function LoginForm({ onSubmit, onForgotPassword, empresaSlug, isLoading, 
               placeholder="••••••••"
               className={cn('pl-10 pr-10', errors.senha && 'border-destructive')}
               {...register('senha')}
-              disabled={isLoading}
+              disabled={isBusy}
             />
             <button
               type="button"
@@ -152,8 +154,8 @@ export function LoginForm({ onSubmit, onForgotPassword, empresaSlug, isLoading, 
           ) : null}
         </div>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? (
+        <Button type="submit" className="w-full" disabled={isBusy}>
+          {isBusy ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Entrando...
