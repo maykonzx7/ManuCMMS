@@ -20,6 +20,8 @@ coverage/
 .env.documentacao
 .env.documentacao.local
 !.env.documentacao.example
+.env.render
+!.env.render.example
 
 # Logs e caches
 logs/

@@ -2,7 +2,10 @@
 # ManuCMMS — Blueprint Render (microserviços)
 # =============================================================================
 # Aplicar: Render Dashboard → Blueprints → New Blueprint Instance → repo GitHub
-# Ou: sincronizar após push na branch conectada.
+# Ou (CLI): ./scripts/render/provision-microservices.sh (com RENDER_API_KEY)
+#
+# Nota: se a API já existir como "manucmms" (não "manucmms-api"), o script CLI
+# reutiliza esse serviço e cria apenas iot-ingestion + worker-events.
 #
 # Serviços:
 #   1. manucmms-api          — api-core (REST + WebSocket)

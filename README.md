@@ -142,6 +142,35 @@ cd frontend && npm run build && npm run start -p 3001 &
 
 Documentação de deploy e defesa: arquivos em `documentacao-local/docs/` (local).
 
+## Render — microserviços IoT (RN-01)
+
+Produção usa três serviços web no Render (ver [`render.yaml`](render.yaml)):
+
+| Serviço | Função |
+| ------- | ------ |
+| `manucmms` ou `manucmms-api` | API NestJS |
+| `manucmms-iot-ingestion` | Ingestão IoT e simulação |
+| `manucmms-worker-events` | OS preditiva + filas RabbitMQ |
+
+### CLI e provisionamento
+
+```bash
+chmod +x scripts/render/*.sh
+./scripts/render/install-cli.sh
+
+# Autenticação (obrigatória para provisionamento):
+export RENDER_API_KEY=rnd_...   # Dashboard → Account Settings → API Keys
+# Para logs/deploy manual no CLI: render login
+
+cp .env.render.example .env.render   # opcional
+./scripts/render/provision-microservices.sh
+./scripts/render/check-iot-stack.sh
+```
+
+O script de provisionamento cria os microserviços faltantes, vincula env groups (se existirem), define `IOT_INGESTION_URL` na API e dispara deploy.
+
+Alternativa manual: Render Dashboard → **Blueprints** → New Blueprint Instance → repositório GitHub → `render.yaml`.
+
 ## Próximos passos
 
 - Fase 1: IAM (Supabase), modelo de unidade fabril e RBAC — ver plano maestro e cronograma na pasta local `documentacao-local/docs/`.

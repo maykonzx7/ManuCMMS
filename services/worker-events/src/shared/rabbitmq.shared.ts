@@ -35,6 +35,18 @@ export async function setupTopology(channel: amqp.Channel): Promise<void> {
   }
 }
 
+export async function publishEvent<T extends Record<string, unknown>>(
+  channel: amqp.Channel,
+  routingKey: string,
+  payload: T,
+): Promise<void> {
+  const body = Buffer.from(JSON.stringify(payload));
+  channel.publish(MESSAGING.exchange, routingKey, body, {
+    persistent: true,
+    contentType: 'application/json',
+  });
+}
+
 export type MessageHandler = (
   payload: Record<string, unknown>,
   raw: amqp.ConsumeMessage,
