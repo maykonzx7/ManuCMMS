@@ -73,10 +73,10 @@ export class OsPreditivaService {
           ${atribuicao.idTecnico}::uuid,
           'PREDITIVA'::"TipoOrdemServico",
           'ALTA'::"PrioridadeOrdemServico",
-          ${atribuicao.status},
+          ${atribuicao.status}::"StatusOrdemServico",
           ${descricao},
           ${dataLimiteSla},
-          'NO_PRAZO',
+          'NO_PRAZO'::"StatusSlaOrdemServico",
           NOW()
         )
       `);
@@ -84,7 +84,7 @@ export class OsPreditivaService {
       await tx.$executeRaw(Prisma.sql`
         UPDATE ativo
         SET
-          status = 'MANUTENCAO',
+          status = 'MANUTENCAO'::"StatusAtivo",
           updated_at = NOW()
         WHERE id = ${event.ativoId}::uuid
           AND empresa_id = ${event.empresaId}::uuid

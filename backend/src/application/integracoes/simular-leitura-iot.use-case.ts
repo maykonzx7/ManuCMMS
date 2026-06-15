@@ -74,6 +74,8 @@ export class SimularLeituraIotUseCase {
       );
     }
 
+    await this.wakeIotIngestion(iotBaseUrl);
+
     const valor = ativo.limiteTemp + 5;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -83,16 +85,13 @@ export class SimularLeituraIotUseCase {
       headers['x-iot-api-key'] = apiKey;
     }
 
+    const simularUrl = `${iotBaseUrl.replace(/\/$/, '')}/iot/simular`;
     const results: IotSimularResponse[] = [];
     for (let i = 0; i < RN01_LEITURAS; i++) {
-      const response = await fetch(
-        `${iotBaseUrl.replace(/\/$/, '')}/iot/simular`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ ativoId: input.idAtivo, valor }),
-        },
-      );
+      const response = await this.postIotWithRetry(simularUrl, headers, {
+        ativoId: input.idAtivo,
+        valor,
+      });
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
@@ -119,5 +118,56 @@ export class SimularLeituraIotUseCase {
       osPreditivaPublicada,
       correlationId: last.correlationId,
     };
+  }
+
+  /** Render free tier: microserviço IoT pode estar dormindo (~30–90s). */
+  private async wakeIotIngestion(baseUrl: string): Promise<void> {
+    const healthUrl = `${baseUrl.replace(/\/$/, '')}/health`;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        const response = await fetch(healthUrl, {
+          signal: AbortSignal.timeout(90_000),
+        });
+        if (response.ok) return;
+      } catch {
+        /* cold start */
+      }
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 5000 * attempt));
+      }
+    }
+    throw new ServiceUnavailableException(
+      'Microserviço IoT indisponível (cold start Render). Tente novamente em ~1 minuto.',
+    );
+  }
+
+  private async postIotWithRetry(
+    url: string,
+    headers: Record<string, string>,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(90_000),
+        });
+        if (response.ok || response.status < 500) {
+          return response;
+        }
+        lastError = new Error(`HTTP ${response.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 4000 * attempt));
+      }
+    }
+    throw new BadGatewayException(
+      `Falha ao contactar IoT ingestion: ${lastError instanceof Error ? lastError.message : 'erro de rede'}`,
+    );
   }
 }
