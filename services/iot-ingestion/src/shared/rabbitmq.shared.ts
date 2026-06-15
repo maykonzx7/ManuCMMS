@@ -17,6 +17,10 @@ export async function setupTopology(channel: amqp.Channel): Promise<void> {
       queue: MESSAGING.queues.osPreditiva,
       key: MESSAGING.routingKeys.osPreditiva,
     },
+    {
+      queue: MESSAGING.queues.osPreditivaCriada,
+      key: MESSAGING.routingKeys.osPreditivaCriada,
+    },
   ];
 
   for (const { queue, key } of bindings) {

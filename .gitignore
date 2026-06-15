@@ -16,6 +16,10 @@ coverage/
 .env.prod
 .env.*.local
 !.env.example
+!.env.prod.example
+.env.documentacao
+.env.documentacao.local
+!.env.documentacao.example
 
 # Logs e caches
 logs/
@@ -47,9 +51,24 @@ docs/evidencias/NF-10-backup/*.gz
 .agents/
 .codex/
 skills-lock.json
-docs/
 .codex
 
-# Documentação local
+# Documentação TCC / relatório / apêndice (somente local — não versionar)
+documentacao-local/
+CONTEXT.MD
+CONTEXT.md
+APÊNDICE.md
+APENDICE-GOOGLE-DOCS.html
+APENDICE*.html
+PROMPT_FRONTEND_MANUCMMS.md
+V2.ManuCMMS*.md
+V2.ManuCMMS*.html
+Cópia de V2*.md
+Cópia de V2*.html
+3 DOCUMENTO DE ESPECIFICAÇÃO*.md
+4 DOCUMENTO DE ESPECIFICAÇÃO*.md
+6 MANUAL DO USUÁRIO*.md
+docs/
 *.md
 !README.md
+.cursor/rules/padronizacao-tcc.mdc

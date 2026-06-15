@@ -28,7 +28,6 @@ import { CreateConviteAcessoUseCase } from '../application/onboarding/create-con
 import { CreateEmpresaWithInviteUseCase } from '../application/onboarding/create-empresa-with-invite.use-case';
 import { ListConvitesAcessoUseCase } from '../application/onboarding/list-convites-acesso.use-case';
 import { ResendConviteAcessoUseCase } from '../application/onboarding/resend-convite-acesso.use-case';
-import { NotificacaoService } from '../application/notificacoes/notificacao.service';
 import { CreateOrdemServicoComentarioUseCase } from '../application/ordens-servico/create-ordem-servico-comentario.use-case';
 import { ExportOrdemServicoUseCase } from '../application/ordens-servico/export-ordem-servico.use-case';
 import { ListOrdemServicoComentariosUseCase } from '../application/ordens-servico/list-ordem-servico-comentarios.use-case';
@@ -67,6 +66,7 @@ import { DashboardController } from './http/dashboard.controller';
 import { GetDashboardExecutivoUseCase } from '../application/dashboard/get-dashboard-executivo.use-case';
 import { OrdensServicoController } from './http/ordens-servico.controller';
 import { HealthController } from './http/health.controller';
+import { SimularLeituraIotUseCase } from '../application/integracoes/simular-leitura-iot.use-case';
 import { IntegracoesController } from './http/integracoes.controller';
 import { IntegracaoParceiroController } from './http/integracao-parceiro.controller';
 import { GestaoEmpresaController } from './http/gestao-empresa.controller';
@@ -120,6 +120,7 @@ import { ManagedUploadService } from '../infrastructure/storage/managed-upload.s
     RemoveUsuarioAcessoUseCase,
     UpdateUsuarioEmpresaStatusUseCase,
     AuthorizePlatformOperatorUseCase,
+    SimularLeituraIotUseCase,
     EnforceUnidadeScopeUseCase,
     CreateEmpresaWithInviteUseCase,
     CreateConviteAcessoUseCase,
@@ -131,7 +132,6 @@ import { ManagedUploadService } from '../infrastructure/storage/managed-upload.s
     SupabaseAdminService,
     SupabaseStorageService,
     ManagedUploadService,
-    NotificacaoService,
     ListAtivosByUnidadeUseCase,
     CreateAtivoUseCase,
     GetAtivoByIdUseCase,

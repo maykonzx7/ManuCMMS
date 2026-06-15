@@ -31,7 +31,11 @@ export class RedisCounterService implements OnModuleInit, OnModuleDestroy {
     limiteTemp: number,
   ): Promise<{ consecutive: number; triggered: boolean }> {
     if (!this.client) {
-      return { consecutive: valor > limiteTemp ? RN01_THRESHOLD : 0, triggered: false };
+      const above = valor > limiteTemp;
+      return {
+        consecutive: above ? RN01_THRESHOLD : 0,
+        triggered: above,
+      };
     }
 
     const key = this.key(ativoId);

@@ -6,11 +6,13 @@ export const MESSAGING = {
     webhookDeliver: 'manucmms.webhook.deliver',
     emailSend: 'manucmms.email.send',
     osPreditiva: 'manucmms.os.preditiva',
+    osPreditivaCriada: 'manucmms.os.preditiva.created',
   },
   routingKeys: {
     webhookDeliver: 'webhook.deliver',
     emailSend: 'email.send',
     osPreditiva: 'os.preditiva.create',
+    osPreditivaCriada: 'os.preditiva.created',
   },
 } as const;
 
@@ -40,6 +42,19 @@ export type CriarOSPreditivaEvent = {
   valorLeitura: number;
   limiteTemp: number;
   motivo: string;
+  origem: 'IOT' | 'SIMULACAO';
+  correlationId?: string;
+};
+
+export type OsPreditivaCriadaEvent = {
+  version: 1;
+  osId: string;
+  ativoId: string;
+  ativoNome: string;
+  idUnidade: string;
+  empresaId: string;
+  idTecnico: string | null;
+  status: 'ABERTA' | 'AGUARDANDO';
   origem: 'IOT' | 'SIMULACAO';
   correlationId?: string;
 };

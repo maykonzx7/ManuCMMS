@@ -4,11 +4,13 @@ export declare const MESSAGING: {
         readonly webhookDeliver: "manucmms.webhook.deliver";
         readonly emailSend: "manucmms.email.send";
         readonly osPreditiva: "manucmms.os.preditiva";
+        readonly osPreditivaCriada: "manucmms.os.preditiva.created";
     };
     readonly routingKeys: {
         readonly webhookDeliver: "webhook.deliver";
         readonly emailSend: "email.send";
         readonly osPreditiva: "os.preditiva.create";
+        readonly osPreditivaCriada: "os.preditiva.created";
     };
 };
 export type WebhookDeliverEvent = {

@@ -9,7 +9,13 @@ Sistema corporativo de gestão de manutenção de ativos (CMMS), com IoT.
 | Pasta | Conteúdo |
 | ----- | --------- |
 | `backend/` | API **NestJS** + TypeScript, arquitetura **hexagonal** (em evolução). |
-| `docs/` | Plano maestro, arquitetura DDD, contratos API, NF/RF/RN. |
+
+A documentação do TCC (CONTEXT, PDSOB, DEM, DEI, Manual, apêndice, `docs/`) **não é versionada**. Mantenha em `documentacao-local/` e configure paths com:
+
+```bash
+cp .env.documentacao.example .env.documentacao
+# opcional: inclua no .env da raiz com source .env.documentacao
+```
 
 ## Pré-requisitos
 
@@ -134,8 +140,8 @@ cd frontend && npm run build && npm run start -p 3001 &
 ./scripts/prod/collect-nf-dde.sh
 ```
 
-Documentação: [docs/14-DEPLOY-HOMOLOGACAO.md](docs/14-DEPLOY-HOMOLOGACAO.md), [docs/CHECKLIST-DEFESA-DDE.md](docs/CHECKLIST-DEFESA-DDE.md).
+Documentação de deploy e defesa: arquivos em `documentacao-local/docs/` (local).
 
 ## Próximos passos
 
-- Fase 1: IAM (Supabase), modelo de unidade fabril e RBAC — ver [docs/00-PLANO-MAESTRO.md](docs/00-PLANO-MAESTRO.md) e [docs/05-CRONOGRAMA-E-FASES.md](docs/05-CRONOGRAMA-E-FASES.md).
+- Fase 1: IAM (Supabase), modelo de unidade fabril e RBAC — ver plano maestro e cronograma na pasta local `documentacao-local/docs/`.

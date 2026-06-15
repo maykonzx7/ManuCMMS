@@ -4,11 +4,13 @@ export const MESSAGING = {
     webhookDeliver: 'manucmms.webhook.deliver',
     emailSend: 'manucmms.email.send',
     osPreditiva: 'manucmms.os.preditiva',
+    osPreditivaCriada: 'manucmms.os.preditiva.created',
   },
   routingKeys: {
     webhookDeliver: 'webhook.deliver',
     emailSend: 'email.send',
     osPreditiva: 'os.preditiva.create',
+    osPreditivaCriada: 'os.preditiva.created',
   },
 } as const;
 

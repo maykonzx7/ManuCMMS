@@ -28,6 +28,29 @@ export class IotController {
     });
   }
 
+  @Post('cloud/leituras')
+  async cloudLeituras(
+    @Headers('x-iot-api-key') apiKey: string | undefined,
+    @Body()
+    body: {
+      ativoId?: string;
+      valor?: number;
+      field1?: number;
+      temperature?: number;
+      temp?: number;
+    },
+  ) {
+    this.assertApiKey(apiKey);
+    const valor = Number(
+      body.valor ?? body.field1 ?? body.temperature ?? body.temp,
+    );
+    return this.telemetry.ingest({
+      ativoId: body.ativoId ?? '',
+      valor,
+      origem: 'IOT',
+    });
+  }
+
   @Post('simular')
   async simular(
     @Headers('x-iot-api-key') apiKey: string | undefined,

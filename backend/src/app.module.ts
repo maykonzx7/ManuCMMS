@@ -7,6 +7,7 @@ import { EmailModule } from './infrastructure/email/email.module';
 import { SupabaseAdminService } from './infrastructure/auth/supabase-admin.service';
 import { PrismaModule } from './infrastructure/persistence/prisma.module';
 import { IntegracaoModule } from './infrastructure/integracao/integracao.module';
+import { NotificacaoModule } from './application/notificacoes/notificacao.module';
 import { MessagingModule } from './infrastructure/messaging/messaging.module';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { AuthModule } from './presentation/auth/auth.module';
@@ -25,6 +26,7 @@ import { PresentationModule } from './presentation/presentation.module';
     CacheModule,
     EmailModule,
     IntegracaoModule,
+    NotificacaoModule,
     MessagingModule,
     RealtimeModule,
     PrismaModule,
