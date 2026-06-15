@@ -13,6 +13,7 @@ import {
   Copy,
   FlaskConical,
   Loader2,
+  LineChart,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +23,10 @@ import { useAuth, useCurrentUnit } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { ROUTES } from '@/lib/routes'
 import { PageDataLoading } from '@/components/shared'
+import {
+  IotLeiturasHistoricoChart,
+  type LeituraIotHistoricoItem,
+} from '@/components/iot/leituras-historico-chart'
 
 type ApiAtivo = {
   id?: string
@@ -70,6 +75,14 @@ type SimularIotResponse = {
   correlationId: string
 }
 
+type LeiturasHistoricoResponse = {
+  idUnidade: string
+  idAtivo: string | null
+  limiteTemp: number | null
+  total: number
+  leituras: LeituraIotHistoricoItem[]
+}
+
 function resolveAtivoId(ativo: ApiAtivo): string {
   return ativo.idAtivo ?? ativo.id ?? ''
 }
@@ -85,6 +98,37 @@ export default function IotPage() {
   const [error, setError] = useState<string | null>(null)
   const [simulatingAtivoId, setSimulatingAtivoId] = useState<string | null>(null)
   const [iotInfo, setIotInfo] = useState<IotCloudInfo | null>(null)
+  const [selectedAtivoId, setSelectedAtivoId] = useState<string>('')
+  const [leiturasHistorico, setLeiturasHistorico] = useState<LeituraIotHistoricoItem[]>([])
+  const [historicoLimite, setHistoricoLimite] = useState<number | null>(null)
+  const [historicoLoading, setHistoricoLoading] = useState(false)
+
+  const loadHistorico = async (ativoId: string) => {
+    if (!accessToken || !unit?.id || !ativoId) {
+      setLeiturasHistorico([])
+      setHistoricoLimite(null)
+      return
+    }
+    setHistoricoLoading(true)
+    try {
+      const params = new URLSearchParams({
+        idUnidade: unit.id,
+        idAtivo: ativoId,
+        limit: '120',
+      })
+      const res = await apiRequest<LeiturasHistoricoResponse>(
+        `/integracoes/iot/leituras?${params.toString()}`,
+        { accessToken },
+      )
+      setLeiturasHistorico(res.leituras)
+      setHistoricoLimite(res.limiteTemp)
+    } catch {
+      setLeiturasHistorico([])
+      setHistoricoLimite(null)
+    } finally {
+      setHistoricoLoading(false)
+    }
+  }
 
   const load = async () => {
     if (!accessToken || !unit?.id) return
@@ -100,6 +144,18 @@ export default function IotPage() {
       setIotMessage(statusRes.integrations.iot.message)
       setAtivos(ativosRes)
       setIotInfo(infoRes)
+
+      const ids = ativosRes.map(resolveAtivoId).filter(Boolean)
+      const nextSelected =
+        selectedAtivoId && ids.includes(selectedAtivoId)
+          ? selectedAtivoId
+          : ids[0] ?? ''
+      if (nextSelected !== selectedAtivoId) {
+        setSelectedAtivoId(nextSelected)
+      }
+      if (nextSelected) {
+        await loadHistorico(nextSelected)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar dados de IoT')
       setAtivos([])
@@ -119,6 +175,11 @@ export default function IotPage() {
     }
     void load()
   }, [accessToken, isPlatformOperator, router, unit?.id])
+
+  const handleSelectAtivo = (ativoId: string) => {
+    setSelectedAtivoId(ativoId)
+    void loadHistorico(ativoId)
+  }
 
   const handleSimular = async (ativo: ApiAtivo) => {
     const ativoId = resolveAtivoId(ativo)
@@ -151,6 +212,9 @@ export default function IotPage() {
       }
 
       await load()
+      if (ativoId === selectedAtivoId || !selectedAtivoId) {
+        await loadHistorico(ativoId)
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao simular leitura IoT')
     } finally {
@@ -308,6 +372,37 @@ export default function IotPage() {
             </Link>
             .
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LineChart className="h-5 w-5" />
+            Histórico de leituras
+          </CardTitle>
+          <CardDescription>
+            Gráfico de temperatura por ativo. Pontos roxos indicam leitura que disparou OS preditiva
+            (RN-01).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {ativos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Cadastre ativos para ver o histórico.</p>
+          ) : (
+            <IotLeiturasHistoricoChart
+              ativos={ativos.map((a) => ({
+                id: resolveAtivoId(a),
+                nome: a.nome,
+                limiteTemp: a.limiteTemp,
+              }))}
+              selectedAtivoId={selectedAtivoId}
+              onSelectAtivo={handleSelectAtivo}
+              leituras={leiturasHistorico}
+              limiteTemp={historicoLimite}
+              isLoading={historicoLoading}
+            />
+          )}
         </CardContent>
       </Card>
 

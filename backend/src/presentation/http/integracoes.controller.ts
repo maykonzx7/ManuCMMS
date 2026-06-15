@@ -4,12 +4,14 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthorizePlatformOperatorUseCase } from '../../application/iam/authorize-platform-operator.use-case';
 import { SimularLeituraIotUseCase } from '../../application/integracoes/simular-leitura-iot.use-case';
+import { ListLeiturasIotUseCase } from '../../application/integracoes/list-leituras-iot.use-case';
 import type { AuthUserContext } from '../auth/auth-user.types';
 import { EmailDeliveryService } from '../../infrastructure/email/email-delivery.service';
 import { MongoHealthIndicator } from '../../infrastructure/health/mongo-health.indicator';
@@ -28,6 +30,7 @@ export class IntegracoesController {
   constructor(
     private readonly authorizePlatformOperator: AuthorizePlatformOperatorUseCase,
     private readonly simularLeituraIot: SimularLeituraIotUseCase,
+    private readonly listLeiturasIot: ListLeiturasIotUseCase,
     private readonly rabbitmqHealth: RabbitmqHealthIndicator,
     private readonly mongoHealth: MongoHealthIndicator,
     private readonly redisHealth: RedisHealthIndicator,
@@ -49,6 +52,29 @@ export class IntegracoesController {
     }
 
     return this.simularLeituraIot.execute({ idUnidade, idAtivo });
+  }
+
+  @Get('iot/leituras')
+  async listarLeiturasIot(
+    @Req() req: RequestWithUser,
+    @Query('idUnidade') idUnidade?: string,
+    @Query('idAtivo') idAtivo?: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    this.authorizePlatformOperator.execute(req.user);
+
+    const unidadeId = idUnidade?.trim();
+    if (!unidadeId) {
+      throw new BadRequestException('idUnidade é obrigatório.');
+    }
+
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+
+    return this.listLeiturasIot.execute({
+      idUnidade: unidadeId,
+      idAtivo: idAtivo?.trim() || undefined,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
   }
 
   @Get('iot/info')

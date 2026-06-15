@@ -95,6 +95,11 @@ enum CategoriaOrdemServicoAnexo {
   GERAL
 }
 
+enum OrigemLeituraIot {
+  IOT
+  SIMULACAO
+}
+
 model Empresa {
   id              String           @id @default(uuid()) @db.Uuid
   nomeEmpresa     String           @map("nome_empresa") @db.VarChar(150)
@@ -123,6 +128,7 @@ model Empresa {
   ordensServico   OrdemServico[]
   pecas           Peca[]
   integracaoEventos IntegracaoEvento[]
+  leiturasIot       LeituraIot[]
 
   @@map("empresa")
 }
@@ -151,6 +157,7 @@ model UnidadeFabril {
   usuariosCargo UsuarioCargo[]
   ativos        Ativo[]
   pecas         Peca[]
+  leiturasIot   LeituraIot[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -182,6 +189,7 @@ model Ativo {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   ordensServico OrdemServico[]
   documentos    AtivoDocumento[]
+  leiturasIot   LeituraIot[]
 
   @@index([empresaId, idUnidade])
   @@index([idUnidade])
@@ -248,6 +256,7 @@ model OrdemServico {
   pecasConsumidas   OrdemServicoPeca[]
   comentarios       OrdemServicoComentario[]
   anexos            OrdemServicoAnexo[]
+  leiturasIot       LeituraIot[]
 
   @@index([empresaId, status, dataAbertura])
   @@index([idAtivo])
@@ -491,6 +500,30 @@ model ConviteAcesso {
   @@index([empresaId, status])
   @@index([emailDestino])
   @@map("convite_acesso")
+}
+
+model LeituraIot {
+  id                      String           @id @default(uuid()) @db.Uuid
+  empresaId               String           @map("empresa_id") @db.Uuid
+  idUnidade               String           @map("id_unidade") @db.Uuid
+  idAtivo                 String           @map("id_ativo") @db.Uuid
+  valor                   Float
+  limiteTemp              Float            @map("limite_temp")
+  origem                  OrigemLeituraIot
+  consecutivasAcimaLimite Int              @default(0) @map("consecutivas_acima_limite")
+  osPreditivaDisparada    Boolean          @default(false) @map("os_preditiva_disparada")
+  ordemServicoId          String?          @map("ordem_servico_id") @db.Uuid
+  correlationId           String?          @map("correlation_id") @db.Uuid
+  createdAt               DateTime         @default(now()) @map("created_at")
+  empresa                 Empresa          @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  unidade                 UnidadeFabril    @relation(fields: [idUnidade], references: [id], onDelete: Cascade)
+  ativo                   Ativo            @relation(fields: [idAtivo], references: [id], onDelete: Cascade)
+  ordemServico            OrdemServico?    @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+
+  @@index([idAtivo, createdAt(sort: Desc)])
+  @@index([idUnidade, createdAt(sort: Desc)])
+  @@index([correlationId])
+  @@map("leitura_iot")
 }
 
 model IntegracaoEvento {

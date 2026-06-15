@@ -90,6 +90,15 @@ export class OsPreditivaService {
           AND empresa_id = ${event.empresaId}::uuid
           AND id_unidade = ${event.idUnidade}::uuid
       `);
+
+      if (event.correlationId) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE leitura_iot
+          SET ordem_servico_id = ${id}::uuid
+          WHERE correlation_id = ${event.correlationId}::uuid
+            AND os_preditiva_disparada = true
+        `);
+      }
     });
 
     const ativoRows = await this.prisma.$queryRaw<Array<{ nome: string }>>(

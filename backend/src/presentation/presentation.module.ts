@@ -67,6 +67,7 @@ import { GetDashboardExecutivoUseCase } from '../application/dashboard/get-dashb
 import { OrdensServicoController } from './http/ordens-servico.controller';
 import { HealthController } from './http/health.controller';
 import { SimularLeituraIotUseCase } from '../application/integracoes/simular-leitura-iot.use-case';
+import { ListLeiturasIotUseCase } from '../application/integracoes/list-leituras-iot.use-case';
 import { IntegracoesController } from './http/integracoes.controller';
 import { IntegracaoParceiroController } from './http/integracao-parceiro.controller';
 import { GestaoEmpresaController } from './http/gestao-empresa.controller';
@@ -121,6 +122,7 @@ import { ManagedUploadService } from '../infrastructure/storage/managed-upload.s
     UpdateUsuarioEmpresaStatusUseCase,
     AuthorizePlatformOperatorUseCase,
     SimularLeituraIotUseCase,
+    ListLeiturasIotUseCase,
     EnforceUnidadeScopeUseCase,
     CreateEmpresaWithInviteUseCase,
     CreateConviteAcessoUseCase,

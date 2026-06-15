@@ -67,6 +67,15 @@ export class TelemetryService {
       osPreditivaPublicada = true;
     }
 
+    await this.persistReading({
+      ativo,
+      valor: input.valor,
+      origem: input.origem,
+      consecutive,
+      osPreditivaPublicada,
+      correlationId,
+    });
+
     return {
       ativoId: ativo.id,
       ativoNome: ativo.nome,
@@ -91,5 +100,42 @@ export class TelemetryService {
       LIMIT 1
     `);
     return rows[0] ?? null;
+  }
+
+  private async persistReading(input: {
+    ativo: AtivoRow;
+    valor: number;
+    origem: 'IOT' | 'SIMULACAO';
+    consecutive: number;
+    osPreditivaPublicada: boolean;
+    correlationId: string;
+  }): Promise<void> {
+    const id = randomUUID();
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO leitura_iot (
+        id,
+        empresa_id,
+        id_unidade,
+        id_ativo,
+        valor,
+        limite_temp,
+        origem,
+        consecutivas_acima_limite,
+        os_preditiva_disparada,
+        correlation_id
+      ) VALUES (
+        ${id}::uuid,
+        ${input.ativo.empresaId}::uuid,
+        ${input.ativo.idUnidade}::uuid,
+        ${input.ativo.id}::uuid,
+        ${input.valor},
+        ${input.ativo.limiteTemp},
+        ${input.origem}::"OrigemLeituraIot",
+        ${input.consecutive},
+        ${input.osPreditivaPublicada},
+        ${input.correlationId}::uuid
+      )
+    `);
   }
 }

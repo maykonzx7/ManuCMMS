@@ -65,6 +65,7 @@ enum TipoOrdemServico {
 /// DEM — ciclo de vida da OS (fechamento com evidências fotográficas: RN-02, RN-13).
 enum StatusOrdemServico {
   ABERTA
+  AGUARDANDO
   EM_EXECUCAO
   CONCLUIDA
   CANCELADA
@@ -81,6 +82,23 @@ enum PrioridadeOrdemServico {
   MEDIA
   ALTA
   CRITICA
+}
+
+enum TipoAtivoDocumento {
+  MANUAL
+  DIAGRAMA
+  DOCUMENTACAO
+}
+
+enum CategoriaOrdemServicoAnexo {
+  PROBLEMA
+  RESOLUCAO
+  GERAL
+}
+
+enum OrigemLeituraIot {
+  IOT
+  SIMULACAO
 }
 
 model Empresa {
@@ -107,9 +125,11 @@ model Empresa {
   cargos          Cargo[]
   convites        ConviteAcesso[]
   ativos          Ativo[]
+  ativoDocumentos AtivoDocumento[]
   ordensServico   OrdemServico[]
   pecas           Peca[]
   integracaoEventos IntegracaoEvento[]
+  leiturasIot       LeituraIot[]
 
   @@map("empresa")
 }
@@ -138,6 +158,7 @@ model UnidadeFabril {
   usuariosCargo UsuarioCargo[]
   ativos        Ativo[]
   pecas         Peca[]
+  leiturasIot   LeituraIot[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -161,13 +182,38 @@ model Ativo {
   custoManutencaoMensal Float  @default(0) @map("custo_manutencao_mensal")
   status        StatusAtivo    @default(OPERACIONAL)
   limiteTemp    Float          @default(48) @map("limite_temp")
+  localizacao   String?        @db.VarChar(255)
+  latitude      Float?
+  longitude     Float?
+  fotoUrl       String?        @map("foto_url") @db.VarChar(2048)
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   ordensServico OrdemServico[]
+  documentos    AtivoDocumento[]
+  leiturasIot   LeituraIot[]
 
   @@index([empresaId, idUnidade])
   @@index([idUnidade])
   @@map("ativo")
+}
+
+model AtivoDocumento {
+  id                   String             @id @default(uuid()) @db.Uuid
+  empresaId            String             @map("empresa_id") @db.Uuid
+  ativoId              String             @map("ativo_id") @db.Uuid
+  tipo                 TipoAtivoDocumento
+  nome                 String             @db.VarChar(200)
+  url                  String             @db.VarChar(2048)
+  mimeType             String             @map("mime_type") @db.VarChar(120)
+  tamanhoBytes         Int                @map("tamanho_bytes")
+  uploadedPorUsuarioId String?            @map("uploaded_por_usuario_id") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at")
+  empresa              Empresa            @relation(fields: [empresaId], references: [id])
+  ativo                Ativo              @relation(fields: [ativoId], references: [id], onDelete: Cascade)
+
+  @@index([ativoId, tipo])
+  @@index([empresaId, ativoId])
+  @@map("ativo_documento")
 }
 
 /// RF-05 / RF-06 / RF-07; RN-05 (sempre com ativo).
@@ -197,6 +243,10 @@ model OrdemServico {
   fotoSolucao       String?            @map("foto_solucao") @db.VarChar(2048)
   descricaoSolucao  String?            @map("descricao_solucao") @db.VarChar(4000)
   dataLimiteSla     DateTime?          @map("data_limite_sla")
+  /// Prazo de vencimento opcional definido na abertura/edição da OS.
+  dataPrazoVencimento DateTime?        @map("data_prazo_vencimento")
+  /// Data opcional a partir da qual a OS é considerada em atraso (se não informada, usa prazo ou SLA).
+  dataLimiteAtraso  DateTime?          @map("data_limite_atraso")
   statusSla         StatusSlaOrdemServico @default(NO_PRAZO) @map("status_sla")
   slaAtrasoNotificadoEm DateTime?      @map("sla_atraso_notificado_em")
   observacaoCancelamento String?       @map("observacao_cancelamento") @db.VarChar(1000)
@@ -206,6 +256,8 @@ model OrdemServico {
   transferencias    OrdemServicoTransferencia[]
   pecasConsumidas   OrdemServicoPeca[]
   comentarios       OrdemServicoComentario[]
+  anexos            OrdemServicoAnexo[]
+  leiturasIot       LeituraIot[]
 
   @@index([empresaId, status, dataAbertura])
   @@index([idAtivo])
@@ -311,6 +363,24 @@ model OrdemServicoComentario {
 
   @@index([ordemServicoId, createdAt])
   @@map("ordem_servico_comentario")
+}
+
+model OrdemServicoAnexo {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  empresaId            String                     @map("empresa_id") @db.Uuid
+  ordemServicoId       String                     @map("ordem_servico_id") @db.Uuid
+  categoria            CategoriaOrdemServicoAnexo
+  nome                 String                     @db.VarChar(200)
+  url                  String                     @db.VarChar(2048)
+  mimeType             String                     @map("mime_type") @db.VarChar(120)
+  tamanhoBytes         Int                        @map("tamanho_bytes")
+  uploadedPorUsuarioId String?                    @map("uploaded_por_usuario_id") @db.Uuid
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  ordemServico         OrdemServico               @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+
+  @@index([ordemServicoId, categoria])
+  @@index([empresaId, ordemServicoId])
+  @@map("ordem_servico_anexo")
 }
 
 model Notificacao {
@@ -431,6 +501,30 @@ model ConviteAcesso {
   @@index([empresaId, status])
   @@index([emailDestino])
   @@map("convite_acesso")
+}
+
+model LeituraIot {
+  id                      String           @id @default(uuid()) @db.Uuid
+  empresaId               String           @map("empresa_id") @db.Uuid
+  idUnidade               String           @map("id_unidade") @db.Uuid
+  idAtivo                 String           @map("id_ativo") @db.Uuid
+  valor                   Float
+  limiteTemp              Float            @map("limite_temp")
+  origem                  OrigemLeituraIot
+  consecutivasAcimaLimite Int              @default(0) @map("consecutivas_acima_limite")
+  osPreditivaDisparada    Boolean          @default(false) @map("os_preditiva_disparada")
+  ordemServicoId          String?          @map("ordem_servico_id") @db.Uuid
+  correlationId           String?          @map("correlation_id") @db.Uuid
+  createdAt               DateTime         @default(now()) @map("created_at")
+  empresa                 Empresa          @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  unidade                 UnidadeFabril    @relation(fields: [idUnidade], references: [id], onDelete: Cascade)
+  ativo                   Ativo            @relation(fields: [idAtivo], references: [id], onDelete: Cascade)
+  ordemServico            OrdemServico?    @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+
+  @@index([idAtivo, createdAt(sort: Desc)])
+  @@index([idUnidade, createdAt(sort: Desc)])
+  @@index([correlationId])
+  @@map("leitura_iot")
 }
 
 model IntegracaoEvento {
