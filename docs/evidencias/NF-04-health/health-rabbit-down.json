@@ -1,1 +1,0 @@
-{"status":"error","info":{"redis":{"status":"up"}},"error":{"rabbitmq":{"status":"down","message":"connect ETIMEDOUT"}},"details":{"redis":{"status":"up"},"rabbitmq":{"status":"down","message":"connect ETIMEDOUT"}}}

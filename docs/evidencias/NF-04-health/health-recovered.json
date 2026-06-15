@@ -1,1 +1,0 @@
-{"status":"error","info":{"redis":{"status":"up"}},"error":{"rabbitmq":{"status":"down","message":"connect ECONNREFUSED 172.18.0.3:5672"}},"details":{"redis":{"status":"up"},"rabbitmq":{"status":"down","message":"connect ECONNREFUSED 172.18.0.3:5672"}}}
